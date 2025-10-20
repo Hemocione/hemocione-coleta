@@ -30,11 +30,7 @@ export interface EnrichedMe extends Me {
 }
 
 export async function getMe(token: string): Promise<EnrichedMe> {
-  console.log("Getting user data...");
   const config = useRuntimeConfig();
-
-  console.log("config", config.public.hemocioneIdApiUrl);
-  console.log("token", token);
 
   const userData = await $fetch<Me>(
     `${config.public.hemocioneIdApiUrl}/users/me`,

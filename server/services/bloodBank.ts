@@ -22,3 +22,24 @@ export async function getBloodBanksByBloodBanksLocationIds(
 
   return bloodBanks;
 }
+
+export async function updateBloodBankCoverageArea(
+  bloodBanksLocationId: string,
+  coverageArea: {
+    type: "Polygon";
+    coordinates: number[][][];
+  }
+) {
+  const updatedBloodbank = await BloodBank.findOneAndUpdate(
+    { bloodBanksLocationId },
+    {
+      coverageArea: {
+        type: "Polygon",
+        coordinates: coverageArea.coordinates,
+      },
+    },
+    { new: true, lean: true }
+  );
+
+  return updatedBloodbank;
+}

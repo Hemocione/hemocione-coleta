@@ -24,5 +24,11 @@
     "vue": "^3.3.8",
     "vue-router": "^4.2.5",
     "zod": "^4.1.12"
+  },
+  "dependencies": {
+    "@mapbox/mapbox-gl-draw": "^1.5.0",
+    "@turf/turf": "^7.2.0",
+    "maplibre-gl": "^5.9.0",
+    "nuxt-maplibre": "^1.1.1"
   }
 }

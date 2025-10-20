@@ -68,6 +68,7 @@ export default defineNuxtConfig({
     "@pinia/nuxt",
     "@nuxt/image",
     "@formkit/auto-animate/nuxt",
+    "nuxt-maplibre",
   ],
   image: {
     domains: ["cdn.hemocione.com.br"],

@@ -26,18 +26,15 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 });
 
 export async function evaluateCurrentLogin(query?: LocationQuery) {
-  console.log("evaluateCurrentLogin");
   const userStore = useUserStore();
   const config = useRuntimeConfig();
 
   if (userStore.user && userStore.token) return true; // Already logged in
-  console.log("userStore.user", userStore.user);
-  console.log("userStore.token", userStore.token);
+
   const token = getCurrentToken(query);
-  console.log("token", token);
   if (!token) return false;
   let tokenIsValid = true;
-  console.log("tokenIsValid", tokenIsValid);
+
   try {
     await $fetch(`${config.public.hemocioneIdApiUrl}/users/validate-token`, {
       method: "GET",

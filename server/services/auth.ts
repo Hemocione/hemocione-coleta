@@ -70,6 +70,28 @@ export function assertHemocioneIdIntegrationSecret(event: H3Event) {
   }
 }
 
+export function assertUserAccessToBloodBanksLocationId(
+  user: HemocioneUserAuthTokenData,
+  bloodBankLocationId: string
+) {
+  if (!user.bloodBankRoles.length) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "User does not have access to any bloodbank",
+    });
+  }
+  if (
+    !user.bloodBankRoles.some(
+      (role) => role.bloodBanksLocationId === bloodBankLocationId
+    )
+  ) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "User does not have access to this bloodbank",
+    });
+  }
+}
+
 export function useHemocioneUserAuthOrHemocioneIdIntegrationSecret(
   event: H3Event
 ) {

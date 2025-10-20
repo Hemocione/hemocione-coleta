@@ -149,3 +149,165 @@ a:visited {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* MapLibre GL JS styles */
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/* Mapbox GL Draw styles */
+@import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
+
+/* Custom styles for MapLibre */
+.maplibregl-map {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Ensure map tiles load properly */
+.maplibregl-canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Ensure proper z-index for map controls */
+.maplibregl-ctrl-group {
+  z-index: 1000;
+}
+
+.maplibregl-popup {
+  z-index: 1001;
+}
+
+.maplibregl-tooltip {
+  z-index: 1002;
+}
+
+/* Minimal map styling */
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  opacity: 0.7;
+}
+
+.maplibregl-ctrl-zoom {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.maplibregl-ctrl-zoom button {
+  background: white !important;
+  color: #666 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.maplibregl-ctrl-zoom button:hover {
+  background: #f8f9fa !important;
+  color: #333 !important;
+}
+
+/* Mapbox GL Draw customizations for MapLibre */
+.maplibregl-ctrl-group .maplibregl-ctrl-draw {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-draw button {
+  background: white !important;
+  color: #666 !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  transition: all 0.2s ease !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-draw button:hover {
+  background: #f8f9fa !important;
+  color: #333 !important;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-draw button.maplibregl-ctrl-draw-polygon {
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-draw button.maplibregl-ctrl-draw-trash {
+  color: #ef4444 !important;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-draw button.maplibregl-ctrl-draw-trash:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+/* Ensure draw control icons are visible */
+.maplibregl-ctrl-draw button::before {
+  content: '' !important;
+  display: block !important;
+  width: 20px !important;
+  height: 20px !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+}
+
+.maplibregl-ctrl-draw-polygon::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z'/%3E%3C/svg%3E") !important;
+}
+
+.maplibregl-ctrl-draw-trash::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'/%3E%3C/svg%3E") !important;
+}
+
+/* Additional styles for MapboxDraw controls */
+.maplibregl-ctrl-draw {
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+.maplibregl-ctrl-draw button {
+  position: relative !important;
+  z-index: 1001 !important;
+}
+
+/* Force visibility of draw control buttons */
+.maplibregl-ctrl-draw button[title*="polygon"],
+.maplibregl-ctrl-draw button[title*="Polygon"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z'/%3E%3C/svg%3E") !important;
+  background-size: 20px 20px !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+}
+
+.maplibregl-ctrl-draw button[title*="trash"],
+.maplibregl-ctrl-draw button[title*="Trash"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'/%3E%3C/svg%3E") !important;
+  background-size: 20px 20px !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+}
+
+/* Ensure drawing lines are visible */
+.maplibregl-interactive {
+  pointer-events: auto !important;
+}
+
+/* Make sure lines are visible */
+.maplibregl-canvas-container canvas {
+  stroke-width: 4px !important;
+  stroke-opacity: 1 !important;
+}
+
+/* Custom cursor for drawing mode */
+.cursor-crosshair .maplibregl-canvas {
+  cursor: crosshair !important;
+}
+
+.cursor-crosshair .maplibregl-interactive {
+  cursor: crosshair !important;
+}

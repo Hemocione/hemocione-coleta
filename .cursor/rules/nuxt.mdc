@@ -19,3 +19,5 @@ Rules for frontend development:
 - Services can call the mongoose models to make queries.
 - ONLY LIGHT MODE SUPPORT. DONT SUPPORT DARK MODE.
 - Use NuxtImg instead of normal img tags.
+- Use fetchWithAuth instead of $fetch
+- Use useFetchWithAuth instead of useFetch

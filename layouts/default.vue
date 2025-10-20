@@ -252,7 +252,10 @@
       </header>
 
       <!-- Page Content -->
-      <main class="flex-1 overflow-y-auto p-6 scrollbar-thin">
+      <main
+        class="flex-1 overflow-y-auto scrollbar-thin"
+        :class="route.meta.noPadding ? 'p-0' : 'p-6'"
+      >
         <slot />
       </main>
     </div>
@@ -320,7 +323,7 @@ const currentPageDescription = computed(() => {
   const path = route.path;
   if (path.includes("/calendario")) return "Gerencie o calendário de coletas";
   if (path.includes("/cobertura"))
-    return "Configure a área de cobertura para coleta externa do seu banco de sangue";
+    return "Área de cobertura para coleta externa";
   if (path.includes("/times"))
     return "Organize os times disponíveis para coleta";
   if (path.includes("/restricoes"))

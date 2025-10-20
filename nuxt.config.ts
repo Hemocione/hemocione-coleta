@@ -69,6 +69,9 @@ export default defineNuxtConfig({
     "@nuxt/image",
     "@formkit/auto-animate/nuxt",
   ],
+  image: {
+    domains: ["cdn.hemocione.com.br"],
+  },
   bugsnag: {
     publishRelease: true,
     disableLog: false, // might activate later

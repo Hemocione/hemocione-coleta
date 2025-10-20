@@ -22,9 +22,13 @@
               v-if="currentBloodBankLogo"
               :src="currentBloodBankLogo"
               alt="Logo"
-              class="w-8 h-8 object-cover"
+              class="size-full object-cover"
             />
-            <UIcon v-else name="i-lucide-droplets" class="size-5 text-white" />
+            <UIcon
+              v-else
+              name="i-lucide-droplets"
+              class="size-full object-cover text-white"
+            />
           </div>
           <Transition name="fade">
             <span
@@ -38,12 +42,12 @@
         <Transition name="fade">
           <UButton
             v-if="sidebarOpen && isMobile && shouldShowMenuDetail"
-            icon="i-lucide-x"
+            icon="i-lucide-chevron-left"
             color="neutral"
             variant="ghost"
             size="sm"
             @click="sidebarOpen = false"
-            class="lg:hidden"
+            class="lg:hidden size-8 absolute top-1/2 right-[-16px] -translate-y-1/2 z-10 bg-white p-2 rounded-full border border-gray-200"
           />
         </Transition>
         <!-- Arrow buttons absolutely positioned at sidebar border -->
@@ -213,13 +217,12 @@
     >
       <!-- Top Navigation -->
       <header
-        class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30"
+        :class="[
+          'h-16 bg-white border-b border-gray-200 sticky top-0 z-30',
+          isMobile ? 'px-4' : 'px-6',
+        ]"
       >
-        <div
-          :class="`flex items-center justify-between h-16 px-${
-            isMobile ? 4 : 6
-          }`"
-        >
+        <div class="flex items-center justify-between h-16">
           <div class="flex items-center gap-4">
             <UButton
               icon="i-lucide-menu"
@@ -309,15 +312,20 @@ const currentPageTitle = computed(() => {
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/times")) return "Times de Coleta";
   if (path.includes("/restricoes")) return "Restrições";
+  if (path.includes("/solicitacoes")) return "Solicitações";
   return "Painel";
 });
 
 const currentPageDescription = computed(() => {
   const path = route.path;
   if (path.includes("/calendario")) return "Gerencie o calendário de coletas";
-  if (path.includes("/cobertura")) return "Configure áreas de cobertura";
-  if (path.includes("/times")) return "Organize times de coleta";
-  if (path.includes("/restricoes")) return "Defina restrições e regras";
+  if (path.includes("/cobertura"))
+    return "Configure a área de cobertura para coleta externa do seu banco de sangue";
+  if (path.includes("/times"))
+    return "Organize os times disponíveis para coleta";
+  if (path.includes("/restricoes"))
+    return "Defina restrições e regras para coleta externa";
+  if (path.includes("/solicitacoes")) return "Solicitações de coleta externa";
   return "Painel de controle";
 });
 
@@ -332,6 +340,11 @@ const navigationItems = [
     label: "Calendário",
     icon: "i-lucide-calendar",
     to: `/${bloodbankSlug.value}/calendario`,
+  },
+  {
+    label: "Solicitações de Coleta",
+    icon: "i-lucide-droplets",
+    to: `/${bloodbankSlug.value}/solicitacoes`,
   },
   {
     label: "Área de Cobertura",

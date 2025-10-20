@@ -42,7 +42,7 @@ export const useUserStore = defineStore("user", {
         await redirectToID("/");
         // Clear user data
       } catch (error) {
-        console.error("🚨 Error during logout:", erro r);
+        console.error("🚨 Error during logout:", error);
       }
     },
   },

@@ -212,13 +212,13 @@
 
     <!-- Main Content -->
     <div
-      class="transition-all duration-300 ease-in-out"
+      class="transition-all duration-300 ease-in-out flex flex-col h-screen"
       :class="sidebarOpen ? 'lg:ml-72' : 'lg:ml-16'"
     >
       <!-- Top Navigation -->
       <header
         :class="[
-          'h-16 bg-white border-b border-gray-200 sticky top-0 z-30',
+          'h-16 bg-white border-b border-gray-200 z-30 flex-shrink-0',
           isMobile ? 'px-4' : 'px-6',
         ]"
       >
@@ -252,7 +252,7 @@
       </header>
 
       <!-- Page Content -->
-      <main class="p-6">
+      <main class="flex-1 overflow-y-auto p-6 scrollbar-thin">
         <slot />
       </main>
     </div>

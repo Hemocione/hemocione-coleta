@@ -1,0 +1,154 @@
+/* Nuxt UI Theme Configuration for Hemocione - Light Mode Only */
+/* This file maps our custom CSS variables to Nuxt UI's expected variables */
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+:root {
+  /* Primary Colors - Hemocione Red */
+  --ui-primary: var(--hemo-color-primary);
+  --ui-color-primary-50: var(--hemo-color-primary-ultra-light);
+  --ui-color-primary-100: var(--hemo-color-primary-extra-light);
+  --ui-color-primary-200: var(--hemo-color-primary-light);
+  --ui-color-primary-300: var(--hemo-color-primary-less-light);
+  --ui-color-primary-400: var(--hemo-color-primary);
+  --ui-color-primary-500: var(--hemo-color-primary);
+  --ui-color-primary-600: var(--hemo-color-primary-less-dark);
+  --ui-color-primary-700: var(--hemo-color-primary-dark);
+  --ui-color-primary-800: var(--hemo-color-primary-dark);
+  --ui-color-primary-900: var(--hemo-color-primary-dark);
+  --ui-color-primary-950: var(--hemo-color-primary-dark);
+
+  /* Secondary Colors - Grayscale */
+  --ui-secondary: var(--hemo-color-black-60);
+  --ui-color-secondary-50: var(--hemo-color-black-5);
+  --ui-color-secondary-100: var(--hemo-color-gray);
+  --ui-color-secondary-200: var(--hemo-color-black-10);
+  --ui-color-secondary-300: var(--hemo-color-black-15);
+  --ui-color-secondary-400: var(--hemo-color-black-20);
+  --ui-color-secondary-500: var(--hemo-color-black-60);
+  --ui-color-secondary-600: var(--hemo-color-black-70);
+  --ui-color-secondary-700: var(--hemo-color-black-80);
+  --ui-color-secondary-800: var(--hemo-color-black-90);
+  --ui-color-secondary-900: var(--hemo-color-black-100);
+  --ui-color-secondary-950: var(--hemo-color-black-100);
+
+  /* Success Colors - Hemocione Green */
+  --ui-success: var(--hemo-color-success);
+  --ui-color-success-50: #f0fdf4;
+  --ui-color-success-100: #dcfce7;
+  --ui-color-success-200: #bbf7d0;
+  --ui-color-success-300: #86efac;
+  --ui-color-success-400: #4ade80;
+  --ui-color-success-500: var(--hemo-color-success);
+  --ui-color-success-600: #16a34a;
+  --ui-color-success-700: #15803d;
+  --ui-color-success-800: #166534;
+  --ui-color-success-900: #14532d;
+  --ui-color-success-950: #052e16;
+
+  /* Warning Colors - Hemocione Orange */
+  --ui-warning: var(--hemo-color-warn);
+  --ui-color-warning-50: #fffbeb;
+  --ui-color-warning-100: #fef3c7;
+  --ui-color-warning-200: #fde68a;
+  --ui-color-warning-300: #fcd34d;
+  --ui-color-warning-400: #fbbf24;
+  --ui-color-warning-500: var(--hemo-color-warn);
+  --ui-color-warning-600: #d97706;
+  --ui-color-warning-700: #b45309;
+  --ui-color-warning-800: #92400e;
+  --ui-color-warning-900: #78350f;
+  --ui-color-warning-950: #451a03;
+
+  /* Error Colors - Use warning color for error */
+  --ui-error: var(--hemo-color-warn);
+  --ui-color-error-50: #fffbeb;
+  --ui-color-error-100: #fef3c7;
+  --ui-color-error-200: #fde68a;
+  --ui-color-error-300: #fcd34d;
+  --ui-color-error-400: #fbbf24;
+  --ui-color-error-500: var(--hemo-color-warn);
+  --ui-color-error-600: #d97706;
+  --ui-color-error-700: #b45309;
+  --ui-color-error-800: #92400e;
+  --ui-color-error-900: #78350f;
+  --ui-color-error-950: #451a03;
+
+  /* Info Colors - Use primary color for info */
+  --ui-info: var(--hemo-color-primary);
+  --ui-color-info-50: var(--hemo-color-primary-ultra-light);
+  --ui-color-info-100: var(--hemo-color-primary-extra-light);
+  --ui-color-info-200: var(--hemo-color-primary-light);
+  --ui-color-info-300: var(--hemo-color-primary-less-light);
+  --ui-color-info-400: var(--hemo-color-primary);
+  --ui-color-info-500: var(--hemo-color-primary);
+  --ui-color-info-600: var(--hemo-color-primary-less-dark);
+  --ui-color-info-700: var(--hemo-color-primary-dark);
+  --ui-color-info-800: var(--hemo-color-primary-dark);
+  --ui-color-info-900: var(--hemo-color-primary-dark);
+  --ui-color-info-950: var(--hemo-color-primary-dark);
+
+  /* Neutral Colors - Grayscale */
+  --ui-color-neutral-50: var(--hemo-color-black-5);
+  --ui-color-neutral-100: var(--hemo-color-gray);
+  --ui-color-neutral-200: var(--hemo-color-black-10);
+  --ui-color-neutral-300: var(--hemo-color-black-15);
+  --ui-color-neutral-400: var(--hemo-color-black-20);
+  --ui-color-neutral-500: var(--hemo-color-black-60);
+  --ui-color-neutral-600: var(--hemo-color-black-70);
+  --ui-color-neutral-700: var(--hemo-color-black-80);
+  --ui-color-neutral-800: var(--hemo-color-black-90);
+  --ui-color-neutral-900: var(--hemo-color-black-100);
+  --ui-color-neutral-950: var(--hemo-color-black-100);
+
+  /* Text Colors - Light theme only */
+  --ui-text: var(--hemo-color-text-secondary);
+  --ui-text-dimmed: var(--hemo-color-black-60);
+  --ui-text-muted: var(--hemo-color-black-70);
+  --ui-text-toned: var(--hemo-color-black-80);
+  --ui-text-highlighted: var(--hemo-color-black-100);
+  --ui-text-inverted: var(--hemo-color-white);
+
+  /* Background Colors - Light theme only */
+  --ui-bg: var(--hemo-color-white);
+  --ui-bg-muted: var(--hemo-color-gray);
+  --ui-bg-elevated: var(--hemo-color-black-5);
+  --ui-bg-accented: var(--hemo-color-black-10);
+  --ui-bg-inverted: var(--hemo-color-black-100);
+
+  /* Border Colors - Light theme only */
+  --ui-border: var(--hemo-color-black-20);
+  --ui-border-muted: var(--hemo-color-black-15);
+  --ui-border-accented: var(--hemo-color-black-20);
+  --ui-border-inverted: var(--hemo-color-black-100);
+
+  /* Radius - Use our existing border radius */
+  --ui-radius: var(--el-border-radius-base);
+
+  /* Container - Use our page max width */
+  --ui-container: var(--hemo-page-max-width);
+
+  /* Header Height - Use our navbar height */
+  --ui-header-height: var(--navbar-height);
+}
+
+/* Force light mode only - disable dark mode */
+.dark {
+  /* Override any dark mode styles to use light mode colors */
+  --ui-primary: var(--hemo-color-primary);
+  --ui-text: var(--hemo-color-text-secondary);
+  --ui-bg: var(--hemo-color-white);
+  --ui-border: var(--hemo-color-black-20);
+}
+
+/* Override body styles to use our existing background */
+body {
+  background-color: var(--hemo-color-black-10) !important;
+  color: var(--hemo-color-text-secondary) !important;
+}
+
+/* Ensure dark mode classes don't affect our light theme */
+.dark body {
+  background-color: var(--hemo-color-black-10) !important;
+  color: var(--hemo-color-text-secondary) !important;
+}

@@ -1,0 +1,21 @@
+---
+alwaysApply: true
+---
+
+Rules for frontend development:
+
+- The local frontend is always running on localhost:3000
+- Always prefer building stuff with Nuxt UI Components over normal html tags
+- Always use the Nuxt UI MCP to check for existing components and their doc before implementing anything
+- Always use the playwright MCP as you code to test out changes. When everything is working and validated, write an e2e spec for the changes.
+- Always make sure that things are smooth - animations and transitions should be a default.
+- Transitions should be centralized at assets/css/transitions.css
+- Animations should use v-auto-animate whenever possible (module already setup). Use the docs https://auto-animate.formkit.com/#usage-vue for reference
+- Always use brazilian portuguese for all text.
+- Always use <script setup lang="ts"> for the script blocks in vue components
+- For testing on the frontend, you can use the credentials email guima+bloodbank@hemocione.com.br and password hemocione123
+- Use Yarn
+- Api routes should use the /v1/ prefix and only call services.
+- Services can call the mongoose models to make queries.
+- ONLY LIGHT MODE SUPPORT. DONT SUPPORT DARK MODE.
+- Use NuxtImg instead of normal img tags.

@@ -10,28 +10,62 @@
       </div>
     </div>
 
-    <!-- Teams Grid -->
-    <div
-      v-else
-      class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
-    >
+    <!-- Teams List -->
+    <div v-else class="space-y-3">
       <!-- Existing Teams -->
       <div
         v-for="team in teams"
         :key="team._id"
-        class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer group relative"
-        @click="startEdit(team)"
+        class="group bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-200 flex items-center space-x-4"
       >
-        <div
-          class="flex flex-col items-center justify-center h-full min-h-[120px]"
-        >
-          <!-- Color Indicator -->
+        <!-- Team Color Avatar -->
+        <div class="relative">
           <div
-            class="w-16 h-16 rounded-full border-2 border-gray-200 mb-4 group-hover:scale-110 transition-transform"
+            class="w-10 h-10 rounded-full border-2 border-gray-200 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform"
             :style="{ backgroundColor: team.color }"
+            @click.stop="toggleColorPicker(team._id)"
           ></div>
+          <!-- Color Picker Dropdown -->
+          <div
+            v-if="showColorPicker === team._id"
+            class="absolute top-12 left-12 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-20 min-w-[200px]"
+            @click.stop
+          >
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-sm font-semibold text-gray-800">Alterar Cor</p>
+              <button
+                @click="showColorPicker = null"
+                class="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <UIcon name="i-lucide-x" class="w-4 h-4" />
+              </button>
+            </div>
+            <div class="grid grid-cols-4 gap-3">
+              <button
+                v-for="color in TEAM_COLORS"
+                :key="color.hex"
+                @click="updateTeamColor(team, color.hex)"
+                :class="[
+                  'w-10 h-10 rounded-full border-2 transition-all duration-200 hover:scale-110 hover:shadow-md',
+                  team.color === color.hex
+                    ? 'border-gray-800 ring-2 ring-blue-500 shadow-lg'
+                    : 'border-gray-200 hover:border-gray-300',
+                ]"
+                :style="{ backgroundColor: color.hex }"
+                :title="color.name"
+              />
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-100">
+              <p class="text-xs text-gray-500 text-center">
+                Cor atual:
+                <span class="font-medium">{{ getColorName(team.color) }}</span>
+              </p>
+            </div>
+          </div>
+        </div>
 
-          <!-- Team Name -->
+        <!-- Team Name -->
+        <div class="flex-1 min-w-0">
           <input
             v-if="editingTeam === team._id"
             v-model="editingName"
@@ -40,106 +74,49 @@
             @keyup.escape="cancelEdit"
             @click.stop
             :disabled="isUpdatingName"
-            class="text-center text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none w-full disabled:opacity-50"
+            :maxlength="50"
+            class="w-full text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none disabled:opacity-50"
             ref="nameInput"
           />
           <h3
             v-else
-            class="text-lg font-semibold text-gray-900 text-center group-hover:text-blue-600 transition-colors"
+            class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors cursor-pointer truncate"
+            @click="startEditName(team)"
+            :title="team.name"
           >
             {{ team.name }}
           </h3>
         </div>
 
-        <!-- Actions (hidden by default, shown on hover) -->
-        <div
-          class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <div class="flex items-center space-x-1">
-            <!-- Color Picker -->
-            <div class="relative">
-              <UButton
-                variant="ghost"
-                size="sm"
-                :style="{ backgroundColor: team.color }"
-                class="w-6 h-6 rounded-full border border-gray-300 hover:scale-110 transition-transform"
-                @click.stop="toggleColorPicker(team._id)"
-              />
-              <!-- Color Picker Dropdown -->
-              <div
-                v-if="showColorPicker === team._id"
-                class="absolute top-8 right-0 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-20 min-w-[200px]"
-                @click.stop
-              >
-                <div class="flex items-center justify-between mb-3">
-                  <p class="text-sm font-semibold text-gray-800">Alterar Cor</p>
-                  <button
-                    @click="showColorPicker = null"
-                    class="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <UIcon name="i-lucide-x" class="w-4 h-4" />
-                  </button>
-                </div>
-                <div class="grid grid-cols-4 gap-3">
-                  <button
-                    v-for="color in TEAM_COLORS"
-                    :key="color.hex"
-                    @click="updateTeamColor(team, color.hex)"
-                    :class="[
-                      'w-10 h-10 rounded-full border-2 transition-all duration-200 hover:scale-110 hover:shadow-md',
-                      team.color === color.hex
-                        ? 'border-gray-800 ring-2 ring-blue-500 shadow-lg'
-                        : 'border-gray-200 hover:border-gray-300',
-                    ]"
-                    :style="{ backgroundColor: color.hex }"
-                    :title="color.name"
-                  />
-                </div>
-                <div class="mt-3 pt-3 border-t border-gray-100">
-                  <p class="text-xs text-gray-500 text-center">
-                    Cor atual:
-                    <span class="font-medium">{{
-                      getColorName(team.color)
-                    }}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Delete Button -->
-            <UButton
-              @click.stop="confirmDeleteTeam(team)"
-              variant="ghost"
-              color="error"
-              size="sm"
-              icon="i-lucide-trash-2"
-            />
-          </div>
+        <!-- Actions -->
+        <div class="flex items-center space-x-2">
+          <!-- Delete Button -->
+          <UButton
+            variant="ghost"
+            size="sm"
+            color="error"
+            icon="i-lucide-trash-2"
+            @click.stop="confirmDeleteTeam(team)"
+            class="hover:bg-red-50"
+          />
         </div>
       </div>
 
-      <!-- Add New Team Card -->
+      <!-- Add New Team Button -->
       <div
+        class="group bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer flex items-center space-x-4"
         @click="showCreateTeamModal = true"
-        class="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer group"
       >
         <div
-          class="flex flex-col items-center justify-center h-full min-h-[120px]"
+          class="w-10 h-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 group-hover:text-blue-500 group-hover:border-blue-400 transition-colors"
         >
-          <div
-            class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 group-hover:scale-110 transition-all"
-          >
-            <UIcon
-              name="i-lucide-plus"
-              class="w-8 h-8 text-gray-400 group-hover:text-blue-500"
-            />
-          </div>
-          <h3
-            class="text-lg font-semibold text-gray-700 group-hover:text-blue-600 transition-colors text-center"
-          >
-            Adicionar Equipe
-          </h3>
+          <UIcon name="i-lucide-plus" class="w-5 h-5" />
         </div>
+        <h3
+          class="text-lg font-semibold text-gray-500 group-hover:text-blue-600 transition-colors"
+        >
+          Adicionar Equipe
+        </h3>
       </div>
     </div>
 
@@ -318,13 +295,13 @@ const createTeam = async () => {
   } catch (error: any) {
     useToast().add({
       title: "Erro ao criar equipe",
-      description: error.message || "Tente novamente mais tarde.",
+      description: "Tente novamente mais tarde.",
       color: "error",
     });
   }
 };
 
-const startEdit = (team: any) => {
+const startEditName = (team: any) => {
   editingTeam.value = team._id;
   editingName.value = team.name;
 
@@ -345,7 +322,7 @@ const saveTeamName = async (team: any) => {
   }
 
   const newName = editingName.value.trim();
-  
+
   // Validate name is not empty
   if (!newName) {
     useToast().add({
@@ -373,7 +350,6 @@ const saveTeamName = async (team: any) => {
   } catch (error: any) {
     useToast().add({
       title: "Erro ao atualizar nome",
-      description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
   } finally {
@@ -409,7 +385,6 @@ const updateTeamColor = async (team: any, color: string) => {
   } catch (error: any) {
     useToast().add({
       title: "Erro ao atualizar cor",
-      description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
   }
@@ -440,7 +415,6 @@ const deleteTeam = async () => {
   } catch (error: any) {
     useToast().add({
       title: "Erro ao excluir equipe",
-      description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
   }

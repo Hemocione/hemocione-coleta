@@ -1,5 +1,10 @@
 <template>
-  <div class="h-full w-full relative overflow-hidden">
+  <div
+    :class="[
+      'h-full w-full relative overflow-hidden',
+      isMobile ? '' : 'border-2 border-gray-200 rounded-lg',
+    ]"
+  >
     <!-- Map Container - Full Screen -->
     <div class="absolute inset-0">
       <MglMap
@@ -207,15 +212,16 @@ import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 
+const isMobile = computed(() => {
+  return window.innerWidth < 640;
+});
+
 // Define page meta to disable layout padding
 definePageMeta({
   layout: "default",
-  noPadding: true,
+  noPadding: isMobile.value,
   keepalive: false,
 });
-
-// Get route params
-const route = useRoute();
 
 // Initialize stores
 const userStore = useUserStore();

@@ -119,29 +119,6 @@
           <h3 class="font-bold text-grey-800 text-lg tracking-tight">
             Área de Cobertura
           </h3>
-          <div class="flex items-center space-x-2">
-            <!-- Edit button - More visible -->
-            <button
-              @click="toggleEditMode"
-              class="bg-blue-500 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
-              title="Editar área"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                />
-              </svg>
-              <span class="text-sm font-medium">Editar</span>
-            </button>
-          </div>
         </div>
         <div class="space-y-1 text-sm text-grey-600">
           <p class="flex items-center justify-between">

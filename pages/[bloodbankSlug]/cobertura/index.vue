@@ -211,6 +211,7 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 definePageMeta({
   layout: "default",
   noPadding: true,
+  keepalive: false,
 });
 
 // Get route params

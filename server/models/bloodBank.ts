@@ -58,6 +58,46 @@ const AreaSchema = new Schema(
   { _id: false }
 );
 
+// Restriction Checklist Item
+const RestrictionItemSchema = new Schema(
+  {
+    slug: {
+      type: String,
+      required: true,
+      validate: {
+        validator: function (v: string) {
+          return /^[a-z0-9-]+$/.test(v);
+        },
+        message:
+          "Slug must contain only lowercase letters, numbers, and hyphens",
+      },
+    },
+    title: {
+      type: String,
+      required: true,
+      maxlength: 100,
+      validate: {
+        validator: function (v: string) {
+          return v.trim().length > 0;
+        },
+        message: "Title cannot be empty",
+      },
+    },
+    description: {
+      type: String,
+      required: true,
+      maxlength: 1000,
+      validate: {
+        validator: function (v: string) {
+          return v.trim().length > 0;
+        },
+        message: "Description cannot be empty",
+      },
+    },
+  },
+  { _id: false }
+);
+
 export const BloodBankSchema = new Schema(
   {
     _id: { type: String, required: true },
@@ -79,6 +119,21 @@ export const BloodBankSchema = new Schema(
     coverageArea: {
       type: AreaSchema,
       required: false,
+    },
+    restrictionChecklist: {
+      type: [RestrictionItemSchema],
+      default: [],
+      validate: {
+        validator: function (items: any[]) {
+          if (!Array.isArray(items)) return false;
+
+          // Check for duplicate slugs within the array
+          const slugs = items.map((item) => item.slug);
+          const uniqueSlugs = new Set(slugs);
+          return slugs.length === uniqueSlugs.size;
+        },
+        message: "All restriction items must have unique slugs",
+      },
     },
   },
   { timestamps: true }

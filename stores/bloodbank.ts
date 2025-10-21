@@ -40,14 +40,22 @@ export interface Team {
   updatedAt: Date;
 }
 
+export interface RestrictionItem {
+  slug: string;
+  title: string;
+  description: string;
+}
+
 export const useBloodbankStore = defineStore("bloodbank", {
   state: () => ({
     bloodbankData: null as BloodbankData | null,
     currentCoverageArea: null as CoverageArea | null,
     teams: [] as Team[],
+    restrictionChecklist: [] as RestrictionItem[],
     isLoading: false,
     isSaving: false,
     isLoadingTeams: false,
+    isLoadingRestrictions: false,
     error: null as string | null,
   }),
 
@@ -267,6 +275,137 @@ export const useBloodbankStore = defineStore("bloodbank", {
         throw error;
       } finally {
         this.isLoadingTeams = false;
+      }
+    },
+
+    // Restriction Checklist Actions
+    async loadRestrictionChecklist(bloodBanksLocationId: string) {
+      this.isLoadingRestrictions = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/restrictions`
+        );
+
+        if (response.success) {
+          this.restrictionChecklist = response.data as RestrictionItem[];
+          return response.data;
+        } else {
+          throw new Error("Failed to load restriction checklist");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error loading restriction checklist";
+        console.error("Error loading restriction checklist:", error);
+        throw error;
+      } finally {
+        this.isLoadingRestrictions = false;
+      }
+    },
+
+    async addRestrictionItem(
+      bloodBanksLocationId: string,
+      title: string,
+      description: string
+    ) {
+      this.isLoadingRestrictions = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/restrictions`,
+          {
+            method: "POST",
+            body: { title, description },
+          }
+        );
+
+        if (response.success) {
+          this.restrictionChecklist = response.data as RestrictionItem[];
+          return response.data;
+        } else {
+          throw new Error("Failed to add restriction item");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error adding restriction item";
+        console.error("Error adding restriction item:", error);
+        throw error;
+      } finally {
+        this.isLoadingRestrictions = false;
+      }
+    },
+
+    async updateRestrictionItem(
+      bloodBanksLocationId: string,
+      slug: string,
+      updates: { title?: string; description?: string }
+    ) {
+      this.error = null;
+
+      // Update local state immediately for instant UI feedback
+      const itemIndex = this.restrictionChecklist.findIndex(
+        (item) => item.slug === slug
+      );
+      if (itemIndex !== -1) {
+        this.restrictionChecklist[itemIndex] = {
+          ...this.restrictionChecklist[itemIndex],
+          ...updates,
+        };
+      }
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/restrictions/${slug}`,
+          {
+            method: "PUT",
+            body: updates,
+          }
+        );
+
+        if (response.success) {
+          // Update with server response to ensure consistency
+          this.restrictionChecklist = response.data as RestrictionItem[];
+          return response.data;
+        } else {
+          throw new Error("Failed to update restriction item");
+        }
+      } catch (error: any) {
+        // Revert local changes on error by reloading from server
+        try {
+          await this.loadRestrictionChecklist(bloodBanksLocationId);
+        } catch (reloadError) {
+          console.error("Error reloading restriction checklist:", reloadError);
+        }
+        this.error = error.message || "Error updating restriction item";
+        console.error("Error updating restriction item:", error);
+        throw error;
+      }
+    },
+
+    async deleteRestrictionItem(bloodBanksLocationId: string, slug: string) {
+      this.isLoadingRestrictions = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/restrictions/${slug}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        if (response.success) {
+          this.restrictionChecklist = response.data as RestrictionItem[];
+          return true;
+        } else {
+          throw new Error("Failed to delete restriction item");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error deleting restriction item";
+        console.error("Error deleting restriction item:", error);
+        throw error;
+      } finally {
+        this.isLoadingRestrictions = false;
       }
     },
   },

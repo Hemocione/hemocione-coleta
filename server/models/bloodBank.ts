@@ -1,4 +1,4 @@
-import { InferSchemaType, Schema, model } from "mongoose";
+import { Schema, model, InferSchemaType } from "mongoose";
 
 // Point: [longitude, latitude]
 const PointSchema = new Schema({
@@ -63,7 +63,11 @@ export const BloodBankSchema = new Schema(
     _id: { type: String, required: true },
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
-    bloodBanksLocationId: { type: String, required: true, unique: true },
+    bloodBanksLocationId: {
+      type: Schema.Types.UUID,
+      required: true,
+      unique: true,
+    },
     active: { type: Boolean, default: false, required: true },
     logo: { type: String, default: null, required: false },
     activatedAt: { type: Date, default: null },
@@ -85,5 +89,4 @@ BloodBankSchema.index({ location: "2dsphere" });
 BloodBankSchema.index({ coverageArea: "2dsphere" });
 
 export type BloodBankSchema = InferSchemaType<typeof BloodBankSchema>;
-
 export const BloodBank = model<BloodBankSchema>("BloodBank", BloodBankSchema);

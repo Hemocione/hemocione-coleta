@@ -49,12 +49,9 @@ export async function getMe(token: string): Promise<EnrichedMe> {
     throw new Error("No blood bank roles found");
   }
 
-  console.log("jwtUserData", jwtUserData);
   const localBloodBanks = await getBloodBanksByBloodBanksLocationIds(
     jwtUserData.bloodBankRoles.map((role) => role.bloodBanksLocationId)
   );
-
-  console.log("localBloodBanks", localBloodBanks);
 
   if (!localBloodBanks.length) {
     throw new Error("No blood banks found");
@@ -63,7 +60,9 @@ export async function getMe(token: string): Promise<EnrichedMe> {
   const enrichedBloodBankRoles: EnrichedBloodBankRole[] = localBloodBanks
     .map((bloodBank) => {
       const bloodBankRole = jwtUserData.bloodBankRoles.find(
-        (role) => role.bloodBanksLocationId === bloodBank.bloodBanksLocationId
+        (role) =>
+          role.bloodBanksLocationId.toString() ===
+          bloodBank.bloodBanksLocationId.toString()
       );
 
       if (!bloodBankRole) {
@@ -71,7 +70,7 @@ export async function getMe(token: string): Promise<EnrichedMe> {
       }
 
       return {
-        bloodBanksLocationId: bloodBank.bloodBanksLocationId,
+        bloodBanksLocationId: bloodBank.bloodBanksLocationId.toString(),
         role: bloodBankRole.role,
         slug: bloodBank.slug,
         active: bloodBank.active,

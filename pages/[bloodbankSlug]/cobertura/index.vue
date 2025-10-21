@@ -80,29 +80,32 @@
 
       <!-- Top Controls Overlay -->
       <div class="absolute top-4 left-4 z-[1000] flex items-center space-x-3">
-        <!-- Save Coverage Area button -->
-        <button
-          @click="saveCoverageArea"
-          :disabled="!canSave || isSaving"
-          class="bg-green-500 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none cursor-pointer"
-        >
-          <div
-            v-if="isSaving"
-            class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"
-          ></div>
-          <UIcon v-else name="i-lucide-save" class="w-5 h-5" />
-          <span class="font-medium">{{
-            isSaving ? "Salvando..." : "Salvar Área"
-          }}</span>
-        </button>
-
-        <!-- Custom Drawing Controls -->
-        <div class="flex items-center space-x-2">
-          <!-- Polygon Drawing Button -->
+        <!-- Control Buttons Container with v-auto-animate -->
+        <div v-auto-animate class="flex items-center space-x-3">
+          <!-- Save Coverage Area button -->
           <button
+            key="save-button"
+            @click="saveCoverageArea"
+            :disabled="!canSave || isSaving"
+            class="bg-green-500 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none cursor-pointer h-10 min-h-[2.5rem] min-w-[150px] whitespace-nowrap"
+          >
+            <div
+              v-if="isSaving"
+              class="animate-spin rounded-full h-4 w-4 border-b-2 border-white flex-shrink-0"
+            ></div>
+            <UIcon v-else name="i-lucide-save" class="w-5 h-5 flex-shrink-0" />
+            <span class="font-medium flex-shrink-0">{{
+              isSaving ? "Salvando..." : "Salvar Área"
+            }}</span>
+          </button>
+
+          <!-- Polygon Drawing Button (only show when no pending changes) -->
+          <button
+            v-if="!hasChanges"
+            key="edit-button"
             @click="activatePolygonTool"
             :class="[
-              'drawing-control-btn',
+              'drawing-control-btn h-10 min-h-[2.5rem]',
               isDrawing
                 ? 'drawing-control-btn-active'
                 : 'drawing-control-btn-inactive',
@@ -112,11 +115,12 @@
             <UIcon name="i-lucide-pen-line" class="w-6 h-6" />
           </button>
 
-          <!-- Delete Button (only show during drawing mode) -->
+          <!-- Delete Button (only show during drawing mode or when has changes) -->
           <button
-            v-if="isDrawing"
+            v-if="isDrawing || hasChanges"
+            key="delete-button"
             @click="activateDeleteTool"
-            class="drawing-control-btn drawing-control-btn-danger"
+            class="drawing-control-btn drawing-control-btn-danger h-10 min-h-[2.5rem]"
             title="Limpar área de cobertura"
           >
             <UIcon name="i-lucide-trash" class="w-6 h-6" />
@@ -832,6 +836,7 @@ await loadBloodbankData();
 .drawing-control-btn {
   width: 3rem;
   height: 2.5rem; /* Match the height of Salvar Área button (py-2 = 0.5rem top + 0.5rem bottom + text height) */
+  min-height: 2.5rem; /* Ensure minimum height */
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -846,6 +851,7 @@ await loadBloodbankData();
   cursor: pointer;
   opacity: 1;
   transform: scale(1);
+  flex-shrink: 0; /* Prevent shrinking during animations */
 }
 
 .drawing-control-btn:hover {

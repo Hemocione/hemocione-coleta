@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
@@ -304,6 +304,46 @@ const canSave = computed(() => {
 
 // Methods
 const bloodbankPopupFadeClass = "fade-slide-enter-active fade-slide-enter-from";
+
+// Define a custom locked draw mode to disable editing outside of draw mode
+const LockedDrawMode: any = {
+  onSetup() {
+    // disable actionable controls while static
+    // trash/combine/uncombine actions should be disabled
+    // (selection is effectively ignored in this mode)
+    // @ts-ignore - draw mode context
+    this.setActionableState({
+      trash: false,
+      combineFeatures: false,
+      uncombineFeatures: false,
+    });
+    return {};
+  },
+  toDisplayFeatures(_state: any, geojson: any, display: (g: any) => void) {
+    display(geojson);
+  },
+  onClick() {
+    return;
+  },
+  onTap() {
+    return;
+  },
+  onMouseMove() {
+    return;
+  },
+  onMouseDown() {
+    return;
+  },
+  onDrag() {
+    return;
+  },
+  onKeyUp() {
+    return;
+  },
+  onTrash() {
+    return;
+  },
+};
 const loadBloodbankData = async () => {
   const currentBloodBankRole = userStore.currentBloodBankRole;
 
@@ -408,6 +448,8 @@ const initializeMap = async () => {
     mapBoxDraw.constants.classes.CONTROL_GROUP = "maplibregl-ctrl-group";
     mapBoxDraw.constants.classes.ATTRIBUTION = "maplibregl-ctrl-attrib";
     draw.value = new MapboxDraw({
+      // add locked mode to prevent edits when not drawing
+      modes: { ...(mapBoxDraw.modes || {}), locked: LockedDrawMode },
       displayControlsDefault: false,
       controls: {
         polygon: true,
@@ -442,16 +484,21 @@ const initializeMap = async () => {
           type: "fill",
           filter: ["all", ["==", "$type", "Polygon"], ["==", "mode", "static"]],
           paint: {
-            "fill-color": "#10b981",
-            "fill-outline-color": "#10b981",
+            "fill-color": "#6b7280",
+            "fill-outline-color": "#6b7280",
             "fill-opacity": 0.3,
           },
         },
-        // Polygon outline - Active
+        // Polygon outline - Active (exclude persisted/static features)
         {
           id: "gl-draw-polygon-stroke-active",
           type: "line",
-          filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "true"]],
+          filter: [
+            "all",
+            ["==", "$type", "Polygon"],
+            ["==", "active", "true"],
+            ["!=", "mode", "static"],
+          ],
           layout: {
             "line-cap": "round",
             "line-join": "round",
@@ -462,7 +509,7 @@ const initializeMap = async () => {
             "line-width": 2,
           },
         },
-        // Polygon outline - Inactive
+        // Polygon outline - Inactive (exclude persisted/static features)
         {
           id: "gl-draw-polygon-stroke-inactive",
           type: "line",
@@ -470,6 +517,7 @@ const initializeMap = async () => {
             "all",
             ["==", "$type", "Polygon"],
             ["==", "active", "false"],
+            ["!=", "mode", "static"],
           ],
           layout: {
             "line-cap": "round",
@@ -490,7 +538,7 @@ const initializeMap = async () => {
             "line-join": "round",
           },
           paint: {
-            "line-color": "#059669",
+            "line-color": "#6b7280",
             "line-width": 3,
             "line-opacity": 0.8,
           },
@@ -557,6 +605,13 @@ const initializeMap = async () => {
     });
 
     console.log("Event listeners added");
+
+    // Lock map in non-edit mode by default (no editing)
+    try {
+      draw.value.changeMode("locked");
+    } catch (e) {
+      // ignore if mode not available for any reason
+    }
 
     // Center map to bloodbank location if available
     if (bloodbankData.value?.location) {
@@ -637,6 +692,15 @@ const updateCoverageAreaFromFeature = async (feature: any) => {
     console.log("Created coverage area object:", coverageArea);
     bloodbankStore.setCurrentCoverageArea(coverageArea);
     console.log("currentCoverageArea set to:", coverageArea);
+
+    // Exit editing immediately; prevent moving polygon outside draw mode
+    if (draw.value) {
+      try {
+        draw.value.changeMode("locked");
+      } catch (e) {
+        // ignore
+      }
+    }
   } catch (error) {
     console.error("Error updating coverage area from feature:", error);
   }
@@ -683,7 +747,11 @@ const saveCoverageArea = async () => {
 
     // Set the polygon to static mode so it can't be dragged after saving
     if (draw.value) {
-      draw.value.changeMode("simple_select");
+      try {
+        draw.value.changeMode("locked");
+      } catch (e) {
+        // ignore
+      }
       // Remove all features and re-add them in static mode
       const allFeatures = draw.value.getAll();
 
@@ -719,28 +787,38 @@ const saveCoverageArea = async () => {
 };
 
 const activatePolygonTool = () => {
-  // Find and click the MapLibre polygon tool button
-  const polygonButton = document.querySelector(
-    ".mapbox-gl-draw_ctrl-draw-btn.mapbox-gl-draw_polygon"
-  );
-  if (polygonButton) {
-    polygonButton.click();
-    console.log("Polygon tool activated");
-  } else {
-    console.warn("Polygon tool button not found");
+  // Switch Draw to polygon mode programmatically
+  if (draw.value) {
+    try {
+      draw.value.changeMode("draw_polygon");
+      isDrawing.value = true;
+      console.log("Polygon tool activated");
+    } catch (e) {
+      console.warn("Failed to activate polygon mode", e);
+    }
   }
 };
 
 const activateDeleteTool = () => {
-  // Find and click the MapLibre delete tool button
-  const deleteButton = document.querySelector(
-    ".mapbox-gl-draw_ctrl-draw-btn.mapbox-gl-draw_trash"
-  );
-  if (deleteButton) {
-    deleteButton.click();
-    console.log("Delete tool activated");
-  } else {
-    console.warn("Delete tool button not found");
+  // Delete only non-persisted (non-static) polygons and exit any draw mode
+  if (!draw.value) return;
+  try {
+    const all = draw.value.getAll();
+    all.features
+      .filter((f: any) => f?.properties?.mode !== "static")
+      .forEach((f: any) => draw.value.delete(f.id));
+
+    // cancel current drawing if active
+    try {
+      draw.value.changeMode("locked");
+    } catch (_) {}
+
+    // clear current in-store coverage area
+    clearCoverageAreaFromMap();
+    isDrawing.value = false;
+    console.log("Non-static features deleted and mode set to static");
+  } catch (e) {
+    console.warn("Failed to delete features", e);
   }
 };
 

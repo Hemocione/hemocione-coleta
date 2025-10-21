@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-gray-50">
     <!-- Sidebar -->
     <div
-      class="fixed inset-y-0 left-0 z-50 bg-white shadow-xl transform transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-gray-200 flex flex-col"
+      class="fixed inset-y-0 left-0 z-[1100] bg-white shadow-xl transform transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-gray-200 flex flex-col"
       :class="{
         '-translate-x-full': !sidebarOpen,
         'translate-x-0': sidebarOpen,
@@ -206,7 +206,7 @@
     <!-- Overlay for mobile only -->
     <div
       v-if="sidebarOpen && isMobile"
-      class="fixed inset-0 z-40 bg-black/50 transition-all duration-300 ease-in-out"
+      class="fixed inset-0 z-[1050] bg-black/50 transition-all duration-300 ease-in-out"
       @click="sidebarOpen = false"
     />
 

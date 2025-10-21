@@ -1,84 +1,68 @@
 <template>
-  <div
-    class="h-screen w-full relative overflow-hidden"
-    style="height: 100vh; height: 100dvh"
-  >
+  <div class="h-full w-full relative overflow-hidden">
     <!-- Map Container - Full Screen -->
     <div class="absolute inset-0">
-      <ClientOnly>
-        <MglMap
-          :map-style="mapStyle"
-          :center="mapCenter"
-          :zoom="zoom"
-          ref="mapRef"
+      <MglMap
+        :map-style="mapStyle"
+        :center="mapCenter"
+        :zoom="zoom"
+        ref="mapRef"
+      >
+        <MglNavigationControl />
+        <!-- Bloodbank Location Marker -->
+        <MglMarker
+          v-if="bloodbankData?.location"
+          :coordinates="[
+            bloodbankData.location.coordinates[0],
+            bloodbankData.location.coordinates[1],
+          ]"
+          :color="'#bb0a08'"
         >
-          <MglNavigationControl />
-          <!-- Bloodbank Location Marker -->
-          <MglMarker
-            v-if="bloodbankData?.location"
-            :coordinates="[
-              bloodbankData.location.coordinates[0],
-              bloodbankData.location.coordinates[1],
-            ]"
+          <!-- MglPopup for bloodbank info -->
+          <MglPopup
+            ref="bloodbankPopup"
+            :close-button="false"
+            :class-name="bloodbankPopupFadeClass"
+            :offset="[0, -40]"
           >
-            <div class="bloodbank-marker">
-              <div class="marker-icon">
-                <svg
-                  class="w-6 h-6 text-red-600"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
+            <div class="flex items-center space-x-3">
+              <div class="flex-shrink-0">
+                <NuxtImg
+                  v-if="bloodbankData.logo"
+                  :src="bloodbankData.logo"
+                  :alt="`Logo do ${bloodbankData.name}`"
+                  class="w-8 h-8 rounded-full object-cover"
+                />
+                <div
+                  v-else
+                  class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center"
                 >
-                  <path
-                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-                  />
-                </svg>
+                  <svg
+                    class="w-5 h-5 text-red-600"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                    />
+                  </svg>
+                </div>
               </div>
-              <div class="marker-label">
+              <h3 class="text-lg font-semibold text-grey-800">
                 {{ bloodbankData.name }}
-              </div>
+              </h3>
             </div>
-          </MglMarker>
-        </MglMap>
-      </ClientOnly>
+          </MglPopup>
+        </MglMarker>
+      </MglMap>
 
       <!-- Top Controls Overlay -->
       <div class="absolute top-4 left-4 z-[1000] flex items-center space-x-3">
-        <!-- Map Style Selector -->
-        <div class="relative">
-          <select
-            v-model="selectedMapStyle"
-            @change="changeMapStyle"
-            class="bg-white border border-grey-300 text-grey-700 py-2 px-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium text-sm shadow-lg hover:shadow-xl appearance-none cursor-pointer"
-          >
-            <option value="positron">Mapa Limpo</option>
-            <option value="voyager">Mapa Detalhado</option>
-            <option value="dark-matter">Mapa Escuro</option>
-            <option value="openstreetmap">OpenStreetMap</option>
-          </select>
-          <div
-            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-grey-700"
-          >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </div>
-        </div>
-
         <!-- Save Coverage Area button -->
         <button
           @click="saveCoverageArea"
           :disabled="!canSave || isSaving"
-          class="bg-green-500 hover:bg-green-700 disabled:bg-grey-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+          class="bg-green-500 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none"
         >
           <div
             v-if="isSaving"
@@ -184,21 +168,9 @@
       <!-- No Coverage Area Message -->
       <div
         v-if="!hasCoverageArea && !isLoading"
-        class="absolute top-20 left-1/2 transform -translate-x-1/2 z-[1000] bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2"
+        class="absolute bottom-2 w-[calc(100%-1rem)] sm:max-w-sm sm:left-1/2 sm:-translate-x-1/2 z-[1000] bg-yellow-500 text-white px-2 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2 mx-2"
       >
-        <svg
-          class="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-          />
-        </svg>
+        <UIcon name="i-lucide-alert-triangle" class="w-4 h-4" />
         <span
           >Nenhuma área de cobertura definida. Desenhe uma área no mapa.</span
         >
@@ -291,7 +263,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { useUserStore } from "~/stores/user";
+import { useBloodbankStore } from "~/stores/bloodbank";
 
 // Define page meta to disable layout padding
 definePageMeta({
@@ -303,133 +277,82 @@ definePageMeta({
 const route = useRoute();
 const bloodbankSlug = route.params.bloodbankSlug as string;
 
-// Types
-interface BloodbankData {
-  id: string;
-  name: string;
-  slug: string;
-  location?: {
-    type: "Point";
-    coordinates: number[]; // [lng, lat]
-  } | null;
-  coverageArea?: {
-    type: "Polygon";
-    coordinates: any;
-  } | null;
-  hasLocation: boolean;
-  hasCoverageArea: boolean;
-}
-
-interface CoverageArea {
-  id: string;
-  coordinates: [number, number][]; // [lat, lng]
-  center: {
-    lat: number;
-    lng: number;
-  };
-  area: number;
-}
+// Initialize stores
+const userStore = useUserStore();
+const bloodbankStore = useBloodbankStore();
 
 // Reactive state
 const mapRef = ref<any>(null);
 const map = ref<any>(null);
 const draw = ref<any>(null);
+const bloodbankPopup = ref<any>(null);
 const zoom = ref(13);
 const mapCenter = ref([-46.6333, -23.5505] as [number, number]); // MapLibre uses [lng, lat] format
-const currentCoverageArea = ref<CoverageArea | null>(null);
-const bloodbankData = ref<BloodbankData | null>(null);
-const isLoading = ref(true);
-const isSaving = ref(false);
 const showSuccessModal = ref(false);
 const isDrawing = ref(false);
 const isEditMode = ref(false);
 
 // MapLibre configuration
-const selectedMapStyle = ref("voyager"); // Default to voyager style
-
-const mapStyles: Record<string, any> = {
-  positron: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-  voyager: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-  "dark-matter":
-    "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  openstreetmap: {
-    version: 8,
-    sources: {
-      osm: {
-        type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "© OpenStreetMap contributors",
-      },
-    },
-    layers: [
-      {
-        id: "osm",
-        type: "raster",
-        source: "osm",
-        minzoom: 0,
-        maxzoom: 19,
-      },
-    ],
-  },
-};
-
-const mapStyle = computed(() => mapStyles[selectedMapStyle.value]);
+const mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 
 // Computed properties
-const hasCoverageArea = computed(() => {
-  return bloodbankData.value?.hasCoverageArea || false;
-});
-
-const canSave = computed(() => {
-  return currentCoverageArea.value && !isSaving.value && !isDrawing.value;
-});
+const hasCoverageArea = computed(() => bloodbankStore.hasCoverageArea);
+const canSave = computed(() => bloodbankStore.canSave && !isDrawing.value);
+const bloodbankData = computed(() => bloodbankStore.bloodbankData);
+const currentCoverageArea = computed(() => bloodbankStore.currentCoverageArea);
+const isLoading = computed(() => bloodbankStore.isLoading);
+const isSaving = computed(() => bloodbankStore.isSaving);
 
 // Methods
-const changeMapStyle = () => {
-  if (map.value) {
-    map.value.setStyle(mapStyles[selectedMapStyle.value] as string);
-  }
-};
-
+const bloodbankPopupFadeClass = "fade-slide-enter-active fade-slide-enter-from";
 const loadBloodbankData = async () => {
   try {
-    isLoading.value = true;
-    // Get user data to extract bloodBanksLocationId
-    const userResponse = await fetchWithAuth("/api/v1/me");
+    // Get user data from store to extract bloodBanksLocationId
+    const user = userStore.user;
+    if (!user) {
+      console.log("User not found in store, waiting...");
+      // Wait a bit and try again
+      setTimeout(() => {
+        if (userStore.user) {
+          loadBloodbankData();
+        }
+      }, 1000);
+      return;
+    }
 
-    const bloodBanksLocationId =
-      userResponse.data.bloodBankRoles[0]?.bloodBanksLocationId;
+    const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
+
     if (!bloodBanksLocationId) {
       throw new Error("No blood bank access found");
     }
 
-    const response = await fetchWithAuth(
-      `/api/v1/bloodbank/${bloodBanksLocationId}/coverage`
-    );
+    const data = await bloodbankStore.loadBloodbankData(bloodBanksLocationId);
 
-    if (response.success) {
-      bloodbankData.value = response.data;
+    // Set map center to bloodbank location if available
+    if (data.location) {
+      mapCenter.value = [
+        data.location.coordinates[0], // lng
+        data.location.coordinates[1], // lat
+      ];
+      zoom.value = 13; // Moderate zoom to show the blood bank location and surrounding area
 
-      // Set map center to bloodbank location if available
-      if (response.data.location) {
-        mapCenter.value = [
-          response.data.location.coordinates[0], // lng
-          response.data.location.coordinates[1], // lat
-        ];
-        zoom.value = 16; // Closer zoom to better show the blood bank location
+      // Center the map to the bloodbank location if map is already loaded
+      if (map.value) {
+        map.value.setCenter([
+          data.location.coordinates[0], // lng
+          data.location.coordinates[1], // lat
+        ]);
+        map.value.setZoom(13);
       }
+    }
 
-      // Load existing coverage area if available
-      if (response.data.coverageArea) {
-        await loadExistingCoverageArea(response.data.coverageArea);
-      }
+    // Load existing coverage area if available
+    if (data.coverageArea) {
+      await loadExistingCoverageArea(data.coverageArea);
     }
   } catch (error) {
     console.error("Error loading bloodbank data:", error);
     // Handle error - maybe show a message to user
-  } finally {
-    isLoading.value = false;
   }
 };
 
@@ -609,6 +532,15 @@ const initializeMap = async () => {
         });
 
         console.log("Event listeners added");
+
+        // Center map to bloodbank location if available
+        if (bloodbankData.value?.location) {
+          map.value.setCenter([
+            bloodbankData.value.location.coordinates[0], // lng
+            bloodbankData.value.location.coordinates[1], // lat
+          ]);
+          map.value.setZoom(12);
+        }
       } else {
         // Fallback: try dynamic import
         console.log("MapboxDraw not found globally, trying dynamic import...");
@@ -755,6 +687,15 @@ const initializeMap = async () => {
         });
 
         console.log("Event listeners added");
+
+        // Center map to bloodbank location if available
+        if (bloodbankData.value?.location) {
+          map.value.setCenter([
+            bloodbankData.value.location.coordinates[0], // lng
+            bloodbankData.value.location.coordinates[1], // lat
+          ]);
+          map.value.setZoom(10);
+        }
       }
     } catch (error) {
       console.error("Error initializing MapboxDraw:", error);
@@ -782,7 +723,7 @@ const updateCoverageArea = async () => {
 
     if (!feature) {
       console.log("No feature found, setting currentCoverageArea to null");
-      currentCoverageArea.value = null;
+      bloodbankStore.setCurrentCoverageArea(null);
       return;
     }
 
@@ -790,12 +731,12 @@ const updateCoverageArea = async () => {
     await updateCoverageAreaFromFeature(feature);
   } else {
     console.log("No features found, setting currentCoverageArea to null");
-    currentCoverageArea.value = null;
+    bloodbankStore.setCurrentCoverageArea(null);
   }
 };
 
 const clearCoverageAreaFromMap = () => {
-  currentCoverageArea.value = null;
+  bloodbankStore.setCurrentCoverageArea(null);
 };
 
 const updateCoverageAreaFromFeature = async (feature: any) => {
@@ -836,56 +777,40 @@ const updateCoverageAreaFromFeature = async (feature: any) => {
     };
 
     console.log("Created coverage area object:", coverageArea);
-    currentCoverageArea.value = coverageArea;
-    console.log("currentCoverageArea.value set to:", currentCoverageArea.value);
+    bloodbankStore.setCurrentCoverageArea(coverageArea);
+    console.log("currentCoverageArea set to:", coverageArea);
   } catch (error) {
     console.error("Error updating coverage area from feature:", error);
   }
 };
 
 const saveCoverageArea = async () => {
-  if (!canSave.value || isSaving.value) return;
-
-  isSaving.value = true;
+  if (!canSave.value) return;
 
   try {
-    // Get user data to extract bloodBanksLocationId
-    const userResponse = await fetchWithAuth("/api/v1/me");
+    // Get user data from store to extract bloodBanksLocationId
+    const user = userStore.user;
+    if (!user) {
+      throw new Error("User not found in store");
+    }
 
-    const bloodBanksLocationId =
-      userResponse.bloodBankRoles[0]?.bloodBanksLocationId;
+    const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
     if (!bloodBanksLocationId) {
       throw new Error("No blood bank access found");
     }
 
-    // Call our API endpoint
-    const response = await fetchWithAuth(
-      `/api/v1/bloodbank/${bloodBanksLocationId}/coverage`,
-      {
-        method: "PUT",
-        body: {
-          coverageArea: {
-            type: "Polygon",
-            coordinates: [
-              currentCoverageArea.value?.coordinates.map((coord: any) => [
-                coord[1],
-                coord[0],
-              ]),
-            ], // Convert back to [lng, lat]
-          },
-        },
-      }
+    if (!currentCoverageArea.value) {
+      throw new Error("No coverage area to save");
+    }
+
+    // Call store method to save coverage area
+    await bloodbankStore.saveCoverageArea(
+      bloodBanksLocationId,
+      currentCoverageArea.value
     );
 
-    console.log("Resposta do endpoint:", response);
-
-    if (response.success) {
-      // Update bloodbank data
-      bloodbankData.value = response.data;
-
-      // Show success modal
-      showSuccessModal.value = true;
-    }
+    // Show success modal
+    showSuccessModal.value = true;
   } catch (error: any) {
     console.error("Erro ao salvar área de cobertura:", error);
 
@@ -901,8 +826,6 @@ const saveCoverageArea = async () => {
     }
 
     alert(errorMessage);
-  } finally {
-    isSaving.value = false;
   }
 };
 
@@ -913,7 +836,7 @@ const clearCoverageArea = () => {
       draw.value.deleteAll();
       console.log("Área de cobertura removida do mapa.");
     }
-    currentCoverageArea.value = null;
+    bloodbankStore.clearCurrentCoverageArea();
   }
 };
 
@@ -928,6 +851,23 @@ const toggleEditMode = () => {
     draw.value.changeMode("simple_select");
   }
 };
+
+const shouldShowBloodbankPopup = ref(false);
+const showBloodbankInfo = () => {
+  if (bloodbankPopup.value) {
+    bloodbankPopup.value.addTo(map.value);
+  }
+};
+
+watch(bloodbankPopup, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    setTimeout(() => {
+      if (bloodbankPopup.value) {
+        shouldShowBloodbankPopup.value = false;
+      }
+    }, 300);
+  }
+});
 
 // Utility functions
 const formatArea = (area: number) => {
@@ -993,6 +933,11 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.bloodbank-marker:hover {
+  transform: scale(1.1);
 }
 
 .marker-icon {

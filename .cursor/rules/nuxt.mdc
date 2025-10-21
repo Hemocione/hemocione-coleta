@@ -19,5 +19,6 @@ Rules for frontend development:
 - Services can call the mongoose models to make queries.
 - ONLY LIGHT MODE SUPPORT. DONT SUPPORT DARK MODE.
 - Use NuxtImg instead of normal img tags.
-- Use fetchWithAuth instead of $fetch
-- Use useFetchWithAuth instead of useFetch
+- Use fetchWithAuth instead of $fetch (unless user used $fetch manually)
+- Use useFetchWithAuth instead of useFetch (unless user used useFetch manually)
+- For Map stuff, use the docs at https://indoorequal.github.io/vue-maplibre-gl/api/

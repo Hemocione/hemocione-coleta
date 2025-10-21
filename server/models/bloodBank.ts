@@ -70,7 +70,7 @@ export const BloodBankSchema = new Schema(
     deactivatedAt: { type: Date, default: null },
     location: {
       type: PointSchema,
-      required: false,
+      required: true,
     },
     coverageArea: {
       type: AreaSchema,

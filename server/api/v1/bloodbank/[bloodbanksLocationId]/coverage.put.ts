@@ -60,6 +60,8 @@ export default defineEventHandler(async (event) => {
       id: updatedBloodbank._id,
       name: updatedBloodbank.name,
       slug: updatedBloodbank.slug,
+      bloodBanksLocationId: updatedBloodbank.bloodBanksLocationId,
+      logo: updatedBloodbank.logo,
       location: updatedBloodbank.location,
       coverageArea: updatedBloodbank.coverageArea,
       hasLocation: !!updatedBloodbank.location,

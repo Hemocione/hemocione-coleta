@@ -38,10 +38,11 @@ export default defineEventHandler(async (event) => {
       name: bloodbank.name,
       slug: bloodbank.slug,
       location: bloodbank.location,
+      bloodBanksLocationId: bloodbank.bloodBanksLocationId,
+      logo: bloodbank.logo,
       coverageArea: bloodbank.coverageArea,
       hasLocation: !!bloodbank.location,
       hasCoverageArea: !!bloodbank.coverageArea,
-      bloodBanksLocationId: bloodbank.bloodBanksLocationId,
     },
   };
 });

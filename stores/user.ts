@@ -23,6 +23,15 @@ export const useUserStore = defineStore("user", {
         []
       );
     },
+    currentBloodBankRole: (state) => {
+      const route = useRoute();
+      const bloodbankSlug = route.params.bloodbankSlug as string;
+      return (
+        state.user?.bloodBankRoles?.find(
+          (role) => role.slug === bloodbankSlug
+        ) || null
+      );
+    },
   },
   actions: {
     setIsIframed(value: boolean) {

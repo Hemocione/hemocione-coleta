@@ -84,7 +84,7 @@
         <button
           @click="saveCoverageArea"
           :disabled="!canSave || isSaving"
-          class="bg-green-500 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none"
+          class="bg-green-500 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none cursor-pointer"
         >
           <div
             v-if="isSaving"
@@ -300,20 +300,9 @@ const canSave = computed(() => {
 // Methods
 const bloodbankPopupFadeClass = "fade-slide-enter-active fade-slide-enter-from";
 const loadBloodbankData = async () => {
-  // Get user data from store to extract bloodBanksLocationId
-  const user = userStore.user;
-  if (!user) {
-    console.log("User not found in store, waiting...");
-    // Wait a bit and try again
-    setTimeout(() => {
-      if (userStore.user) {
-        loadBloodbankData();
-      }
-    }, 1000);
-    return;
-  }
+  const currentBloodBankRole = userStore.currentBloodBankRole;
 
-  const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
+  const bloodBanksLocationId = currentBloodBankRole?.bloodBanksLocationId;
 
   if (!bloodBanksLocationId) {
     throw new Error("No blood bank access found");
@@ -347,7 +336,7 @@ const loadBloodbankData = async () => {
   } catch (error) {
     console.error("Error loading bloodbank data:", error);
     useToast().add({
-      title: "Erro ao carregar dados do hemocentro",
+      title: "Erro ao carregar dados do mapa",
       description: "Tente novamente mais tarde.",
       color: "error",
       duration: 3000,
@@ -396,11 +385,15 @@ watch(
   { immediate: true }
 );
 
-let initialized = false;
-let initializing = false;
 const initializeMap = async () => {
-  if (!mapExists.value || initialized || initializing) return;
-  initializing = true;
+  if (!bloodbankData.value) {
+    console.log("Bloodbank data not found, waiting...");
+    // Wait a bit and try again
+    await nextTick(async () => {
+      await initializeMap();
+    });
+    return;
+  }
   try {
     // Initialize draw control
     const mapBoxDraw = MapboxDraw as any;
@@ -572,11 +565,8 @@ const initializeMap = async () => {
     if (bloodbankData.value?.coverageArea) {
       await loadExistingCoverageArea(bloodbankData.value.coverageArea);
     }
-    initialized = true;
   } catch (error) {
     console.error("Error initializing map:", error);
-  } finally {
-    initializing = false;
   }
 };
 
@@ -775,14 +765,7 @@ const formatCoordinates = (coords: { lat: number; lng: number }) => {
   return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
 };
 
-// Lifecycle
 await loadBloodbankData();
-
-onUnmounted(() => {
-  // Restore body scroll when leaving the page
-  document.body.style.overflow = "";
-  document.body.style.height = "";
-});
 </script>
 
 <style scoped>

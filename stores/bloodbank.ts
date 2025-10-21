@@ -30,12 +30,24 @@ export interface CoverageArea {
   area: number;
 }
 
+export interface Team {
+  _id: string;
+  bloodBanksLocationId: string;
+  name: string;
+  color: string;
+  deletedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const useBloodbankStore = defineStore("bloodbank", {
   state: () => ({
     bloodbankData: null as BloodbankData | null,
     currentCoverageArea: null as CoverageArea | null,
+    teams: [] as Team[],
     isLoading: false,
     isSaving: false,
+    isLoadingTeams: false,
     error: null as string | null,
   }),
 
@@ -126,6 +138,136 @@ export const useBloodbankStore = defineStore("bloodbank", {
 
     clearError() {
       this.error = null;
+    },
+
+    // Team management actions
+    async loadTeams(bloodBanksLocationId: string) {
+      this.isLoadingTeams = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/teams`
+        );
+
+        if (response.success) {
+          this.teams = response.data;
+          return response.data;
+        } else {
+          throw new Error("Failed to load teams");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error loading teams";
+        console.error("Error loading teams:", error);
+        throw error;
+      } finally {
+        this.isLoadingTeams = false;
+      }
+    },
+
+    async createTeam(
+      bloodBanksLocationId: string,
+      name: string,
+      color: string
+    ) {
+      this.isLoadingTeams = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/teams`,
+          {
+            method: "POST",
+            body: { name, color },
+          }
+        );
+
+        if (response.success) {
+          this.teams.push(response.data);
+          return response.data;
+        } else {
+          throw new Error("Failed to create team");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error creating team";
+        console.error("Error creating team:", error);
+        throw error;
+      } finally {
+        this.isLoadingTeams = false;
+      }
+    },
+
+    async updateTeam(
+      bloodBanksLocationId: string,
+      teamId: string,
+      updates: { name?: string; color?: string }
+    ) {
+      this.error = null;
+
+      // Update local state immediately for instant UI feedback
+      const teamIndex = this.teams.findIndex((team) => team._id === teamId);
+      if (teamIndex !== -1) {
+        this.teams[teamIndex] = { ...this.teams[teamIndex], ...updates };
+      }
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/teams/${teamId}`,
+          {
+            method: "PUT",
+            body: updates,
+          }
+        );
+
+        if (response.success) {
+          // Update with server response to ensure consistency
+          if (teamIndex !== -1) {
+            this.teams[teamIndex] = response.data;
+          }
+          return response.data;
+        } else {
+          throw new Error("Failed to update team");
+        }
+      } catch (error: any) {
+        // Revert local changes on error
+        if (teamIndex !== -1) {
+          // We could reload the team from server here, but for now just log the error
+          console.error(
+            "Error updating team, local state may be inconsistent:",
+            error
+          );
+        }
+        this.error = error.message || "Error updating team";
+        console.error("Error updating team:", error);
+        throw error;
+      }
+    },
+
+    async deleteTeam(bloodBanksLocationId: string, teamId: string) {
+      this.isLoadingTeams = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/teams/${teamId}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        if (response.success) {
+          this.teams = this.teams.filter((team) => team._id !== teamId);
+          return true;
+        } else {
+          throw new Error("Failed to delete team");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error deleting team";
+        console.error("Error deleting team:", error);
+        throw error;
+      } finally {
+        this.isLoadingTeams = false;
+      }
     },
   },
 });

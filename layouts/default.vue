@@ -313,7 +313,7 @@ const currentPageTitle = computed(() => {
   const path = route.path;
   if (path.includes("/calendario")) return "Calendário";
   if (path.includes("/cobertura")) return "Área de Cobertura";
-  if (path.includes("/times")) return "Times de Coleta";
+  if (path.includes("/equipes")) return "Equipes";
   if (path.includes("/restricoes")) return "Restrições";
   if (path.includes("/solicitacoes")) return "Solicitações";
   return "Painel";
@@ -324,8 +324,8 @@ const currentPageDescription = computed(() => {
   if (path.includes("/calendario")) return "Gerencie o calendário de coletas";
   if (path.includes("/cobertura"))
     return "Área de cobertura para coleta externa";
-  if (path.includes("/times"))
-    return "Organize os times disponíveis para coleta";
+  if (path.includes("/equipes"))
+    return "Organize as equipes disponíveis para coleta";
   if (path.includes("/restricoes"))
     return "Defina restrições e regras para coleta externa";
   if (path.includes("/solicitacoes")) return "Solicitações de coleta externa";
@@ -355,9 +355,9 @@ const navigationItems = [
     to: `/${bloodbankSlug.value}/cobertura`,
   },
   {
-    label: "Times de Coleta",
+    label: "Equipes de Coleta",
     icon: "i-lucide-users",
-    to: `/${bloodbankSlug.value}/times`,
+    to: `/${bloodbankSlug.value}/equipes`,
   },
   {
     label: "Restrições",

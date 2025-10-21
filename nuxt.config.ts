@@ -60,6 +60,7 @@ export default defineNuxtConfig({
     "~/assets/css/global.css",
     "~/assets/css/nuxt-ui-theme.css",
     "~/assets/css/transitions.css",
+    "~/assets/css/maplibre.css",
   ],
   modules: [
     "@nuxt/ui",

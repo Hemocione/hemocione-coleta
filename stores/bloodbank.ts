@@ -91,12 +91,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
             body: {
               coverageArea: {
                 type: "Polygon",
-                coordinates: [
-                  coverageArea.coordinates.map((coord: any) => [
-                    coord[1],
-                    coord[0],
-                  ]),
-                ], // Convert back to [lng, lat]
+                coordinates: [coverageArea.coordinates], // Keep as [lng, lat] format
               },
             },
           }

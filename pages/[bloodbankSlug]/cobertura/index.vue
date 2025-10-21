@@ -7,6 +7,7 @@
         :center="mapCenter"
         :zoom="zoom"
         ref="mapRef"
+        @map:load="initializeMap"
       >
         <MglNavigationControl />
         <!-- Bloodbank Location Marker -->
@@ -89,46 +90,38 @@
             v-if="isSaving"
             class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"
           ></div>
-          <svg
-            v-else
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-            />
-          </svg>
+          <UIcon v-else name="i-lucide-save" class="w-5 h-5" />
           <span class="font-medium">{{
             isSaving ? "Salvando..." : "Salvar Área"
           }}</span>
         </button>
 
-        <!-- Clear Coverage Area button -->
-        <button
-          v-if="hasCoverageArea"
-          @click="clearCoverageArea"
-          class="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
-        >
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <!-- Custom Drawing Controls -->
+        <div class="flex items-center space-x-2">
+          <!-- Polygon Drawing Button -->
+          <button
+            @click="activatePolygonTool"
+            :class="[
+              'drawing-control-btn',
+              isDrawing
+                ? 'drawing-control-btn-active'
+                : 'drawing-control-btn-inactive',
+            ]"
+            title="Desenhar área de cobertura"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            />
-          </svg>
-          <span class="font-medium">Limpar Área</span>
-        </button>
+            <UIcon name="i-lucide-pen-line" class="w-6 h-6" />
+          </button>
+
+          <!-- Delete Button (only show during drawing mode) -->
+          <button
+            v-if="isDrawing"
+            @click="activateDeleteTool"
+            class="drawing-control-btn drawing-control-btn-danger"
+            title="Limpar área de cobertura"
+          >
+            <UIcon name="i-lucide-trash" class="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       <!-- Coverage Area Info -->
@@ -164,35 +157,23 @@
       </div>
 
       <!-- No Coverage Area Message -->
-      <div
-        v-if="!hasCoverageArea && !isLoading"
-        class="absolute bottom-2 w-[calc(100%-1rem)] sm:max-w-sm sm:left-1/2 sm:-translate-x-1/2 z-[1000] bg-yellow-500 text-white px-2 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2 mx-2"
-      >
-        <UIcon name="i-lucide-alert-triangle" class="w-4 h-4" />
-        <span
-          >Nenhuma área de cobertura definida. Desenhe uma área no mapa.</span
-        >
-      </div>
-
-      <!-- Drawing Instructions -->
-      <transition name="fade-slide" mode="out-in" appear>
+      <transition name="fade" mode="out-in" appear>
         <div
-          v-if="isDrawing"
-          class="absolute top-20 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2"
+          v-if="!hasCoverageArea && !isLoading && !isDrawing"
+          class="absolute bottom-2 w-[calc(100%-1rem)] sm:max-w-sm sm:left-1/2 sm:-translate-x-1/2 z-[1000] bg-yellow-500 text-white px-2 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2 mx-2"
         >
-          <svg
-            class="w-4 h-4 animate-pulse"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <UIcon name="i-lucide-alert-triangle" class="w-4 h-4" />
+          <span
+            >Nenhuma área de cobertura definida. Desenhe uma área no mapa.</span
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-            />
-          </svg>
+        </div>
+
+        <!-- Drawing Instructions -->
+        <div
+          v-else-if="isDrawing"
+          class="absolute bottom-2 w-[calc(100%-1rem)] sm:max-w-sm sm:left-1/2 sm:-translate-x-1/2 z-[1000] bg-blue-500 text-white px-2 py-2 rounded-lg shadow-lg font-medium text-sm flex items-center space-x-2 mx-2"
+        >
+          <UIcon name="i-lucide-pencil" class="w-4 h-4 animate-pulse" />
           <span
             >Clique para adicionar pontos • Duplo clique ou Enter para
             finalizar</span
@@ -213,57 +194,14 @@
         </div>
       </div>
     </div>
-
-    <!-- Success Modal -->
-    <div
-      v-if="showSuccessModal"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000]"
-    >
-      <div
-        class="bg-white rounded-xl p-6 w-96 shadow-2xl border border-grey-100"
-      >
-        <div class="text-center">
-          <div
-            class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4"
-          >
-            <svg
-              class="h-6 w-6 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold mb-2 text-grey-800 tracking-tight">
-            Área Salva!
-          </h3>
-          <p class="text-grey-600 mb-6">
-            A área de cobertura foi salva com sucesso.
-          </p>
-        </div>
-        <div class="flex justify-end">
-          <button
-            @click="showSuccessModal = false"
-            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold shadow-sm hover:shadow-md"
-          >
-            OK
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, computed, onUnmounted, watch } from "vue";
 import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
+import MapboxDraw from "@mapbox/mapbox-gl-draw";
 
 // Define page meta to disable layout padding
 definePageMeta({
@@ -273,57 +211,115 @@ definePageMeta({
 
 // Get route params
 const route = useRoute();
-const bloodbankSlug = route.params.bloodbankSlug as string;
 
 // Initialize stores
 const userStore = useUserStore();
 const bloodbankStore = useBloodbankStore();
+const { bloodbankData } = storeToRefs(bloodbankStore);
+const INITIAL_ZOOM = 10;
 
 // Reactive state
-const mapRef = ref<any>(null);
-const map = ref<any>(null);
+type MapRef = ReturnType<typeof useMglMap>;
+const mapRef = ref<MapRef | null>(null);
 const draw = ref<any>(null);
 const bloodbankPopup = ref<any>(null);
-const zoom = ref(13);
-const mapCenter = ref([-46.6333, -23.5505] as [number, number]); // MapLibre uses [lng, lat] format
-const showSuccessModal = ref(false);
-const isDrawing = ref(false);
-const isEditMode = ref(false);
+const zoom = ref<number>(INITIAL_ZOOM);
+const mapCenter = ref<[number, number]>([-43.1915792, -22.9077772]); // MapLibre uses [lng, lat] format. Default at Rio de Janeiro, Brazil
+const isDrawing = ref<boolean>(false);
+const persistedCoverageAreaId = "existing-coverage-area";
+// Initialize persistedArea from bloodbank store data
+const persistedArea = computed(() => {
+  if (!bloodbankData.value?.coverageArea) {
+    return null;
+  }
+
+  return {
+    id: persistedCoverageAreaId,
+    coordinates: bloodbankData.value.coverageArea.coordinates[0], // Already in [lng, lat] format
+    center: {
+      lat: bloodbankData.value.coverageArea.coordinates[0][0][1], // First coordinate's lat
+      lng: bloodbankData.value.coverageArea.coordinates[0][0][0], // First coordinate's lng
+    },
+    area: 0, // We'll calculate this if needed
+  };
+});
 
 // MapLibre configuration
 const mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 
 // Computed properties
 const hasCoverageArea = computed(() => bloodbankStore.hasCoverageArea);
-const canSave = computed(() => bloodbankStore.canSave && !isDrawing.value);
-const bloodbankData = computed(() => bloodbankStore.bloodbankData);
 const currentCoverageArea = computed(() => bloodbankStore.currentCoverageArea);
 const isLoading = computed(() => bloodbankStore.isLoading);
 const isSaving = computed(() => bloodbankStore.isSaving);
 
+// Check if current coverage area is different from the persisted area
+const hasChanges = computed(() => {
+  // If there's no current coverage area, there are no changes
+  if (!currentCoverageArea.value) {
+    return false;
+  }
+
+  // If there's a current area but no persisted area, there are changes
+  if (!persistedArea.value) {
+    return true;
+  }
+
+  // Compare coordinates - both should be in [lng, lat][] format
+  const currentCoords = currentCoverageArea.value.coordinates;
+  const persistedCoords = persistedArea.value.coordinates;
+
+  // Simple comparison - if lengths are different, there are changes
+  if (currentCoords.length !== persistedCoords.length) {
+    return true;
+  }
+
+  // Compare each coordinate pair
+  for (let i = 0; i < currentCoords.length; i++) {
+    const current = currentCoords[i];
+    const persisted = persistedCoords[i];
+    const diffLng = Math.abs(current[0] - persisted[0]);
+    const diffLat = Math.abs(current[1] - persisted[1]);
+
+    if (diffLng > 0 || diffLat > 0) {
+      return true;
+    }
+  }
+  return false;
+});
+
+const canSave = computed(() => {
+  return (
+    currentCoverageArea.value &&
+    !isDrawing.value &&
+    !isSaving.value &&
+    hasChanges.value
+  );
+});
+
 // Methods
 const bloodbankPopupFadeClass = "fade-slide-enter-active fade-slide-enter-from";
 const loadBloodbankData = async () => {
+  // Get user data from store to extract bloodBanksLocationId
+  const user = userStore.user;
+  if (!user) {
+    console.log("User not found in store, waiting...");
+    // Wait a bit and try again
+    setTimeout(() => {
+      if (userStore.user) {
+        loadBloodbankData();
+      }
+    }, 1000);
+    return;
+  }
+
+  const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
+
+  if (!bloodBanksLocationId) {
+    throw new Error("No blood bank access found");
+  }
+
   try {
-    // Get user data from store to extract bloodBanksLocationId
-    const user = userStore.user;
-    if (!user) {
-      console.log("User not found in store, waiting...");
-      // Wait a bit and try again
-      setTimeout(() => {
-        if (userStore.user) {
-          loadBloodbankData();
-        }
-      }, 1000);
-      return;
-    }
-
-    const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
-
-    if (!bloodBanksLocationId) {
-      throw new Error("No blood bank access found");
-    }
-
     const data = await bloodbankStore.loadBloodbankData(bloodBanksLocationId);
 
     // Set map center to bloodbank location if available
@@ -332,25 +328,30 @@ const loadBloodbankData = async () => {
         data.location.coordinates[0], // lng
         data.location.coordinates[1], // lat
       ];
-      zoom.value = 13; // Moderate zoom to show the blood bank location and surrounding area
+      zoom.value = INITIAL_ZOOM; // Moderate zoom to show the blood bank location and surrounding area
 
       // Center the map to the bloodbank location if map is already loaded
-      if (map.value) {
-        map.value.setCenter([
+      if (mapRef.value?.map) {
+        mapRef.value.map?.setCenter([
           data.location.coordinates[0], // lng
           data.location.coordinates[1], // lat
         ]);
-        map.value.setZoom(13);
+        mapRef.value.map?.setZoom(INITIAL_ZOOM);
       }
-    }
 
-    // Load existing coverage area if available
-    if (data.coverageArea) {
-      await loadExistingCoverageArea(data.coverageArea);
+      // Load existing coverage area if available
+      if (data.coverageArea) {
+        await loadExistingCoverageArea(data.coverageArea);
+      }
     }
   } catch (error) {
     console.error("Error loading bloodbank data:", error);
-    // Handle error - maybe show a message to user
+    useToast().add({
+      title: "Erro ao carregar dados do hemocentro",
+      description: "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
   }
 };
 
@@ -358,353 +359,224 @@ const loadExistingCoverageArea = async (coverageArea: any) => {
   if (!draw.value || !coverageArea) return;
 
   try {
+    // Database coverage area has structure: { type: "Polygon", coordinates: [[[lng, lat], [lng, lat], ...]] }
+    // We need to extract the coordinates array
+    const coordinates = coverageArea.coordinates[0]; // Get the first (and only) ring of the polygon
+
     // Convert coverage area to GeoJSON format for MapboxDraw
     const geojson = {
       type: "Feature",
       geometry: {
         type: "Polygon",
-        coordinates: coverageArea.coordinates,
+        coordinates: [coordinates], // Wrap in array for Polygon type
       },
       properties: {
-        id: "existing-coverage-area",
+        id: persistedCoverageAreaId,
+        mode: "static", // Mark as static since it's from DB
       },
     };
 
     // Add to draw control
-    draw.value.add(geojson);
+    if (draw.value) {
+      draw.value.add(geojson);
+    }
 
-    // Update current coverage area
-    await updateCoverageAreaFromFeature(geojson);
+    // persistedArea is now computed from bloodbankData, so no need to set it manually
   } catch (error) {
     console.error("Error loading existing coverage area:", error);
   }
 };
 
+const mapExists = ref<boolean>(Boolean(mapRef.value?.map));
+watch(
+  mapRef,
+  (newVal) => {
+    mapExists.value = Boolean(newVal?.map);
+  },
+  { immediate: true }
+);
+
+let initialized = false;
+let initializing = false;
 const initializeMap = async () => {
-  // Wait for the map to be available
-  await nextTick();
-
-  if (mapRef.value && mapRef.value.map) {
-    console.log("Map loaded:", mapRef.value.map);
-    map.value = mapRef.value.map;
-
-    try {
-      // Check if MapboxDraw is available globally (loaded via CDN)
-      console.log("Checking for MapboxDraw...");
-      if (typeof window !== "undefined" && (window as any).MapboxDraw) {
-        console.log("MapboxDraw found globally:", (window as any).MapboxDraw);
-
-        // Configure MapboxDraw for MapLibre
-        (window as any).MapboxDraw.constants.classes.CANVAS =
-          "maplibregl-canvas";
-        (window as any).MapboxDraw.constants.classes.CONTROL_BASE =
-          "maplibregl-ctrl";
-        (window as any).MapboxDraw.constants.classes.CONTROL_PREFIX =
-          "maplibregl-ctrl-";
-        (window as any).MapboxDraw.constants.classes.CONTROL_GROUP =
-          "maplibregl-ctrl-group";
-        (window as any).MapboxDraw.constants.classes.ATTRIBUTION =
-          "maplibregl-ctrl-attrib";
-
-        console.log("Creating draw control...");
-        // Initialize draw control
-        draw.value = new (window as any).MapboxDraw({
-          displayControlsDefault: true,
-          controls: {
-            polygon: true,
-            trash: true,
+  if (!mapExists.value || initialized || initializing) return;
+  initializing = true;
+  try {
+    // Initialize draw control
+    const mapBoxDraw = MapboxDraw as any;
+    mapBoxDraw.constants.classes.CANVAS = "maplibregl-canvas";
+    mapBoxDraw.constants.classes.CONTROL_BASE = "maplibregl-ctrl";
+    mapBoxDraw.constants.classes.CONTROL_PREFIX = "maplibregl-ctrl-";
+    mapBoxDraw.constants.classes.CONTROL_GROUP = "maplibregl-ctrl-group";
+    mapBoxDraw.constants.classes.ATTRIBUTION = "maplibregl-ctrl-attrib";
+    draw.value = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {
+        polygon: true,
+        trash: true,
+        point: false,
+        line_string: false,
+        polyline: false,
+        combine_features: false,
+        uncombine_features: false,
+        combine_points: false,
+        uncombine_points: false,
+        combine_lines: false,
+        uncombine_lines: false,
+        combine_polygons: false,
+        uncombine_polygons: false,
+      },
+      styles: [
+        // Polygon fill - Active/Inactive
+        {
+          id: "gl-draw-polygon-fill",
+          type: "fill",
+          filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"]],
+          paint: {
+            "fill-color": "#10b981",
+            "fill-outline-color": "#10b981",
+            "fill-opacity": 0.2,
           },
-          styles: [
-            // Polygon fill
-            {
-              id: "gl-draw-polygon-fill",
-              type: "fill",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["!=", "mode", "static"],
-              ],
-              paint: {
-                "fill-color": "#10b981",
-                "fill-outline-color": "#10b981",
-                "fill-opacity": 0.2,
-              },
-            },
-            // Polygon outline - Active
-            {
-              id: "gl-draw-polygon-stroke-active",
-              type: "line",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["==", "active", "true"],
-              ],
-              layout: {
-                "line-cap": "round",
-                "line-join": "round",
-              },
-              paint: {
-                "line-color": "#10b981",
-                "line-dasharray": [0.2, 2],
-                "line-width": 2,
-              },
-            },
-            // Polygon outline - Inactive
-            {
-              id: "gl-draw-polygon-stroke-inactive",
-              type: "line",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["==", "active", "false"],
-              ],
-              layout: {
-                "line-cap": "round",
-                "line-join": "round",
-              },
-              paint: {
-                "line-color": "#10b981",
-                "line-width": 2,
-              },
-            },
-            // Vertex points
-            {
-              id: "gl-draw-polygon-and-line-vertex-halo-active",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "meta", "vertex"],
-                ["==", "$type", "Point"],
-              ],
-              paint: {
-                "circle-radius": 8,
-                "circle-color": "#fff",
-              },
-            },
-            {
-              id: "gl-draw-polygon-and-line-vertex-active",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "meta", "vertex"],
-                ["==", "$type", "Point"],
-              ],
-              paint: {
-                "circle-radius": 6,
-                "circle-color": "#10b981",
-              },
-            },
-            // Midpoints
-            {
-              id: "gl-draw-line-midpoint",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "$type", "Point"],
-                ["==", "meta", "midpoint"],
-              ],
-              paint: {
-                "circle-radius": 3,
-                "circle-color": "#10b981",
-              },
-            },
-          ],
-        });
-
-        console.log("Draw control created:", draw.value);
-
-        // Add draw control to map
-        console.log("Adding draw control to map...");
-        map.value.addControl(draw.value);
-        console.log("Draw control added successfully");
-
-        // Add event listeners
-        map.value.on("draw.create", updateCoverageArea);
-        map.value.on("draw.delete", clearCoverageAreaFromMap);
-        map.value.on("draw.update", updateCoverageArea);
-
-        // Add drawing mode detection
-        map.value.on("draw.modechange", (e: any) => {
-          console.log("Draw mode changed:", e.mode);
-          isDrawing.value = e.mode === "draw_polygon";
-        });
-
-        console.log("Event listeners added");
-
-        // Center map to bloodbank location if available
-        if (bloodbankData.value?.location) {
-          map.value.setCenter([
-            bloodbankData.value.location.coordinates[0], // lng
-            bloodbankData.value.location.coordinates[1], // lat
-          ]);
-          map.value.setZoom(12);
-        }
-      } else {
-        // Fallback: try dynamic import
-        console.log("MapboxDraw not found globally, trying dynamic import...");
-        const MapboxDraw = (await import("@mapbox/mapbox-gl-draw").catch(
-          () => null
-        )) as any;
-        if (!MapboxDraw) {
-          console.error("MapboxDraw not available");
-          return;
-        }
-        console.log("MapboxDraw imported successfully:", MapboxDraw);
-
-        // Configure MapboxDraw for MapLibre
-        MapboxDraw.default.constants.classes.CANVAS = "maplibregl-canvas";
-        MapboxDraw.default.constants.classes.CONTROL_BASE = "maplibregl-ctrl";
-        MapboxDraw.default.constants.classes.CONTROL_PREFIX =
-          "maplibregl-ctrl-";
-        MapboxDraw.default.constants.classes.CONTROL_GROUP =
-          "maplibregl-ctrl-group";
-        MapboxDraw.default.constants.classes.ATTRIBUTION =
-          "maplibregl-ctrl-attrib";
-
-        console.log("Creating draw control...");
-        // Initialize draw control
-        draw.value = new MapboxDraw.default({
-          displayControlsDefault: true,
-          controls: {
-            polygon: true,
-            trash: true,
+        },
+        // Polygon fill - Static (saved)
+        {
+          id: "gl-draw-polygon-fill-static",
+          type: "fill",
+          filter: ["all", ["==", "$type", "Polygon"], ["==", "mode", "static"]],
+          paint: {
+            "fill-color": "#10b981",
+            "fill-outline-color": "#10b981",
+            "fill-opacity": 0.3,
           },
-          styles: [
-            // Polygon fill
-            {
-              id: "gl-draw-polygon-fill",
-              type: "fill",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["!=", "mode", "static"],
-              ],
-              paint: {
-                "fill-color": "#10b981",
-                "fill-outline-color": "#10b981",
-                "fill-opacity": 0.2,
-              },
-            },
-            // Polygon outline - Active
-            {
-              id: "gl-draw-polygon-stroke-active",
-              type: "line",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["==", "active", "true"],
-              ],
-              layout: {
-                "line-cap": "round",
-                "line-join": "round",
-              },
-              paint: {
-                "line-color": "#10b981",
-                "line-dasharray": [0.2, 2],
-                "line-width": 2,
-              },
-            },
-            // Polygon outline - Inactive
-            {
-              id: "gl-draw-polygon-stroke-inactive",
-              type: "line",
-              filter: [
-                "all",
-                ["==", "$type", "Polygon"],
-                ["==", "active", "false"],
-              ],
-              layout: {
-                "line-cap": "round",
-                "line-join": "round",
-              },
-              paint: {
-                "line-color": "#10b981",
-                "line-width": 2,
-              },
-            },
-            // Vertex points
-            {
-              id: "gl-draw-polygon-and-line-vertex-halo-active",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "meta", "vertex"],
-                ["==", "$type", "Point"],
-              ],
-              paint: {
-                "circle-radius": 8,
-                "circle-color": "#fff",
-              },
-            },
-            {
-              id: "gl-draw-polygon-and-line-vertex-active",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "meta", "vertex"],
-                ["==", "$type", "Point"],
-              ],
-              paint: {
-                "circle-radius": 6,
-                "circle-color": "#10b981",
-              },
-            },
-            // Midpoints
-            {
-              id: "gl-draw-line-midpoint",
-              type: "circle",
-              filter: [
-                "all",
-                ["==", "$type", "Point"],
-                ["==", "meta", "midpoint"],
-              ],
-              paint: {
-                "circle-radius": 3,
-                "circle-color": "#10b981",
-              },
-            },
+        },
+        // Polygon outline - Active
+        {
+          id: "gl-draw-polygon-stroke-active",
+          type: "line",
+          filter: ["all", ["==", "$type", "Polygon"], ["==", "active", "true"]],
+          layout: {
+            "line-cap": "round",
+            "line-join": "round",
+          },
+          paint: {
+            "line-color": "#10b981",
+            "line-dasharray": [0.2, 2],
+            "line-width": 2,
+          },
+        },
+        // Polygon outline - Inactive
+        {
+          id: "gl-draw-polygon-stroke-inactive",
+          type: "line",
+          filter: [
+            "all",
+            ["==", "$type", "Polygon"],
+            ["==", "active", "false"],
           ],
-        });
+          layout: {
+            "line-cap": "round",
+            "line-join": "round",
+          },
+          paint: {
+            "line-color": "#10b981",
+            "line-width": 2,
+          },
+        },
+        // Polygon outline - Static (saved)
+        {
+          id: "gl-draw-polygon-stroke-static",
+          type: "line",
+          filter: ["all", ["==", "$type", "Polygon"], ["==", "mode", "static"]],
+          layout: {
+            "line-cap": "round",
+            "line-join": "round",
+          },
+          paint: {
+            "line-color": "#059669",
+            "line-width": 3,
+            "line-opacity": 0.8,
+          },
+        },
+        // Vertex points
+        {
+          id: "gl-draw-polygon-and-line-vertex-halo-active",
+          type: "circle",
+          filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
+          paint: {
+            "circle-radius": 8,
+            "circle-color": "#fff",
+          },
+        },
+        {
+          id: "gl-draw-polygon-and-line-vertex-active",
+          type: "circle",
+          filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#10b981",
+          },
+        },
+        // Midpoints
+        {
+          id: "gl-draw-line-midpoint",
+          type: "circle",
+          filter: ["all", ["==", "$type", "Point"], ["==", "meta", "midpoint"]],
+          paint: {
+            "circle-radius": 3,
+            "circle-color": "#10b981",
+          },
+        },
+      ],
+    });
 
-        console.log("Draw control created:", draw.value);
+    console.log("Draw control created:", draw.value);
 
-        // Add draw control to map
-        console.log("Adding draw control to map...");
-        map.value.addControl(draw.value);
-        console.log("Draw control added successfully");
+    // Add draw control to map
+    console.log("Adding draw control to map?...");
+    mapRef.value.map?.addControl(draw.value);
+    console.log("Draw control added successfully");
 
-        // Add event listeners
-        map.value.on("draw.create", updateCoverageArea);
-        map.value.on("draw.delete", clearCoverageAreaFromMap);
-        map.value.on("draw.update", updateCoverageArea);
+    // Add event listeners
+    mapRef.value.map?.on("draw.create", updateCoverageArea);
+    mapRef.value.map?.on("draw.delete", clearCoverageAreaFromMap);
+    mapRef.value.map?.on("draw.update", updateCoverageArea);
 
-        // Add drawing mode detection
-        map.value.on("draw.modechange", (e: any) => {
-          console.log("Draw mode changed:", e.mode);
-          isDrawing.value = e.mode === "draw_polygon";
-        });
+    // Add drawing mode detection
+    mapRef.value.map?.on("draw.modechange", (e: any) => {
+      console.log("Draw mode changed:", e.mode);
+      isDrawing.value = e.mode === "draw_polygon";
+    });
 
-        console.log("Event listeners added");
+    // Add event listeners for when drawing is completed
+    mapRef.value.map?.on("draw.create", () => {
+      console.log("Polygon created, exiting drawing mode");
+      isDrawing.value = false;
+    });
 
-        // Center map to bloodbank location if available
-        if (bloodbankData.value?.location) {
-          map.value.setCenter([
-            bloodbankData.value.location.coordinates[0], // lng
-            bloodbankData.value.location.coordinates[1], // lat
-          ]);
-          map.value.setZoom(10);
-        }
-      }
-    } catch (error) {
-      console.error("Error initializing MapboxDraw:", error);
-      // Fallback: show error message to user
-      alert(
-        "Erro ao carregar ferramentas de desenho. Verifique o console para mais detalhes."
-      );
+    mapRef.value.map?.on("draw.update", () => {
+      console.log("Polygon updated, exiting drawing mode");
+      isDrawing.value = false;
+    });
+
+    console.log("Event listeners added");
+
+    // Center map to bloodbank location if available
+    if (bloodbankData.value?.location) {
+      mapRef.value.map?.setCenter([
+        bloodbankData.value.location.coordinates[0], // lng
+        bloodbankData.value.location.coordinates[1], // lat
+      ]);
+      mapRef.value.map?.setZoom(INITIAL_ZOOM);
     }
-  } else {
-    console.log("Map not ready yet, retrying...");
-    setTimeout(initializeMap, 100);
+
+    if (bloodbankData.value?.coverageArea) {
+      await loadExistingCoverageArea(bloodbankData.value.coverageArea);
+    }
+    initialized = true;
+  } catch (error) {
+    console.error("Error initializing map:", error);
+  } finally {
+    initializing = false;
   }
 };
 
@@ -714,17 +586,13 @@ const updateCoverageArea = async () => {
   console.log("updateCoverageArea called");
   const data = draw.value.getAll();
   console.log("All features:", data.features);
+  const nonStaticFeatures = data.features.filter(
+    (feature: any) => feature.properties.mode !== "static"
+  );
 
-  if (data.features.length > 0) {
-    const feature = data.features[0]; // Get the first (and should be only) polygon
+  if (nonStaticFeatures.length > 0) {
+    const feature = nonStaticFeatures[0]; // Get the first (and should be only) polygon that is not static
     console.log("Selected feature:", feature);
-
-    if (!feature) {
-      console.log("No feature found, setting currentCoverageArea to null");
-      bloodbankStore.setCurrentCoverageArea(null);
-      return;
-    }
-
     // Update the coverage area using the shared function
     await updateCoverageAreaFromFeature(feature);
   } else {
@@ -763,10 +631,7 @@ const updateCoverageAreaFromFeature = async (feature: any) => {
     // Create coverage area object
     const coverageArea: CoverageArea = {
       id: feature.properties?.id || feature.id,
-      coordinates: feature.geometry.coordinates[0].map((coord: any) => [
-        coord[1],
-        coord[0],
-      ]), // Convert to [lat, lng]
+      coordinates: feature.geometry.coordinates[0], // Keep as [lng, lat] format for database
       center: {
         lat: center.geometry.coordinates[1],
         lng: center.geometry.coordinates[0],
@@ -807,8 +672,34 @@ const saveCoverageArea = async () => {
       currentCoverageArea.value
     );
 
-    // Show success modal
-    showSuccessModal.value = true;
+    // Show success toast
+    useToast().add({
+      title: "Área salva com sucesso!",
+      description: "A área de cobertura foi salva com sucesso.",
+      color: "success",
+      duration: 3000,
+    });
+
+    // Coverage area is already saved above, no need to save again
+
+    // Reset the drawing state and clear current coverage area to disable save button
+    isDrawing.value = false;
+    bloodbankStore.setCurrentCoverageArea(null);
+
+    // Set the polygon to static mode so it can't be dragged after saving
+    if (draw.value) {
+      draw.value.changeMode("simple_select");
+      // Remove all features and re-add them in static mode
+      const allFeatures = draw.value.getAll();
+
+      if (allFeatures.features.length > 0) {
+        // delete all features and reload the existing coverage area
+        allFeatures.features.forEach((feature: any) => {
+          draw.value.delete(feature.id);
+        });
+        await loadExistingCoverageArea(bloodbankData.value?.coverageArea);
+      }
+    }
   } catch (error: any) {
     console.error("Erro ao salvar área de cobertura:", error);
 
@@ -823,37 +714,45 @@ const saveCoverageArea = async () => {
       errorMessage = "Erro interno do servidor. Tente novamente mais tarde.";
     }
 
-    alert(errorMessage);
+    useToast().add({
+      title: "Erro ao salvar área de cobertura",
+      description: errorMessage,
+      color: "error",
+      duration: 3000,
+    });
   }
 };
 
-const clearCoverageArea = () => {
-  if (confirm("Tem certeza que deseja limpar a área de cobertura?")) {
-    if (draw.value) {
-      // Remove all features from the draw control
-      draw.value.deleteAll();
-      console.log("Área de cobertura removida do mapa.");
-    }
-    bloodbankStore.clearCurrentCoverageArea();
-  }
-};
-
-const toggleEditMode = () => {
-  isEditMode.value = !isEditMode.value;
-
-  if (isEditMode.value) {
-    // Enable drawing mode
-    draw.value.changeMode("draw_polygon");
+const activatePolygonTool = () => {
+  // Find and click the MapLibre polygon tool button
+  const polygonButton = document.querySelector(
+    ".mapbox-gl-draw_ctrl-draw-btn.mapbox-gl-draw_polygon"
+  );
+  if (polygonButton) {
+    polygonButton.click();
+    console.log("Polygon tool activated");
   } else {
-    // Exit drawing mode
-    draw.value.changeMode("simple_select");
+    console.warn("Polygon tool button not found");
+  }
+};
+
+const activateDeleteTool = () => {
+  // Find and click the MapLibre delete tool button
+  const deleteButton = document.querySelector(
+    ".mapbox-gl-draw_ctrl-draw-btn.mapbox-gl-draw_trash"
+  );
+  if (deleteButton) {
+    deleteButton.click();
+    console.log("Delete tool activated");
+  } else {
+    console.warn("Delete tool button not found");
   }
 };
 
 const shouldShowBloodbankPopup = ref(false);
 const showBloodbankInfo = () => {
   if (bloodbankPopup.value) {
-    bloodbankPopup.value.addTo(map.value);
+    bloodbankPopup.value.addTo(mapRef.value.map);
   }
 };
 
@@ -877,15 +776,7 @@ const formatCoordinates = (coords: { lat: number; lng: number }) => {
 };
 
 // Lifecycle
-onMounted(async () => {
-  // Prevent body scroll on mobile
-  document.body.style.overflow = "hidden";
-  document.body.style.height = "100vh";
-  document.body.style.height = "100dvh";
-
-  await loadBloodbankData();
-  await initializeMap();
-});
+await loadBloodbankData();
 
 onUnmounted(() => {
   // Restore body scroll when leaving the page
@@ -895,14 +786,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Prevent scrolling and ensure full height on mobile */
-:deep(html),
-:deep(body) {
-  overflow: hidden !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-}
-
 /* Fade-slide transition */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
@@ -960,5 +843,95 @@ onUnmounted(() => {
   white-space: nowrap;
   max-width: 150px;
   text-align: center;
+}
+
+/* Custom Drawing Control Buttons */
+.drawing-control-btn {
+  width: 3rem;
+  height: 2.5rem; /* Match the height of Salvar Área button (py-2 = 0.5rem top + 0.5rem bottom + text height) */
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  background: white;
+  border: 2px solid #e5e7eb;
+  color: #6b7280;
+  cursor: pointer;
+  opacity: 1;
+  transform: scale(1);
+}
+
+.drawing-control-btn:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transform: scale(1.05);
+}
+
+.drawing-control-btn-active {
+  background: #3b82f6 !important;
+  border-color: #2563eb !important;
+  color: white !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawing-control-btn-active:hover {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: white !important;
+}
+
+.drawing-control-btn-inactive {
+  background: white;
+  border-color: #e5e7eb;
+  color: #6b7280;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawing-control-btn-inactive:hover {
+  background: #3b82f6;
+  border-color: #2563eb;
+  color: white;
+}
+
+.drawing-control-btn-danger {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: white;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fade 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawing-control-btn-danger:hover {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: white;
+}
+
+/* Ensure buttons are properly positioned */
+.drawing-control-btn svg {
+  pointer-events: none;
+}
+
+/* Trash button entrance animation */
+@keyframes fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Animation for button state changes */
+.drawing-control-btn {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawing-control-btn:active {
+  transform: scale(0.95);
 }
 </style>

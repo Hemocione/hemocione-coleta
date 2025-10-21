@@ -3,17 +3,17 @@ import { InferSchemaType, Schema, model } from "mongoose";
 export const TeamSchema = new Schema(
   {
     _id: { type: String, required: true },
-    bloodBanksLocationId: { type: String, required: true },
+    bloodBanksLocationId: { type: Schema.Types.UUID, required: true },
     name: { type: String, required: true },
-    color: { 
-      type: String, 
+    color: {
+      type: String,
       required: true,
       validate: {
-        validator: function(v: string) {
+        validator: function (v: string) {
           return /^#[0-9A-Fa-f]{6}$/.test(v);
         },
-        message: "Color must be a valid hex color code (e.g., #RRGGBB)"
-      }
+        message: "Color must be a valid hex color code (e.g., #RRGGBB)",
+      },
     },
     deletedAt: { type: Date, default: null },
   },
@@ -21,22 +21,17 @@ export const TeamSchema = new Schema(
 );
 
 // Index on bloodBanksLocationId for fast queries
-TeamSchema.index({ bloodBanksLocationId: 1 });
+TeamSchema.index(
+  { bloodBanksLocationId: 1 },
+  { partialFilterExpression: { deletedAt: null } }
+);
 
 // Partial unique compound index on (bloodBanksLocationId, name) for non-deleted teams only
 TeamSchema.index(
   { bloodBanksLocationId: 1, name: 1 },
-  { 
+  {
     unique: true,
-    partialFilterExpression: { deletedAt: null }
-  }
-);
-
-// Partial index on deletedAt for efficient soft delete queries
-TeamSchema.index(
-  { deletedAt: 1 },
-  { 
-    partialFilterExpression: { deletedAt: null }
+    partialFilterExpression: { deletedAt: null },
   }
 );
 

@@ -3,7 +3,7 @@ import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 
 // Types
 export interface BloodbankData {
-  id: string;
+  _id: string;
   name: string;
   slug: string;
   bloodBanksLocationId: string;
@@ -60,7 +60,7 @@ export interface Slot {
 export interface AvailableDate {
   _id: string;
   bloodBanksLocationId: string;
-  date: Date;
+  date: string;
   year: number;
   isAllTeams: boolean;
   slots: Slot[];
@@ -98,21 +98,20 @@ export const useBloodbankStore = defineStore("bloodbank", {
     canSave: (state) => {
       return state.currentCoverageArea && !state.isSaving;
     },
-    getAvailableDateByDate: (state) => (dateStr: string) => {
-      const targetDate = new Date(dateStr);
-      targetDate.setUTCHours(0, 0, 0, 0);
-      return state.availableDates.find(
-        (ad) => ad.date.getTime() === targetDate.getTime()
-      );
-    },
-    getAvailableDatesForMonth: (state) => (year: number, month: number) => {
-      return state.availableDates.filter(
-        (ad) => ad.year === year && ad.date.getUTCMonth() === month
-      );
-    },
   },
 
   actions: {
+    getAvailableDateByDate(dateStr: string) {
+      return this.availableDates.find((ad) => ad.date === dateStr);
+    },
+    getAvailableDatesForMonth(year: number, month: number) {
+      return this.availableDates.filter((ad) => {
+        if (ad.year !== year) return false;
+        // Extract month from date string (YYYY-MM-DD format)
+        const dateMonth = parseInt(ad.date.split("-")[1]);
+        return dateMonth === month;
+      });
+    },
     async loadBloodbankData(bloodBanksLocationId: string) {
       this.isLoading = true;
       this.error = null;
@@ -123,7 +122,10 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          this.bloodbankData = response.data;
+          this.bloodbankData = {
+            ...response.data,
+            _id: (response.data as any).id || (response.data as any)._id || "",
+          };
           return response.data;
         } else {
           throw new Error("Failed to load bloodbank data");
@@ -159,7 +161,10 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          this.bloodbankData = response.data;
+          this.bloodbankData = {
+            ...response.data,
+            _id: (response.data as any).id || (response.data as any)._id || "",
+          };
           return response.data;
         } else {
           throw new Error("Failed to save coverage area");
@@ -207,7 +212,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          this.teams = response.data;
+          this.teams = response.data.map((team: any) => ({
+            ...team,
+            deletedAt: team.deletedAt ? new Date(team.deletedAt) : null,
+            createdAt: new Date(team.createdAt),
+            updatedAt: new Date(team.updatedAt),
+          }));
           return response.data;
         } else {
           throw new Error("Failed to load teams");
@@ -239,7 +249,15 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          this.teams.push(response.data);
+          const newTeam = {
+            ...response.data,
+            deletedAt: response.data.deletedAt
+              ? new Date(response.data.deletedAt)
+              : null,
+            createdAt: new Date(response.data.createdAt),
+            updatedAt: new Date(response.data.updatedAt),
+          };
+          this.teams.push(newTeam);
           return response.data;
         } else {
           throw new Error("Failed to create team");
@@ -278,7 +296,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
         if (response.success) {
           // Update with server response to ensure consistency
           if (teamIndex !== -1) {
-            this.teams[teamIndex] = response.data;
+            this.teams[teamIndex] = {
+              ...response.data,
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : null,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+            };
           }
           return response.data;
         } else {
@@ -470,11 +495,15 @@ export const useBloodbankStore = defineStore("bloodbank", {
         const response = await fetchWithAuth(
           `/api/v1/bloodbank/${bloodBanksLocationId}/available-dates?year=${year}&month=${month}`
         );
+        console.log("response", response);
 
         if (response.success) {
           this.availableDates = response.data.map((ad: any) => ({
             ...ad,
-            date: new Date(ad.date),
+            date: ad.date, // Already a string
+            deletedAt: ad.deletedAt ? new Date(ad.deletedAt) : undefined,
+            createdAt: new Date(ad.createdAt),
+            updatedAt: new Date(ad.updatedAt),
             slots: ad.slots.map((slot: any) => ({
               ...slot,
               startTime: new Date(slot.startTime),
@@ -510,7 +539,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
         if (response.success) {
           const newAvailableDate = {
             ...response.data,
-            date: new Date(response.data.date),
+            date: response.data.date, // Already a string
+            deletedAt: response.data.deletedAt
+              ? new Date(response.data.deletedAt)
+              : undefined,
+            createdAt: new Date(response.data.createdAt),
+            updatedAt: new Date(response.data.updatedAt),
             slots: response.data.slots.map((slot: any) => ({
               ...slot,
               startTime: new Date(slot.startTime),
@@ -569,7 +603,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
           if (availableDateIndex !== -1) {
             this.availableDates[availableDateIndex] = {
               ...response.data,
-              date: new Date(response.data.date),
+              date: response.data.date, // Already a string
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : undefined,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
               slots: response.data.slots.map((slot: any) => ({
                 ...slot,
                 startTime: new Date(slot.startTime),
@@ -629,7 +668,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
           if (availableDateIndex !== -1) {
             this.availableDates[availableDateIndex] = {
               ...response.data,
-              date: new Date(response.data.date),
+              date: response.data.date, // Already a string
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : undefined,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
               slots: response.data.slots.map((slot: any) => ({
                 ...slot,
                 startTime: new Date(slot.startTime),
@@ -678,7 +722,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
           if (availableDateIndex !== -1) {
             this.availableDates[availableDateIndex] = {
               ...response.data,
-              date: new Date(response.data.date),
+              date: response.data.date, // Already a string
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : undefined,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
               slots: response.data.slots.map((slot: any) => ({
                 ...slot,
                 startTime: new Date(slot.startTime),

@@ -43,6 +43,7 @@ export default defineEventHandler(async (event) => {
       coverageArea: bloodbank.coverageArea,
       hasLocation: !!bloodbank.location,
       hasCoverageArea: !!bloodbank.coverageArea,
+      timezone: bloodbank.timezone,
     },
   };
 });

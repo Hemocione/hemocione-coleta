@@ -25,7 +25,23 @@ export const AvailableDateSchema = new Schema(
   {
     _id: { type: Schema.Types.ObjectId, auto: true },
     bloodBanksLocationId: { type: Schema.Types.UUID, required: true },
-    date: { type: Date, required: true },
+    date: {
+      type: String,
+      required: true,
+      match: /^\d{4}-\d{2}-\d{2}$/,
+      validate: {
+        validator: function (v: string) {
+          // Validate YYYY-MM-DD format and that it's a valid date
+          const date = new Date(v);
+          return (
+            date instanceof Date &&
+            !isNaN(date.getTime()) &&
+            v === date.toISOString().split("T")[0]
+          );
+        },
+        message: "Date must be in YYYY-MM-DD format",
+      },
+    },
     year: { type: Number, required: true },
     isAllTeams: { type: Boolean, required: true },
     slots: [SlotSchema],

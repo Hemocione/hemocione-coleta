@@ -1,5 +1,9 @@
-// Converte Date para string YYYY-MM-DD
-export function formatDateToYYYYMMDD(date: Date): string {
+// Converte Date para string YYYY-MM-DD ou retorna string se já for YYYY-MM-DD
+export function formatDateToYYYYMMDD(date: Date | string): string {
+  if (typeof date === "string") {
+    // Already in YYYY-MM-DD format
+    return date;
+  }
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -200,4 +204,14 @@ export function getWeekdayName(weekday: number): string {
 export function getWeekdayNameShort(weekday: number): string {
   const weekdays = ["D", "S", "T", "Q", "Q", "S", "S"];
   return weekdays[weekday];
+}
+
+// Extrai mês de string YYYY-MM-DD
+export function extractMonthFromDateString(dateStr: string): number {
+  return parseInt(dateStr.split("-")[1]);
+}
+
+// Extrai ano de string YYYY-MM-DD
+export function extractYearFromDateString(dateStr: string): number {
+  return parseInt(dateStr.split("-")[0]);
 }

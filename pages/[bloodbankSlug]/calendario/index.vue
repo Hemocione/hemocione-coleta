@@ -4,10 +4,26 @@
     <UCard>
       <div class="p-8">
         <UCalendar
-          v-model="selectedDate"
+          v-model="selectedDate as CalendarDate | null"
           :default-value="currentCalendarDate"
           class="w-full calendar-past-dates calendar-with-availability"
-        />
+          :is-date-unavailable="(day) => isDateUnavailable(day)"
+          :year-controls="false"
+        >
+          <template #day="{ day }">
+            <div v-if="isLoading" class="flex items-center justify-center">
+              <USpinner />
+            </div>
+            <UChip
+              v-else
+              :show="!!getAvailabilityColor(day)"
+              :color="getAvailabilityColor(day)"
+              size="2xs"
+            >
+              {{ day.day }}
+            </UChip>
+          </template>
+        </UCalendar>
       </div>
     </UCard>
 
@@ -35,9 +51,9 @@
           <!-- Data -->
           <UFormField label="Data" required>
             <UCalendar
-              v-model="formState.date"
-              :default-value="selectedDate || currentCalendarDate"
-              :min-value="currentCalendarDate"
+              v-model="formState.date as any"
+              :default-value="(selectedDate || currentCalendarDate) as any"
+              :min-value="currentCalendarDate as any"
               size="lg"
             />
           </UFormField>
@@ -86,7 +102,7 @@
                           )
                       "
                       :disabled="formState.isAllTeams"
-                      class="flex-shrink-0"
+                      class="shrink-0"
                     />
 
                     <!-- Nome da equipe -->
@@ -292,9 +308,9 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
-import type { AvailableDate, Team } from "~/stores/bloodbank";
-import { formatDateToYYYYMMDD, getMonthName } from "~/utils/dateHelpers";
-import { CalendarDate } from "@internationalized/date";
+import type { AvailableDate } from "~/stores/bloodbank";
+import { formatDateToYYYYMMDD } from "~/utils/dateHelpers";
+import { CalendarDate, type DateValue } from "@internationalized/date";
 
 // Define page meta
 definePageMeta({
@@ -316,7 +332,7 @@ const bloodBankTimezone = computed(
 );
 
 // State
-const selectedDate = ref<CalendarDate | null>(null);
+const selectedDate = ref<DateValue | null>(null);
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
 const selectedAvailableDate = ref<AvailableDate | null>(null);
@@ -359,9 +375,11 @@ watch(
   { immediate: true }
 );
 
-const isLoading = computed(() => isLoadingAvailableDates.value);
+const isLoading = computed(
+  () => isLoadingAvailableDates.value && !isInitialized.value
+);
 
-const currentCalendarDate = computed(() => {
+const currentCalendarDate = computed<CalendarDate>((): CalendarDate => {
   const now = new Date();
   return new CalendarDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
 });
@@ -729,6 +747,57 @@ const handleAddTeams = () => {
   console.log("Add teams functionality to be implemented");
 };
 
+// Helper to format CalendarDate to YYYY-MM-DD string
+const formatCalendarDateToYYYYMMDD = (calendarDate: any) => {
+  return `${calendarDate.year}-${String(calendarDate.month).padStart(
+    2,
+    "0"
+  )}-${String(calendarDate.day).padStart(2, "0")}`;
+};
+
+const dayAvailabilityColorMap = ref({});
+const visibleDates = computed(() => {
+  return availableDates.value.map((ad) => ad.date);
+});
+const isDateUnavailable = (day: DateValue) => {
+  // disable dates that are in the past (considerando ano, mês e dia)
+  const today = currentCalendarDate.value;
+  if (day.year < today.year) return true;
+  if (day.year === today.year && day.month < today.month) return true;
+  if (
+    day.year === today.year &&
+    day.month === today.month &&
+    day.day <= today.day
+  )
+    return true;
+  return false;
+};
+
+// Get availability color for calendar day
+const getAvailabilityColor = (day: DateValue) => {
+  // Don't show chips until data is loaded
+  if (!isInitialized.value) {
+    return undefined;
+  }
+
+  const dateStr = formatCalendarDateToYYYYMMDD(day);
+  const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
+  if (!availableDate || !availableDate.slots.length) {
+    return undefined; // No availability data
+  }
+
+  const hasAvailableSlots = availableDate.slots.some((slot) => !slot.locked);
+  const allSlotsLocked = availableDate.slots.every((slot) => slot.locked);
+
+  if (allSlotsLocked) {
+    return "error"; // All slots locked - red
+  } else if (hasAvailableSlots && !allSlotsLocked) {
+    return "warning"; // Some available, some locked - yellow
+  } else {
+    return "success"; // All available - green
+  }
+};
+
 // Watchers
 watch(
   () => formState.value.isAllTeams,
@@ -744,82 +813,7 @@ onMounted(async () => {
   await loadCalendarData();
   // Marcar como inicializado após carregar os dados
   isInitialized.value = true;
-  // Adicionar indicadores após carregar
-  nextTick(() => {
-    addAvailabilityIndicators();
-  });
 });
-
-// Método para adicionar indicadores visuais de disponibilidade
-const addAvailabilityIndicators = () => {
-  // Remover indicadores existentes
-  document
-    .querySelectorAll(".availability-indicator")
-    .forEach((el) => el.remove());
-
-  availableDates.value.forEach((availableDate) => {
-    const date = new Date(availableDate.date);
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-
-    // Encontrar o botão da data no calendário
-    const dateButton = document.querySelector(
-      `button[aria-label*="${day} de ${getMonthName(month - 1)} de ${year}"]`
-    );
-
-    if (dateButton) {
-      // Verificar se há slots disponíveis (não bloqueados)
-      const hasAvailableSlots = availableDate.slots.some(
-        (slot) => !slot.locked
-      );
-
-      // Criar indicador visual
-      const indicator = document.createElement("div");
-      indicator.className = "availability-indicator";
-      indicator.style.cssText = `
-        position: absolute;
-        bottom: 2px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        z-index: 10;
-        ${
-          hasAvailableSlots
-            ? "background-color: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); animation: pulse-availability 2s infinite;"
-            : "background-color: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);"
-        }
-      `;
-
-      // Adicionar tooltip
-      indicator.title = hasAvailableSlots
-        ? `Disponível - ${availableDate.slots.length} time(s)`
-        : "Indisponível - Todos os slots bloqueados";
-
-      // Posicionar o indicador
-      const buttonContainer = dateButton.closest(
-        ".calendar-cell"
-      ) as HTMLElement;
-      if (buttonContainer) {
-        buttonContainer.style.position = "relative";
-        buttonContainer.appendChild(indicator);
-      }
-    }
-  });
-};
-
-// Watcher para atualizar indicadores quando availableDates mudar
-watch(
-  availableDates,
-  () => {
-    nextTick(() => {
-      addAvailabilityIndicators();
-    });
-  },
-  { deep: true }
-);
 </script>
 
 <style scoped>
@@ -853,24 +847,5 @@ watch(
 /* Estilos para indicadores de disponibilidade */
 .calendar-with-availability :deep(.calendar-cell) {
   position: relative;
-}
-
-/* Garantir que os indicadores fiquem visíveis */
-.calendar-with-availability :deep(.calendar-cell button) {
-  position: relative;
-  z-index: 1;
-}
-
-/* Animação para indicador de disponibilidade */
-@keyframes pulse-availability {
-  0%,
-  100% {
-    transform: translateX(-50%) scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: translateX(-50%) scale(1.1);
-    opacity: 0.8;
-  }
 }
 </style>

@@ -4,7 +4,8 @@ import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank"
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
-import { Types } from "mongoose";
+import { QueryOptions, Types } from "mongoose";
+import { Binary } from "mongodb";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -12,7 +13,7 @@ dayjs.extend(timezone);
 export interface AvailableDateData {
   _id: string;
   bloodBanksLocationId: string;
-  date: Date;
+  date: string;
   year: number;
   isAllTeams: boolean;
   slots: Array<{
@@ -45,24 +46,13 @@ export async function getAvailableDatesByBloodBank(
   year?: number,
   month?: number
 ): Promise<AvailableDateData[]> {
-  const query: any = {
+  const query: Record<string, any> = {
     bloodBanksLocationId,
     deletedAt: null,
   };
 
   if (year) {
     query.year = year;
-  }
-
-  if (month !== undefined) {
-    // Filtrar por mês específico
-    const startDate = new Date(year || new Date().getFullYear(), month, 1);
-    const endDate = new Date(year || new Date().getFullYear(), month + 1, 0);
-
-    query.date = {
-      $gte: startDate,
-      $lte: endDate,
-    };
   }
 
   const availableDates = await AvailableDate.find(query)
@@ -87,12 +77,9 @@ export async function getAvailableDateByDate(
   bloodBanksLocationId: string,
   date: string
 ): Promise<AvailableDateData | null> {
-  const targetDate = new Date(date);
-  targetDate.setUTCHours(0, 0, 0, 0);
-
   const availableDate = await AvailableDate.findOne({
     bloodBanksLocationId,
-    date: targetDate,
+    date: date,
     deletedAt: null,
   }).lean();
 
@@ -111,13 +98,8 @@ export async function createAvailableDate(
   );
   const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
 
-  // Processar data considerando timezone do banco de sangue
-  // Converter data do timezone do banco para UTC
-  // Exemplo: se banco está em GMT-3 e seleciona 24/10,
-  // a data em UTC deve ser 23/10 às 21:00 (meia-noite local = 21:00 UTC)
-  const localDate = dayjs.tz(date, bloodBankTimezone);
-  const targetDate = localDate.utc().toDate();
-  const year = targetDate.getUTCFullYear();
+  // Extract year from date string for indexing
+  const year = parseInt(date.split("-")[0]);
 
   // Verificar se já existe availableDate para esta data
   const existingDate = await getAvailableDateByDate(bloodBanksLocationId, date);
@@ -224,7 +206,7 @@ export async function createAvailableDate(
 
   const availableDate = new AvailableDate({
     bloodBanksLocationId,
-    date: targetDate,
+    date: date,
     year,
     isAllTeams,
     slots,
@@ -275,18 +257,14 @@ export async function updateSlot(
 
   if (updates.startTime !== undefined) {
     const newStartTime = new Date(
-      `${availableDate.date.toISOString().split("T")[0]}T${
-        updates.startTime
-      }:00.000Z`
+      `${availableDate.date}T${updates.startTime}:00.000Z`
     );
     slotUpdates["slots.$.startTime"] = newStartTime;
   }
 
   if (updates.endTime !== undefined) {
     const newEndTime = new Date(
-      `${availableDate.date.toISOString().split("T")[0]}T${
-        updates.endTime
-      }:00.000Z`
+      `${availableDate.date}T${updates.endTime}:00.000Z`
     );
     slotUpdates["slots.$.endTime"] = newEndTime;
   }
@@ -298,20 +276,12 @@ export async function updateSlot(
   // Validar que startTime < endTime se ambos foram fornecidos
   const finalStartTime =
     updates.startTime !== undefined
-      ? new Date(
-          `${availableDate.date.toISOString().split("T")[0]}T${
-            updates.startTime
-          }:00.000Z`
-        )
+      ? new Date(`${availableDate.date}T${updates.startTime}:00.000Z`)
       : slot.startTime;
 
   const finalEndTime =
     updates.endTime !== undefined
-      ? new Date(
-          `${availableDate.date.toISOString().split("T")[0]}T${
-            updates.endTime
-          }:00.000Z`
-        )
+      ? new Date(`${availableDate.date}T${updates.endTime}:00.000Z`)
       : slot.endTime;
 
   if (finalStartTime >= finalEndTime) {
@@ -379,16 +349,8 @@ export async function addTeamsToAvailableDate(
   // Criar novos slots
   const newSlots = newTeamIds.map((teamId) => ({
     teamId: new Types.ObjectId(teamId),
-    startTime: new Date(
-      `${
-        availableDate.date.toISOString().split("T")[0]
-      }T${defaultStartTime}:00.000Z`
-    ),
-    endTime: new Date(
-      `${
-        availableDate.date.toISOString().split("T")[0]
-      }T${defaultEndTime}:00.000Z`
-    ),
+    startTime: new Date(`${availableDate.date}T${defaultStartTime}:00.000Z`),
+    endTime: new Date(`${availableDate.date}T${defaultEndTime}:00.000Z`),
     locked: false,
   }));
 

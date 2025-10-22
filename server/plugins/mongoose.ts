@@ -6,7 +6,7 @@ export default defineNitroPlugin(async (_nitro) => {
   if (mongoose.connection.readyState !== 1 && !isBuilding()) {
     const config = useRuntimeConfig();
     try {
-      mongoose.set("debug", true);
+      mongoose.set("debug", process.env.NODE_ENV === "development");
       await mongoose.connect(config.mongodbUri, {
         dbName: config.dbName,
         authSource: "admin",

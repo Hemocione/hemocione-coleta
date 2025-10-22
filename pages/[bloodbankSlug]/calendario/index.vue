@@ -51,75 +51,119 @@
             />
           </UFormField>
 
-          <!-- Seleção de times (se não todos) -->
-          <UFormField v-if="!formState.isAllTeams" label="Equipes" required>
-            <USelectMenu
-              v-model="formState.selectedTeamIds"
-              :options="teamOptions"
-              placeholder="Selecione as equipes"
-              multiple
-              size="lg"
-            />
-          </UFormField>
-
-          <!-- Configuração de horários -->
-          <UFormField label="Configuração de Horários">
-            <URadioGroup
-              v-model="formState.timeConfig"
-              :options="timeConfigOptions"
-            />
-          </UFormField>
-
-          <!-- Horário global -->
-          <div v-if="formState.timeConfig === 'global'" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <UFormField label="Horário de Início" required>
-                <UInput
-                  v-model="formState.globalStartTime"
-                  type="time"
-                  size="lg"
-                />
-              </UFormField>
-              <UFormField label="Horário de Fim" required>
-                <UInput
-                  v-model="formState.globalEndTime"
-                  type="time"
-                  size="lg"
-                />
-              </UFormField>
-            </div>
-          </div>
-
-          <!-- Horários individuais -->
-          <div
-            v-else-if="formState.timeConfig === 'individual'"
-            class="space-y-4"
+          <!-- Lista de equipes com horários individuais -->
+          <Transition
+            enter-active-class="transition-opacity duration-300"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition-opacity duration-300"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
           >
-            <div
-              v-for="(time, index) in formState.individualTimes"
-              :key="index"
-              class="flex items-center space-x-4"
-            >
-              <div class="flex-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  {{ selectedTeams[index]?.name || `Time ${index + 1}` }}
-                </label>
-                <div class="grid grid-cols-2 gap-2">
-                  <UInput
-                    v-model="time.startTime"
-                    type="time"
-                    placeholder="Início"
-                    size="sm"
-                  />
-                  <UInput
-                    v-model="time.endTime"
-                    type="time"
-                    placeholder="Fim"
-                    size="sm"
-                  />
+            <div v-if="!formState.isAllTeams" class="space-y-4">
+              <UFormField label="Equipes e Horários">
+                <div class="space-y-3">
+                  <div
+                    v-for="team in teams"
+                    :key="team._id"
+                    class="flex items-center space-x-4 p-3 border-2 rounded-lg"
+                    :style="{
+                      borderColor: team.color,
+                      backgroundColor: `${team.color}10`,
+                    }"
+                  >
+                    <!-- Checkbox da equipe -->
+                    <UCheckbox
+                      :id="`team-${team._id}`"
+                      :model-value="
+                        formState.selectedTeamIds.includes(team._id)
+                      "
+                      @update:model-value="
+                        (checked) => toggleTeamSelection(team._id, checked)
+                      "
+                      :disabled="formState.isAllTeams"
+                      class="flex-shrink-0"
+                    />
+
+                    <!-- Nome da equipe -->
+                    <label
+                      :for="`team-${team._id}`"
+                      class="flex-1 font-medium text-sm"
+                      :class="{
+                        'cursor-pointer': !formState.isAllTeams,
+                        'cursor-not-allowed': formState.isAllTeams,
+                      }"
+                      :style="{ color: team.color }"
+                    >
+                      {{ team.name }}
+                    </label>
+
+                    <!-- Horários da equipe -->
+                    <div
+                      v-if="!formState.isAllTeams"
+                      class="flex items-center space-x-2"
+                    >
+                      <div class="flex items-center space-x-1">
+                        <label class="text-xs text-gray-600">Início:</label>
+                        <UInput
+                          :model-value="
+                            formState.teamTimes[team._id]?.startTime
+                          "
+                          @update:model-value="
+                            (value) =>
+                              updateTeamTime(team._id, 'startTime', value)
+                          "
+                          type="time"
+                          size="sm"
+                          class="w-24"
+                          :disabled="
+                            !formState.selectedTeamIds.includes(team._id)
+                          "
+                        />
+                      </div>
+                      <div class="flex items-center space-x-1">
+                        <label class="text-xs text-gray-600">Fim:</label>
+                        <UInput
+                          :model-value="formState.teamTimes[team._id]?.endTime"
+                          @update:model-value="
+                            (value) =>
+                              updateTeamTime(team._id, 'endTime', value)
+                          "
+                          type="time"
+                          size="sm"
+                          class="w-24"
+                          :disabled="
+                            !formState.selectedTeamIds.includes(team._id)
+                          "
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </UFormField>
             </div>
+          </Transition>
+
+          <!-- Horário global (apenas quando "Todas as equipes" está marcado) -->
+          <div v-if="formState.isAllTeams" class="space-y-4">
+            <UFormField label="Horário">
+              <div class="grid grid-cols-2 gap-4">
+                <UFormField label="Início" required>
+                  <UInput
+                    v-model="formState.globalStartTime"
+                    type="time"
+                    size="lg"
+                  />
+                </UFormField>
+                <UFormField label="Fim" required>
+                  <UInput
+                    v-model="formState.globalEndTime"
+                    type="time"
+                    size="lg"
+                  />
+                </UFormField>
+              </div>
+            </UFormField>
           </div>
         </UForm>
       </template>
@@ -281,6 +325,7 @@ const formState = ref({
   date: null as CalendarDate | null,
   isAllTeams: true,
   selectedTeamIds: [] as string[],
+  teamTimes: {} as Record<string, { startTime: string; endTime: string }>,
   timeConfig: "global" as "global" | "individual",
   globalStartTime: "08:00",
   globalEndTime: "17:00",
@@ -291,6 +336,25 @@ const formState = ref({
 const currentBloodBankRole = computed(() => userStore.currentBloodBankRole);
 const bloodBanksLocationId = computed(
   () => currentBloodBankRole.value?.bloodBanksLocationId
+);
+
+// Watch teams to initialize team times
+watch(
+  teams,
+  (newTeams) => {
+    if (newTeams.length > 0) {
+      const teamTimes: Record<string, { startTime: string; endTime: string }> =
+        {};
+      newTeams.forEach((team) => {
+        teamTimes[team._id] = {
+          startTime: "08:00",
+          endTime: "17:00",
+        };
+      });
+      formState.value.teamTimes = teamTimes;
+    }
+  },
+  { immediate: true }
 );
 
 const isLoading = computed(() => isLoadingAvailableDates.value);
@@ -308,20 +372,6 @@ const teamOptions = computed(() => {
   }));
 });
 
-const timeConfigOptions = [
-  { label: "Horário global", value: "global" },
-  { label: "Horário por time", value: "individual" },
-];
-
-const selectedTeams = computed(() => {
-  if (formState.value.isAllTeams) {
-    return teams.value;
-  }
-  return teams.value.filter((team) =>
-    formState.value.selectedTeamIds.includes(team._id)
-  );
-});
-
 const canSubmit = computed(() => {
   if (!formState.value.date) return false;
 
@@ -332,13 +382,15 @@ const canSubmit = computed(() => {
     return false;
   }
 
-  if (formState.value.timeConfig === "global") {
+  if (formState.value.isAllTeams) {
     return formState.value.globalStartTime && formState.value.globalEndTime;
   }
 
-  return formState.value.individualTimes.every(
-    (time) => time.startTime && time.endTime
-  );
+  // Verificar se todos os times selecionados têm horários definidos
+  return formState.value.selectedTeamIds.every((teamId) => {
+    const teamTime = formState.value.teamTimes[teamId];
+    return teamTime?.startTime && teamTime?.endTime;
+  });
 });
 
 // Methods
@@ -426,12 +478,12 @@ const handleCreateDateSubmit = async () => {
         payload.slotsConfig.globalStartTime = formState.value.globalStartTime;
         payload.slotsConfig.globalEndTime = formState.value.globalEndTime;
       } else {
-        // Horários individuais
-        payload.slotsConfig.slots = formState.value.individualTimes.map(
-          (time, index) => ({
-            teamId: formState.value.selectedTeamIds[index],
-            startTime: time.startTime,
-            endTime: time.endTime,
+        // Horários individuais - usar os horários definidos para cada equipe
+        payload.slotsConfig.slots = formState.value.selectedTeamIds.map(
+          (teamId) => ({
+            teamId,
+            startTime: formState.value.teamTimes[teamId]?.startTime || "08:00",
+            endTime: formState.value.teamTimes[teamId]?.endTime || "17:00",
           })
         );
       }
@@ -571,11 +623,38 @@ const handleDateDeleted = async (availableDateId: string) => {
 };
 
 // Helper methods
+const toggleTeamSelection = (teamId: string, checked: boolean) => {
+  if (checked) {
+    if (!formState.value.selectedTeamIds.includes(teamId)) {
+      formState.value.selectedTeamIds.push(teamId);
+    }
+  } else {
+    formState.value.selectedTeamIds = formState.value.selectedTeamIds.filter(
+      (id) => id !== teamId
+    );
+  }
+};
+
+const updateTeamTime = (
+  teamId: string,
+  field: "startTime" | "endTime",
+  value: string
+) => {
+  if (!formState.value.teamTimes[teamId]) {
+    formState.value.teamTimes[teamId] = {
+      startTime: "08:00",
+      endTime: "17:00",
+    };
+  }
+  formState.value.teamTimes[teamId][field] = value;
+};
+
 const resetForm = () => {
   formState.value = {
     date: null,
     isAllTeams: true,
     selectedTeamIds: [],
+    teamTimes: {},
     timeConfig: "global",
     globalStartTime: "08:00",
     globalEndTime: "17:00",

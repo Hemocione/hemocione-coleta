@@ -4,7 +4,7 @@ import { InferSchemaType, Schema, model } from "mongoose";
 const SlotSchema = new Schema(
   {
     _id: { type: Schema.Types.ObjectId, auto: true },
-    teamId: { type: String, required: true },
+    teamId: { type: Schema.Types.ObjectId, required: true, ref: "Team" },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
     locked: { type: Boolean, default: false },

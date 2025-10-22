@@ -79,7 +79,11 @@
                         formState.selectedTeamIds.includes(team._id)
                       "
                       @update:model-value="
-                        (checked) => toggleTeamSelection(team._id, checked)
+                        (checked) =>
+                          toggleTeamSelection(
+                            team._id,
+                            checked === 'indeterminate' ? false : checked
+                          )
                       "
                       :disabled="formState.isAllTeams"
                       class="flex-shrink-0"
@@ -326,10 +330,8 @@ const formState = ref({
   isAllTeams: true,
   selectedTeamIds: [] as string[],
   teamTimes: {} as Record<string, { startTime: string; endTime: string }>,
-  timeConfig: "global" as "global" | "individual",
   globalStartTime: "08:00",
   globalEndTime: "17:00",
-  individualTimes: [] as Array<{ startTime: string; endTime: string }>,
 });
 
 // Computed
@@ -463,7 +465,7 @@ const handleCreateDateSubmit = async () => {
       date: dateStr,
       isAllTeams: formState.value.isAllTeams,
       slotsConfig: {
-        type: formState.value.timeConfig,
+        type: formState.value.isAllTeams ? "global" : "individual",
       },
     };
 
@@ -472,21 +474,15 @@ const handleCreateDateSubmit = async () => {
       payload.slotsConfig.globalStartTime = formState.value.globalStartTime;
       payload.slotsConfig.globalEndTime = formState.value.globalEndTime;
     } else {
+      // Horários individuais - usar os horários definidos para cada equipe
       payload.slotsConfig.teamIds = formState.value.selectedTeamIds;
-
-      if (formState.value.timeConfig === "global") {
-        payload.slotsConfig.globalStartTime = formState.value.globalStartTime;
-        payload.slotsConfig.globalEndTime = formState.value.globalEndTime;
-      } else {
-        // Horários individuais - usar os horários definidos para cada equipe
-        payload.slotsConfig.slots = formState.value.selectedTeamIds.map(
-          (teamId) => ({
-            teamId,
-            startTime: formState.value.teamTimes[teamId]?.startTime || "08:00",
-            endTime: formState.value.teamTimes[teamId]?.endTime || "17:00",
-          })
-        );
-      }
+      payload.slotsConfig.slots = formState.value.selectedTeamIds.map(
+        (teamId) => ({
+          teamId,
+          startTime: formState.value.teamTimes[teamId]?.startTime || "08:00",
+          endTime: formState.value.teamTimes[teamId]?.endTime || "17:00",
+        })
+      );
     }
 
     await bloodbankStore.createAvailableDate(
@@ -655,10 +651,8 @@ const resetForm = () => {
     isAllTeams: true,
     selectedTeamIds: [],
     teamTimes: {},
-    timeConfig: "global",
     globalStartTime: "08:00",
     globalEndTime: "17:00",
-    individualTimes: [],
   };
 };
 
@@ -741,19 +735,6 @@ watch(
   (newValue) => {
     if (newValue) {
       formState.value.selectedTeamIds = [];
-    }
-  }
-);
-
-watch(
-  () => formState.value.selectedTeamIds,
-  (newTeamIds) => {
-    if (formState.value.timeConfig === "individual") {
-      // Atualizar individualTimes baseado nos teams selecionados
-      formState.value.individualTimes = newTeamIds.map(() => ({
-        startTime: "08:00",
-        endTime: "17:00",
-      }));
     }
   }
 );

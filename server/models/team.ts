@@ -2,7 +2,7 @@ import { InferSchemaType, Schema, model } from "mongoose";
 
 export const TeamSchema = new Schema(
   {
-    _id: { type: String, required: true },
+    _id: { type: Schema.Types.ObjectId, auto: true },
     bloodBanksLocationId: { type: Schema.Types.UUID, required: true },
     name: { type: String, required: true },
     color: {

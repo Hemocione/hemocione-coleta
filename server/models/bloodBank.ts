@@ -100,7 +100,7 @@ const RestrictionItemSchema = new Schema(
 
 export const BloodBankSchema = new Schema(
   {
-    _id: { type: String, required: true },
+    _id: { type: Schema.Types.ObjectId, auto: true },
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
     bloodBanksLocationId: {

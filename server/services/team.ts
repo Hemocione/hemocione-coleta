@@ -1,8 +1,9 @@
+import { Types } from "mongoose";
 import { Team } from "~/server/models/team";
 
 export interface TeamData {
-  _id: string;
-  bloodBanksLocationId: string;
+  _id: string | Types.ObjectId;
+  bloodBanksLocationId: string | Types.UUID;
   name: string;
   color: string;
   deletedAt?: Date | null;
@@ -45,7 +46,6 @@ export async function createTeam(
   }
 
   const team = new Team({
-    _id: crypto.randomUUID(),
     bloodBanksLocationId,
     name,
     color,

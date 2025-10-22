@@ -4,6 +4,7 @@ import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank"
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
+import { Types } from "mongoose";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -132,7 +133,7 @@ export async function createAvailableDate(
       bloodBanksLocationId,
       deletedAt: null,
     }).lean();
-    teamIds = teams.map((team) => team._id);
+    teamIds = teams.map((team) => team._id?.toString() || "");
   } else {
     teamIds = slotsConfig.teamIds || [];
   }
@@ -177,7 +178,7 @@ export async function createAvailableDate(
 
     for (const teamId of teamIds) {
       slots.push({
-        teamId,
+        teamId: new Types.ObjectId(teamId),
         startTime: globalStartTime,
         endTime: globalEndTime,
         locked: false,
@@ -213,7 +214,7 @@ export async function createAvailableDate(
       }
 
       slots.push({
-        teamId: slot.teamId,
+        teamId: new Types.ObjectId(slot.teamId),
         startTime,
         endTime,
         locked: false,
@@ -364,7 +365,9 @@ export async function addTeamsToAvailableDate(
   }
 
   // Verificar quais teams já estão incluídos
-  const existingTeamIds = availableDate.slots.map((slot) => slot.teamId);
+  const existingTeamIds = availableDate.slots.map((slot) =>
+    slot.teamId.toString()
+  );
   const newTeamIds = teamIds.filter((id) => !existingTeamIds.includes(id));
 
   if (newTeamIds.length === 0) {
@@ -375,7 +378,7 @@ export async function addTeamsToAvailableDate(
 
   // Criar novos slots
   const newSlots = newTeamIds.map((teamId) => ({
-    teamId,
+    teamId: new Types.ObjectId(teamId),
     startTime: new Date(
       `${
         availableDate.date.toISOString().split("T")[0]
@@ -423,7 +426,7 @@ export async function removeTeamFromAvailableDate(
   }
 
   // Encontrar o slot do team
-  const slot = availableDate.slots.find((s) => s.teamId === teamId);
+  const slot = availableDate.slots.find((s) => s.teamId.toString() === teamId);
   if (!slot) {
     throw new Error("Time não encontrado nesta data");
   }
@@ -495,7 +498,7 @@ export async function addTeamToFutureAvailableDates(
   for (const availableDate of futureAvailableDates) {
     const firstSlot = availableDate.slots[0];
     const newSlot = {
-      teamId,
+      teamId: new Types.ObjectId(teamId),
       startTime: firstSlot.startTime,
       endTime: firstSlot.endTime,
       locked: false,
@@ -527,7 +530,7 @@ export async function removeSlotsFromFutureAvailableDates(
   // Remover slots não-locked do team
   for (const availableDate of futureAvailableDates) {
     const slotsToRemove = availableDate.slots.filter(
-      (slot) => slot.teamId === teamId && !slot.locked
+      (slot) => slot.teamId.toString() === teamId && !slot.locked
     );
 
     if (slotsToRemove.length > 0) {

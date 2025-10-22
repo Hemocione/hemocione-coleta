@@ -347,11 +347,15 @@ const loadCalendarData = async () => {
 
   try {
     const now = new Date();
-    await bloodbankStore.loadAvailableDates(
-      bloodBanksLocationId.value,
-      now.getFullYear(),
-      now.getMonth()
-    );
+    // Carregar times e datas disponíveis em paralelo
+    await Promise.all([
+      bloodbankStore.loadTeams(bloodBanksLocationId.value),
+      bloodbankStore.loadAvailableDates(
+        bloodBanksLocationId.value,
+        now.getFullYear(),
+        now.getMonth()
+      ),
+    ]);
   } catch (error) {
     console.error("Error loading calendar data:", error);
     useToast().add({

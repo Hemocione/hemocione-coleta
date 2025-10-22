@@ -315,7 +315,7 @@ const currentPageTitle = computed(() => {
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/equipes")) return "Equipes";
   if (path.includes("/restricoes")) return "Restrições";
-  if (path.includes("/solicitacoes")) return "Solicitações";
+  if (path.includes("/coletas")) return "Coletas";
   return "Painel";
 });
 
@@ -328,7 +328,8 @@ const currentPageDescription = computed(() => {
     return "Organize as equipes disponíveis para coleta";
   if (path.includes("/restricoes"))
     return "Defina restrições e regras para coleta externa";
-  if (path.includes("/solicitacoes")) return "Solicitações de coleta externa";
+  if (path.includes("/coletas"))
+    return "Gerencie as coletas externas e solicitações";
   return "Painel de controle";
 });
 
@@ -345,9 +346,9 @@ const navigationItems = [
     to: `/${bloodbankSlug.value}/calendario`,
   },
   {
-    label: "Solicitações de Coleta",
+    label: "Coletas",
     icon: "i-lucide-droplets",
-    to: `/${bloodbankSlug.value}/solicitacoes`,
+    to: `/${bloodbankSlug.value}/coletas`,
   },
   {
     label: "Área de Cobertura",

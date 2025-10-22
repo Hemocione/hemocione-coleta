@@ -1,0 +1,69 @@
+import { InferSchemaType, Schema, model } from "mongoose";
+
+// Slot Schema - subdocumento para cada time
+const SlotSchema = new Schema(
+  {
+    _id: { type: Schema.Types.ObjectId, auto: true },
+    teamId: { type: String, required: true },
+    startTime: { type: Date, required: true },
+    endTime: { type: Date, required: true },
+    locked: { type: Boolean, default: false },
+  },
+  { _id: true }
+);
+
+// Validação customizada para startTime < endTime
+SlotSchema.pre("validate", function (next) {
+  if (this.startTime >= this.endTime) {
+    const error = new Error("startTime deve ser anterior a endTime");
+    return next(error);
+  }
+  next();
+});
+
+export const AvailableDateSchema = new Schema(
+  {
+    _id: { type: Schema.Types.ObjectId, auto: true },
+    bloodBanksLocationId: { type: Schema.Types.UUID, required: true },
+    date: { type: Date, required: true },
+    year: { type: Number, required: true },
+    isAllTeams: { type: Boolean, required: true },
+    slots: [SlotSchema],
+    deletedAt: { type: Date, default: null },
+  },
+  { timestamps: true }
+);
+
+// Virtual field para verificar se todos os slots estão locked
+AvailableDateSchema.virtual("allSlotsLocked").get(function () {
+  return this.slots.length > 0 && this.slots.every((slot) => slot.locked);
+});
+
+// Índice composto único parcial para evitar duplicatas por data
+AvailableDateSchema.index(
+  { bloodBanksLocationId: 1, date: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { deletedAt: null },
+  }
+);
+
+// Índice para queries por ano
+AvailableDateSchema.index(
+  { bloodBanksLocationId: 1, year: 1 },
+  { partialFilterExpression: { deletedAt: null } }
+);
+
+// Índice para queries de disponibilidade
+AvailableDateSchema.index(
+  { bloodBanksLocationId: 1, date: 1, "slots.locked": 1 },
+  { partialFilterExpression: { deletedAt: null } }
+);
+
+export type AvailableDateSchema = InferSchemaType<typeof AvailableDateSchema>;
+export type SlotSchema = InferSchemaType<typeof SlotSchema>;
+
+export const AvailableDate = model<AvailableDateSchema>(
+  "AvailableDate",
+  AvailableDateSchema
+);

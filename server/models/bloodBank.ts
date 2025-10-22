@@ -135,6 +135,11 @@ export const BloodBankSchema = new Schema(
         message: "All restriction items must have unique slugs",
       },
     },
+    timezone: {
+      type: String,
+      default: "America/Sao_Paulo",
+      required: true,
+    },
   },
   { timestamps: true }
 );

@@ -1,8 +1,5 @@
 import { getTeamsByBloodBanksLocationId } from "~/server/services/team";
-import {
-  assertUserAccessToBloodBanksLocationId,
-  useHemocioneUserAuth,
-} from "~/server/services/auth";
+import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 
 export default defineEventHandler(async (event) => {
   // Get user from auth context
@@ -11,18 +8,20 @@ export default defineEventHandler(async (event) => {
     event,
     "bloodbanksLocationId"
   );
-  
+
   if (!selectedBloodBanksLocationId) {
     throw createError({
       statusCode: 400,
       statusMessage: "Bloodbank location ID is required",
     });
   }
-  
+
   assertUserAccessToBloodBanksLocationId(user, selectedBloodBanksLocationId);
 
   try {
-    const teams = await getTeamsByBloodBanksLocationId(selectedBloodBanksLocationId);
+    const teams = await getTeamsByBloodBanksLocationId(
+      selectedBloodBanksLocationId
+    );
 
     return {
       success: true,

@@ -1,8 +1,6 @@
 import { createTeam } from "~/server/services/team";
-import {
-  assertUserAccessToBloodBanksLocationId,
-  useHemocioneUserAuth,
-} from "~/server/services/auth";
+import { addTeamToFutureAvailableDates } from "~/server/services/availableDate";
+import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 
 export default defineEventHandler(async (event) => {
   // Get user from auth context
@@ -11,14 +9,14 @@ export default defineEventHandler(async (event) => {
     event,
     "bloodbanksLocationId"
   );
-  
+
   if (!selectedBloodBanksLocationId) {
     throw createError({
       statusCode: 400,
       statusMessage: "Bloodbank location ID is required",
     });
   }
-  
+
   assertUserAccessToBloodBanksLocationId(user, selectedBloodBanksLocationId);
 
   const body = await readBody(event);
@@ -42,13 +40,28 @@ export default defineEventHandler(async (event) => {
   try {
     const team = await createTeam(selectedBloodBanksLocationId, name, color);
 
+    // Adicionar team a availableDates futuras com isAllTeams = true
+    // TODO: improve this implementation to run it in the background
+    // try {
+    //   await addTeamToFutureAvailableDates(
+    //     selectedBloodBanksLocationId,
+    //     team._id
+    //   );
+    // } catch (availableDateError) {
+    //   console.warn(
+    //     "Error adding team to future available dates:",
+    //     availableDateError
+    //   );
+    //   // Não falhar a criação do team se houver erro ao adicionar às availableDates
+    // }
+
     return {
       success: true,
       data: team,
     };
   } catch (error: any) {
     console.error("Error creating team:", error);
-    
+
     if (error.message === "Team name already exists for this bloodbank") {
       throw createError({
         statusCode: 409,

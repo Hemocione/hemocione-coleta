@@ -46,17 +46,17 @@
           <UFormField>
             <UCheckbox
               v-model="formState.isAllTeams"
-              label="Todos os times"
-              description="Incluir automaticamente todos os times cadastrados"
+              label="Todas as equipes"
+              description="Incluir automaticamente todas as equipes cadastradas"
             />
           </UFormField>
 
           <!-- Seleção de times (se não todos) -->
-          <UFormField v-if="!formState.isAllTeams" label="Times" required>
+          <UFormField v-if="!formState.isAllTeams" label="Equipes" required>
             <USelectMenu
               v-model="formState.selectedTeamIds"
               :options="teamOptions"
-              placeholder="Selecione os times"
+              placeholder="Selecione as equipes"
               multiple
               size="lg"
             />
@@ -349,7 +349,7 @@ const loadCalendarData = async () => {
     const now = new Date();
     // Carregar times e datas disponíveis em paralelo
     await Promise.all([
-      bloodbankStore.loadTeams(bloodBanksLocationId.value),
+      bloodbankStore.loadTeams(bloodBanksLocationId.value, false),
       bloodbankStore.loadAvailableDates(
         bloodBanksLocationId.value,
         now.getFullYear(),

@@ -190,7 +190,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
     },
 
     // Team management actions
-    async loadTeams(bloodBanksLocationId: string) {
+    async loadTeams(
+      bloodBanksLocationId: string,
+      forceRefresh: boolean = true
+    ) {
+      if (!forceRefresh && this.teams.length > 0) {
+        return this.teams;
+      }
+
       this.isLoadingTeams = true;
       this.error = null;
 

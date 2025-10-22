@@ -30,6 +30,7 @@
     "@internationalized/date": "^3.10.0",
     "@mapbox/mapbox-gl-draw": "^1.5.0",
     "@turf/turf": "^7.2.0",
+    "dayjs": "^1.11.18",
     "maplibre-gl": "^5.9.0",
     "nuxt-maplibre": "^1.1.1",
     "slugify": "^1.6.6"

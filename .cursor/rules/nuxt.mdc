@@ -25,3 +25,4 @@ Rules for frontend development:
 - For generic errors, use the useToast from NuxtUI (https://ui3.nuxt.com/composables/use-toast)
 - Prefer the bloodBanksLocationId for querying
 - Prefer tailwind for css styling
+- Use the mongodb mcp for validating data in the DB

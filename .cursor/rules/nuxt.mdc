@@ -6,7 +6,7 @@ Rules for frontend development:
 
 - The local frontend is always running on localhost:3000
 - Always prefer building stuff with Nuxt UI Components over normal html tags
-- Always use the Nuxt UI MCP to check for existing components and their doc before implementing anything
+- Always use the Nuxt Docs to check for existing components before implementing anything. ('https://ui3.nuxt.com/components). You can use the playwright mcp to help as well.
 - Always use the playwright MCP as you code to test out changes. When everything is working and validated, write an e2e spec for the changes.
 - Always make sure that things are smooth - animations and transitions should be a default.
 - Transitions should be centralized at assets/css/transitions.css
@@ -23,4 +23,5 @@ Rules for frontend development:
 - Use useFetchWithAuth instead of useFetch (unless user used useFetch manually)
 - For Map stuff, use the docs at https://indoorequal.github.io/vue-maplibre-gl/api/
 - For generic errors, use the useToast from NuxtUI (https://ui3.nuxt.com/composables/use-toast)
-- Always prefere the bloodBanksLocationId for querying
+- Prefer the bloodBanksLocationId for querying
+- Prefer tailwind for css styling

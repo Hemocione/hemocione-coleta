@@ -18,7 +18,7 @@
               v-else
               :show="!!getAvailabilityColor(day)"
               :color="getAvailabilityColor(day)"
-              size="2xs"
+              size="xs"
             >
               {{ day.day }}
             </UChip>
@@ -58,7 +58,7 @@
             />
           </UFormField>
 
-          <!-- Todos os times -->
+          <!-- Todas as equipes -->
           <UFormField>
             <UCheckbox
               v-model="formState.isAllTeams"
@@ -210,7 +210,7 @@
       v-model:open="showDetailModal"
       :title="
         selectedAvailableDate
-          ? `Detalhes da Data - ${formatDateToYYYYMMDD(
+          ? `Detalhes da Data: ${formatDateToYYYYMMDD(
               selectedAvailableDate.date
             )}`
           : 'Detalhes da Data'
@@ -228,54 +228,108 @@
                 </p>
               </div>
               <div>
-                <p class="text-sm text-gray-600">Times</p>
+                <p class="text-sm text-gray-600">Equipes</p>
                 <p class="font-semibold">
-                  {{ selectedAvailableDate.slots.length }} time(s)
+                  {{ selectedAvailableDate.slots.length }} equipe(s)
+                </p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600">Tipo</p>
+                <p class="font-semibold">
+                  {{
+                    selectedAvailableDate.isAllTeams
+                      ? "Todas as equipes"
+                      : "Individual"
+                  }}
                 </p>
               </div>
             </div>
           </div>
 
           <!-- Lista de slots -->
-          <div class="space-y-3">
-            <h4 class="font-medium text-gray-900">Times e Horários</h4>
+          <div class="space-y-2">
+            <h4 class="font-medium text-gray-900 text-sm">
+              Equipes e Horários
+            </h4>
             <div
               v-for="slot in selectedAvailableDate.slots"
               :key="slot._id"
-              class="border border-gray-200 rounded-lg p-4"
+              class="border rounded-md p-3 relative"
+              :style="{
+                borderColor: getTeamColor(slot.teamId),
+                backgroundColor: `${getTeamColor(slot.teamId)}10`,
+              }"
             >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                  <div
-                    class="w-4 h-4 rounded-full"
-                    :style="{ backgroundColor: getTeamColor(slot.teamId) }"
-                  ></div>
-                  <div>
-                    <p class="font-medium">{{ getTeamName(slot.teamId) }}</p>
-                    <p class="text-sm text-gray-600">
-                      {{ formatTimeRange(slot.startTime, slot.endTime) }}
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                  <UBadge
-                    :color="slot.locked ? 'error' : 'success'"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ slot.locked ? "Bloqueado" : "Disponível" }}
-                  </UBadge>
+              <!-- Badge e botão posicionados no canto superior direito -->
+              <div class="absolute top-2 right-2 flex items-center space-x-2">
+                <UBadge
+                  :color="slot.locked ? 'error' : 'success'"
+                  variant="subtle"
+                  size="xs"
+                >
+                  {{ slot.locked ? "Bloqueado" : "Disponível" }}
+                </UBadge>
+                <UButton
+                  v-if="!selectedAvailableDate.isAllTeams"
+                  variant="ghost"
+                  size="xs"
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  :disabled="slot.locked || isUpdating"
+                  @click="handleRemoveSlot(slot)"
+                >
+                  Remover
+                </UButton>
+              </div>
+
+              <div class="pr-24">
+                <p
+                  class="font-medium text-sm"
+                  :style="{ color: getTeamColor(slot.teamId) }"
+                >
+                  {{ getTeamName(slot.teamId) }}
+                </p>
+                <div
+                  v-if="!selectedAvailableDate.isAllTeams"
+                  class="flex items-center space-x-2 mt-1"
+                >
+                  <UInput
+                    :model-value="editingTimes[slot._id]?.startTime"
+                    @update:model-value="
+                      (value) => updateEditingTime(slot._id, 'startTime', value)
+                    "
+                    type="time"
+                    size="xs"
+                    class="w-20"
+                    :disabled="slot.locked"
+                    @input="markSlotAsChanged(slot._id)"
+                  />
+                  <span class="text-xs text-gray-400">–</span>
+                  <UInput
+                    :model-value="editingTimes[slot._id]?.endTime"
+                    @update:model-value="
+                      (value) => updateEditingTime(slot._id, 'endTime', value)
+                    "
+                    type="time"
+                    size="xs"
+                    class="w-20"
+                    :disabled="slot.locked"
+                    @input="markSlotAsChanged(slot._id)"
+                  />
                   <UButton
-                    variant="ghost"
-                    size="sm"
-                    color="error"
-                    icon="i-lucide-trash-2"
-                    :disabled="slot.locked || isUpdating"
-                    @click="handleRemoveSlot(slot)"
+                    v-if="changedSlots.includes(slot._id)"
+                    size="xs"
+                    color="primary"
+                    icon="i-lucide-check"
+                    @click="saveSlotTime(slot._id)"
+                    :loading="savingSlots.includes(slot._id)"
                   >
-                    Remover Time
+                    Salvar
                   </UButton>
                 </div>
+                <p v-else class="text-xs text-gray-600">
+                  {{ formatTimeRange(slot.startTime, slot.endTime) }}
+                </p>
               </div>
             </div>
           </div>
@@ -290,13 +344,24 @@
             >
               Deletar Data
             </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-plus"
-              @click="handleAddTeams"
-            >
-              Adicionar Times
-            </UButton>
+            <div class="flex space-x-2">
+              <UButton
+                v-if="!selectedAvailableDate.isAllTeams"
+                color="primary"
+                icon="i-lucide-plus"
+                @click="handleAddTeams"
+              >
+                Adicionar Equipes
+              </UButton>
+              <UButton
+                v-if="selectedAvailableDate.isAllTeams"
+                color="warning"
+                icon="i-lucide-settings"
+                @click="handleMigrateToIndividual"
+              >
+                Migrar para Individual
+              </UButton>
+            </div>
           </div>
         </div>
       </template>
@@ -340,6 +405,13 @@ const isSubmitting = ref(false);
 const isUpdating = ref(false);
 const isInitialized = ref(false);
 
+// Edição de horários
+const editingTimes = ref<
+  Record<string, { startTime: string; endTime: string }>
+>({});
+const changedSlots = ref<string[]>([]);
+const savingSlots = ref<string[]>([]);
+
 // Form state for create modal
 const formState = ref({
   date: null as CalendarDate | null,
@@ -374,6 +446,19 @@ watch(
   },
   { immediate: true }
 );
+
+watch(selectedDate, (newDate, oldDate) => {
+  if (newDate && newDate !== oldDate) {
+    handleDateSelect(newDate as CalendarDate);
+  }
+});
+
+// Inicializar horários de edição quando modal abre
+watch(showDetailModal, (isOpen) => {
+  if (isOpen && selectedAvailableDate.value) {
+    initializeEditingTimes();
+  }
+});
 
 const isLoading = computed(
   () => isLoadingAvailableDates.value && !isInitialized.value
@@ -419,7 +504,7 @@ const loadCalendarData = async () => {
 
   try {
     const now = new Date();
-    // Carregar times e datas disponíveis em paralelo
+    // Carregar equipes e datas disponíveis em paralelo
     await Promise.all([
       bloodbankStore.loadTeams(bloodBanksLocationId.value, false),
       bloodbankStore.loadAvailableDates(
@@ -439,6 +524,7 @@ const loadCalendarData = async () => {
 };
 
 const handleDateSelect = (date: CalendarDate | null) => {
+  console.log("date selected", date);
   if (!date || !isInitialized.value) return;
 
   // Converter CalendarDate para Date
@@ -459,25 +545,58 @@ const handleDateSelect = (date: CalendarDate | null) => {
 };
 
 const handleCreateDate = () => {
+  // Verificar se a data selecionada já tem disponibilidade
+  if (selectedDate.value) {
+    const jsDate = new Date(
+      selectedDate.value.year,
+      selectedDate.value.month - 1,
+      selectedDate.value.day
+    );
+    const dateStr = formatDateToYYYYMMDD(jsDate);
+    const existingDate = bloodbankStore.getAvailableDateByDate(dateStr);
+
+    if (existingDate) {
+      useToast().add({
+        title: "Data já possui disponibilidade",
+        description:
+          "Esta data já possui slots de disponibilidade cadastrados.",
+        color: "warning",
+      });
+      return;
+    }
+  }
+
   // Abrir modal de criação manualmente
   showCreateModal.value = true;
-  formState.value.date = selectedDate.value || currentCalendarDate.value;
+  formState.value.date = (selectedDate.value ||
+    currentCalendarDate.value) as CalendarDate;
   // Resetar o form para valores padrão
   resetForm();
-  formState.value.date = selectedDate.value || currentCalendarDate.value;
+  formState.value.date = (selectedDate.value ||
+    currentCalendarDate.value) as CalendarDate;
 };
 
 const handleCreateDateSubmit = async () => {
   if (!bloodBanksLocationId.value || !canSubmit.value) return;
 
+  // Verificar se a data já possui disponibilidade
+  const dateStr = `${formState.value.date!.year}-${String(
+    formState.value.date!.month
+  ).padStart(2, "0")}-${String(formState.value.date!.day).padStart(2, "0")}`;
+
+  const existingDate = bloodbankStore.getAvailableDateByDate(dateStr);
+  if (existingDate) {
+    useToast().add({
+      title: "Data já possui disponibilidade",
+      description: "Esta data já possui slots de disponibilidade cadastrados.",
+      color: "warning",
+    });
+    return;
+  }
+
   isSubmitting.value = true;
 
   try {
-    // Converter CalendarDate para string no formato YYYY-MM-DD
-    const dateStr = `${formState.value.date!.year}-${String(
-      formState.value.date!.month
-    ).padStart(2, "0")}-${String(formState.value.date!.day).padStart(2, "0")}`;
-
     // Construir payload baseado na configuração
     const payload: any = {
       date: dateStr,
@@ -488,7 +607,7 @@ const handleCreateDateSubmit = async () => {
     };
 
     if (formState.value.isAllTeams) {
-      // Para todos os times, usar horário global
+      // Para todas as equipes, usar horário global
       payload.slotsConfig.globalStartTime = formState.value.globalStartTime;
       payload.slotsConfig.globalEndTime = formState.value.globalEndTime;
     } else {
@@ -570,14 +689,14 @@ const handleTeamsAdded = async (
     );
 
     useToast().add({
-      title: "Times adicionados!",
-      description: `${teamIds.length} time(s) foram adicionados à data.`,
+      title: "Equipes adicionadas!",
+      description: `${teamIds.length} equipe(s) foram adicionadas à data.`,
       color: "success",
     });
   } catch (error: any) {
     console.error("Error adding teams to date:", error);
     useToast().add({
-      title: "Erro ao adicionar times",
+      title: "Erro ao adicionar equipes",
       description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
@@ -595,14 +714,14 @@ const handleSlotRemoved = async (availableDateId: string, slotId: string) => {
     );
 
     useToast().add({
-      title: "Time removido!",
-      description: "O time foi removido da data.",
+      title: "Equipe removida!",
+      description: "A equipe foi removida da data.",
       color: "success",
     });
   } catch (error: any) {
     console.error("Error removing slot:", error);
     useToast().add({
-      title: "Erro ao remover time",
+      title: "Erro ao remover equipe",
       description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
@@ -676,7 +795,7 @@ const resetForm = () => {
 
 const getTeamName = (teamId: string) => {
   const team = teams.value.find((t) => t._id === teamId);
-  return team?.name || "Time não encontrado";
+  return team?.name || "Equipe não encontrada";
 };
 
 const getTeamColor = (teamId: string) => {
@@ -690,6 +809,100 @@ const formatTimeRange = (startTime: Date, endTime: Date) => {
   return `${formatTime(startTime)} – ${formatTime(endTime)}`;
 };
 
+const formatTimeForInput = (date: Date) => {
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+const initializeEditingTimes = () => {
+  if (!selectedAvailableDate.value) return;
+
+  const times: Record<string, { startTime: string; endTime: string }> = {};
+  selectedAvailableDate.value.slots.forEach((slot) => {
+    times[slot._id] = {
+      startTime: formatTimeForInput(slot.startTime),
+      endTime: formatTimeForInput(slot.endTime),
+    };
+  });
+
+  editingTimes.value = times;
+  changedSlots.value = [];
+  savingSlots.value = [];
+};
+
+const updateEditingTime = (
+  slotId: string,
+  field: "startTime" | "endTime",
+  value: string
+) => {
+  if (!editingTimes.value[slotId]) {
+    editingTimes.value[slotId] = { startTime: "", endTime: "" };
+  }
+  editingTimes.value[slotId][field] = value;
+};
+
+const markSlotAsChanged = (slotId: string) => {
+  if (!changedSlots.value.includes(slotId)) {
+    changedSlots.value.push(slotId);
+  }
+};
+
+const saveSlotTime = async (slotId: string) => {
+  if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
+
+  savingSlots.value.push(slotId);
+
+  try {
+    const editingTime = editingTimes.value[slotId];
+    if (!editingTime) return;
+
+    // Converter strings HH:MM para Date
+    const [startHours, startMinutes] = editingTime.startTime
+      .split(":")
+      .map(Number);
+    const [endHours, endMinutes] = editingTime.endTime.split(":").map(Number);
+
+    const startTime = new Date();
+    startTime.setHours(startHours, startMinutes, 0, 0);
+
+    const endTime = new Date();
+    endTime.setHours(endHours, endMinutes, 0, 0);
+
+    const updates = {
+      startTime,
+      endTime,
+    };
+
+    await bloodbankStore.updateSlot(
+      bloodBanksLocationId.value,
+      selectedAvailableDate.value._id,
+      slotId,
+      updates
+    );
+
+    // Remover da lista de slots alterados
+    changedSlots.value = changedSlots.value.filter((id) => id !== slotId);
+
+    useToast().add({
+      title: "Horário atualizado!",
+      description: "O horário da equipe foi atualizado com sucesso.",
+      color: "success",
+    });
+  } catch (error: any) {
+    console.error("Error updating slot time:", error);
+    useToast().add({
+      title: "Erro ao atualizar horário",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    savingSlots.value = savingSlots.value.filter((id) => id !== slotId);
+  }
+};
+
 const handleRemoveSlot = async (slot: any) => {
   if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
 
@@ -701,14 +914,14 @@ const handleRemoveSlot = async (slot: any) => {
     );
 
     useToast().add({
-      title: "Time removido!",
-      description: "O time foi removido da data.",
+      title: "Equipe removida!",
+      description: "A equipe foi removida da data.",
       color: "success",
     });
   } catch (error: any) {
     console.error("Error removing slot:", error);
     useToast().add({
-      title: "Erro ao remover time",
+      title: "Erro ao remover equipe",
       description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
@@ -743,8 +956,34 @@ const handleDeleteDate = async () => {
 };
 
 const handleAddTeams = () => {
-  // TODO: Implementar modal para adicionar times
+  // TODO: Implementar modal para adicionar equipes
   console.log("Add teams functionality to be implemented");
+};
+
+const handleMigrateToIndividual = async () => {
+  if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
+
+  try {
+    // TODO: Implementar migração de "todas as equipes" para individual
+    // Isso envolveria:
+    // 1. Criar slots individuais para cada equipe existente
+    // 2. Atualizar o availableDate para isAllTeams: false
+    // 3. Recarregar os dados
+
+    useToast().add({
+      title: "Funcionalidade em desenvolvimento",
+      description:
+        "A migração para gerenciamento individual será implementada em breve.",
+      color: "info",
+    });
+  } catch (error: any) {
+    console.error("Error migrating to individual:", error);
+    useToast().add({
+      title: "Erro na migração",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  }
 };
 
 // Helper to format CalendarDate to YYYY-MM-DD string
@@ -792,7 +1031,17 @@ const getAvailabilityColor = (day: DateValue) => {
   if (allSlotsLocked) {
     return "error"; // All slots locked - red
   } else if (hasAvailableSlots && !allSlotsLocked) {
-    return "warning"; // Some available, some locked - yellow
+    // Check if there's a mix of available and locked slots
+    const availableCount = availableDate.slots.filter(
+      (slot) => !slot.locked
+    ).length;
+    const totalCount = availableDate.slots.length;
+
+    if (availableCount === totalCount) {
+      return "success"; // All available - green
+    } else {
+      return "warning"; // Some available, some locked - yellow
+    }
   } else {
     return "success"; // All available - green
   }

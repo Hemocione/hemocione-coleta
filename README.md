@@ -41,8 +41,7 @@ npm run build
 
 Locally preview production build:
 
-V2 Trigger Deploy
-
+AGORA VAI
 ```bash
 npm run preview
 ```

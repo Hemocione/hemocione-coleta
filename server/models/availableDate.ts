@@ -3,11 +3,15 @@ import { InferSchemaType, Schema, model } from "mongoose";
 // Slot Schema - subdocumento para cada time
 const SlotSchema = new Schema(
   {
-    _id: { type: Schema.Types.ObjectId, auto: true },
     teamId: { type: Schema.Types.ObjectId, required: true, ref: "Team" },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
     locked: { type: Boolean, default: false },
+    lockedBy: {
+      type: Schema.Types.ObjectId,
+      required: false,
+      ref: "CollectionRequest",
+    },
   },
   { _id: true }
 );
@@ -23,7 +27,6 @@ SlotSchema.pre("validate", function (next) {
 
 export const AvailableDateSchema = new Schema(
   {
-    _id: { type: Schema.Types.ObjectId, auto: true },
     bloodBanksLocationId: { type: Schema.Types.UUID, required: true },
     date: {
       type: String,
@@ -47,12 +50,15 @@ export const AvailableDateSchema = new Schema(
     slots: [SlotSchema],
     deletedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { _id: true, timestamps: true }
 );
 
 // Virtual field para verificar se todos os slots estão locked
 AvailableDateSchema.virtual("allSlotsLocked").get(function () {
-  return this.slots.length > 0 && this.slots.every((slot) => slot.locked);
+  return (
+    this.slots.length > 0 &&
+    this.slots.every((slot) => slot.locked || slot.lockedBy)
+  );
 });
 
 // Índice composto único parcial para evitar duplicatas por data

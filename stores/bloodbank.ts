@@ -70,6 +70,55 @@ export interface AvailableDate {
   updatedAt: Date;
 }
 
+export interface CollectionRequest {
+  _id: string;
+  institutionId: string;
+  institutionName: string;
+  institutionLocation: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  institutionAddress: string;
+  institutionLogo?: string;
+  institutionBanner?: string;
+  requestedByUserId: string;
+  bloodBanksLocationId: string;
+  requestedDates: Array<{
+    availableDateId: string;
+    slotIds?: string[]; // Now optional array of slot IDs
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+    teamColor?: string;
+    isLocked?: boolean;
+  }>;
+  selectedAvailableDateId?: string;
+  selectedSlotId?: string;
+  status:
+    | "pending"
+    | "institution_needs_validation"
+    | "accepted"
+    | "rejected"
+    | "cancelled";
+  rejectionReason?: string;
+  statusHistory: Array<{
+    status: string;
+    changedAt: Date;
+    changedBy?: string;
+    reason?: string;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CollectionRequestsPagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
 export const useBloodbankStore = defineStore("bloodbank", {
   state: () => ({
     bloodbankData: null as BloodbankData | null,
@@ -77,11 +126,22 @@ export const useBloodbankStore = defineStore("bloodbank", {
     teams: [] as Team[],
     restrictionChecklist: [] as RestrictionItem[],
     availableDates: [] as AvailableDate[],
+    collectionRequests: {
+      data: [] as CollectionRequest[],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 20,
+        pages: 0,
+      } as CollectionRequestsPagination,
+    },
+    currentCollectionRequest: null as CollectionRequest | null,
     isLoading: false,
     isSaving: false,
     isLoadingTeams: false,
     isLoadingRestrictions: false,
     isLoadingAvailableDates: false,
+    isLoadingCollectionRequests: false,
     error: null as string | null,
   }),
 
@@ -788,6 +848,307 @@ export const useBloodbankStore = defineStore("bloodbank", {
       } finally {
         this.isLoadingAvailableDates = false;
       }
+    },
+
+    // Collection Requests Actions
+    async loadCollectionRequests(
+      bloodBanksLocationId: string,
+      filters: { status?: string; dateFrom?: string; dateTo?: string } = {},
+      page: number = 1
+    ) {
+      this.isLoadingCollectionRequests = true;
+      this.error = null;
+
+      try {
+        const queryParams = new URLSearchParams();
+        if (filters.status) queryParams.append("status", filters.status);
+        if (filters.dateFrom) queryParams.append("dateFrom", filters.dateFrom);
+        if (filters.dateTo) queryParams.append("dateTo", filters.dateTo);
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", "20");
+
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests?${queryParams.toString()}`
+        );
+
+        if (response.success) {
+          this.collectionRequests = {
+            data: response.data.map((request: any) => ({
+              ...request,
+              createdAt: new Date(request.createdAt),
+              updatedAt: new Date(request.updatedAt),
+              requestedDates: request.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: request.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            })),
+            pagination: response.pagination,
+          };
+          return response.data;
+        } else {
+          throw new Error("Failed to load collection requests");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error loading collection requests";
+        console.error("Error loading collection requests:", error);
+        throw error;
+      } finally {
+        this.isLoadingCollectionRequests = false;
+      }
+    },
+
+    async loadCollectionRequestById(
+      requestId: string,
+      bloodBanksLocationId: string
+    ) {
+      this.isLoadingCollectionRequests = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}`
+        );
+
+        if (response.success) {
+          this.currentCollectionRequest = {
+            ...response.data,
+            createdAt: new Date(response.data.createdAt),
+            updatedAt: new Date(response.data.updatedAt),
+            requestedDates: response.data.requestedDates.map((rd: any) => ({
+              ...rd,
+              startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+              endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+            })),
+            statusHistory: response.data.statusHistory.map((sh: any) => ({
+              ...sh,
+              changedAt: new Date(sh.changedAt),
+            })),
+          };
+          return response.data;
+        } else {
+          throw new Error("Failed to load collection request");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error loading collection request";
+        console.error("Error loading collection request:", error);
+        throw error;
+      } finally {
+        this.isLoadingCollectionRequests = false;
+      }
+    },
+
+    async acceptCollectionRequest(
+      requestId: string,
+      selectedAvailableDateId: string,
+      selectedSlotId: string,
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/accept`,
+          {
+            method: "POST",
+            body: {
+              selectedAvailableDateId,
+              selectedSlotId,
+            },
+          }
+        );
+
+        if (response.success) {
+          // Update local state
+          const requestIndex = this.collectionRequests.data.findIndex(
+            (req) => req._id === requestId
+          );
+          if (requestIndex !== -1) {
+            this.collectionRequests.data[requestIndex] = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          // Update current collection request if it's the same
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          return response.data;
+        } else {
+          throw new Error("Failed to accept collection request");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error accepting collection request";
+        console.error("Error accepting collection request:", error);
+        throw error;
+      }
+    },
+
+    async rejectCollectionRequest(
+      requestId: string,
+      rejectionReason: string,
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/reject`,
+          {
+            method: "POST",
+            body: {
+              rejectionReason,
+            },
+          }
+        );
+
+        if (response.success) {
+          // Update local state
+          const requestIndex = this.collectionRequests.data.findIndex(
+            (req) => req._id === requestId
+          );
+          if (requestIndex !== -1) {
+            this.collectionRequests.data[requestIndex] = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          // Update current collection request if it's the same
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          return response.data;
+        } else {
+          throw new Error("Failed to reject collection request");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error rejecting collection request";
+        console.error("Error rejecting collection request:", error);
+        throw error;
+      }
+    },
+
+    async cancelCollectionRequest(
+      requestId: string,
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/cancel`,
+          {
+            method: "POST",
+          }
+        );
+
+        if (response.success) {
+          // Update local state
+          const requestIndex = this.collectionRequests.data.findIndex(
+            (req) => req._id === requestId
+          );
+          if (requestIndex !== -1) {
+            this.collectionRequests.data[requestIndex] = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          // Update current collection request if it's the same
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              requestedDates: response.data.requestedDates.map((rd: any) => ({
+                ...rd,
+                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
+                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
+              })),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          return response.data;
+        } else {
+          throw new Error("Failed to cancel collection request");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error cancelling collection request";
+        console.error("Error cancelling collection request:", error);
+        throw error;
+      }
+    },
+
+    clearCurrentCollectionRequest() {
+      this.currentCollectionRequest = null;
     },
   },
 });

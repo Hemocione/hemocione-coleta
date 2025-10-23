@@ -29,6 +29,22 @@ export interface EnrichedMe extends Me {
   bloodBankRoles: EnrichedBloodBankRole[];
 }
 
+// Institution interfaces
+export interface Institution {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  logo?: string;
+  banner?: string;
+  status: "pending" | "validated" | "rejected";
+}
+
+export interface InstitutionListResponse {
+  institutions: Institution[];
+}
+
 export async function getMe(token: string): Promise<EnrichedMe> {
   const config = useRuntimeConfig();
 
@@ -85,4 +101,26 @@ export async function getMe(token: string): Promise<EnrichedMe> {
   });
 
   return result;
+}
+
+export async function getInstitutionsByIds(
+  institutionIds: string[]
+): Promise<Institution[]> {
+  const config = useRuntimeConfig();
+
+  const response = await $fetch<InstitutionListResponse>(
+    `${config.public.hemocioneIdApiUrl}/backoffice/institutions`,
+    {
+      method: "POST",
+      headers: {
+        "x-secret": config.hemocioneIdIntegrationSecret,
+        "Content-Type": "application/json",
+      },
+      body: {
+        institutionIds,
+      },
+    }
+  );
+
+  return response.institutions;
 }

@@ -54,6 +54,10 @@ export async function getAvailableDatesByBloodBank(
     query.year = year;
   }
 
+  // Only get future dates -- considering date format is 'YYYY-MM-DD'
+  const todayStr = dayjs().format("YYYY-MM-DD");
+  query.date = { $gte: todayStr };
+
   const availableDates = await AvailableDate.find(query)
     .sort({ date: 1 })
     .lean();
@@ -100,7 +104,11 @@ export async function createAvailableDate(
   // Extract year from date string for indexing
   const year = parseInt(date.split("-")[0]);
 
-  // Verificar se já existe availableDate para esta data
+  // Verificar se já existe availableDate para esta data e se está no futuro
+  const todayStr = dayjs().format("YYYY-MM-DD");
+  if (date < todayStr) {
+    throw new Error("Não é possível criar datas no passado");
+  }
   const existingDate = await getAvailableDateByDate(bloodBanksLocationId, date);
   if (existingDate) {
     throw new Error("Já existe uma data cadastrada para este dia");

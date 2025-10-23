@@ -167,7 +167,7 @@
                 <!-- Requested Dates -->
                 <div>
                   <h4 class="text-sm font-medium text-gray-900 mb-2">
-                    Datas Solicitadas
+                    Opções de Data
                   </h4>
                   <div class="space-y-1">
                     <div

@@ -172,7 +172,13 @@ export const useBloodbankStore = defineStore("bloodbank", {
         return dateMonth === month;
       });
     },
-    async loadBloodbankData(bloodBanksLocationId: string) {
+    async loadBloodbankData(
+      bloodBanksLocationId: string,
+      noNeedToRefresh: boolean = false
+    ) {
+      if (!noNeedToRefresh && this.bloodbankData) {
+        return this.bloodbankData;
+      }
       this.isLoading = true;
       this.error = null;
 

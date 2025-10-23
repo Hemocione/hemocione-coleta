@@ -144,14 +144,64 @@
                 ]"
                 :color="'#3B82F6'"
               >
-                <MglPopup>
-                  <div class="p-2">
-                    <h3 class="font-semibold text-gray-900">
-                      {{ request.institutionName }}
-                    </h3>
-                    <p class="text-sm text-gray-600">
-                      {{ request.institutionAddress }}
-                    </p>
+                <!-- MglPopup and marker visuals for institution -->
+                <template v-if="request.institutionLogo" v-slot:marker>
+                  <div class="flex flex-col items-center">
+                    <NuxtImg
+                      :src="request.institutionLogo"
+                      :alt="`Logo da instituição ${request.institutionName}`"
+                      class="w-8 h-8 rounded-full object-cover border-2"
+                      style="border-color: #3b82f6"
+                    />
+                    <svg
+                      class="mt-[-2px]"
+                      width="10"
+                      height="6"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <polygon points="5,6 0,0 10,0" fill="#3B82F6" />
+                    </svg>
+                  </div>
+                </template>
+                <MglPopup
+                  v-if="!request.institutionLogo"
+                  ref="institutionPopup"
+                  :close-button="false"
+                  :offset="[0, -40]"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="shrink-0">
+                      <NuxtImg
+                        v-if="request.institutionLogo"
+                        :src="request.institutionLogo"
+                        :alt="`Logo da instituição ${request.institutionName}`"
+                        class="w-8 h-8 rounded-full object-cover"
+                      />
+                      <div
+                        v-else
+                        class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"
+                      >
+                        <svg
+                          class="w-5 h-5 text-blue-600"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-semibold text-gray-800">
+                        {{ request.institutionName }}
+                      </h3>
+                      <p class="text-sm text-gray-600">
+                        {{ request.institutionAddress }}
+                      </p>
+                    </div>
                   </div>
                 </MglPopup>
               </MglMarker>
@@ -165,12 +215,59 @@
                 ]"
                 :color="'#bb0a08'"
               >
-                <MglPopup>
-                  <div class="p-2">
-                    <h3 class="font-semibold text-gray-900">
+                <!-- MglPopup for bloodbank info -->
+                <template v-if="bloodbankData.logo" v-slot:marker>
+                  <div class="flex flex-col items-center">
+                    <NuxtImg
+                      :src="bloodbankData.logo"
+                      :alt="`Logo do ${bloodbankData.name}`"
+                      class="w-8 h-8 rounded-full object-cover border-2"
+                      style="border-color: #bb0a08"
+                    />
+                    <svg
+                      class="mt-[-2px]"
+                      width="10"
+                      height="6"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <polygon points="5,6 0,0 10,0" fill="#bb0a08" />
+                    </svg>
+                  </div>
+                </template>
+                <MglPopup
+                  v-if="!bloodbankData.logo"
+                  ref="bloodbankPopup"
+                  :close-button="false"
+                  :offset="[0, -40]"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="shrink-0">
+                      <NuxtImg
+                        v-if="bloodbankData.logo"
+                        :src="bloodbankData.logo"
+                        :alt="`Logo do ${bloodbankData.name}`"
+                        class="w-8 h-8 rounded-full object-cover"
+                      />
+                      <div
+                        v-else
+                        class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center"
+                      >
+                        <svg
+                          class="w-5 h-5 text-red-600"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 class="text-lg font-semibold text-grey-800">
                       {{ bloodbankData.name }}
                     </h3>
-                    <p class="text-sm text-gray-600">Banco de Sangue</p>
                   </div>
                 </MglPopup>
               </MglMarker>
@@ -225,6 +322,7 @@
                     color="success"
                     size="sm"
                     @click="showAcceptDialog(date)"
+                    class="cursor-pointer"
                   >
                     Aceitar
                   </UButton>
@@ -261,7 +359,7 @@
               color="error"
               variant="outline"
               @click="showRejectDialog"
-              class="w-full"
+              class="w-full cursor-pointer"
             >
               Rejeitar Solicitação
             </UButton>
@@ -321,7 +419,12 @@
 
         <!-- Back Button -->
         <div class="flex items-center justify-start pt-6 border-t">
-          <UButton variant="ghost" icon="i-lucide-arrow-left" @click="goBack">
+          <UButton
+            variant="ghost"
+            icon="i-lucide-arrow-left"
+            @click="goBack"
+            class="cursor-pointer"
+          >
             Voltar para Lista
           </UButton>
         </div>
@@ -380,13 +483,18 @@
           </div>
 
           <div class="flex justify-end space-x-3 mt-6">
-            <UButton variant="ghost" @click="showAcceptModal = false">
+            <UButton
+              variant="ghost"
+              @click="showAcceptModal = false"
+              class="cursor-pointer"
+            >
               Cancelar
             </UButton>
             <UButton
               color="success"
               @click="confirmAccept"
               :loading="isAccepting"
+              class="cursor-pointer"
             >
               Confirmar Aceitação
             </UButton>
@@ -423,7 +531,11 @@
           </div>
 
           <div class="flex justify-end space-x-3 mt-6">
-            <UButton variant="ghost" @click="showRejectModal = false">
+            <UButton
+              variant="ghost"
+              @click="showRejectModal = false"
+              class="cursor-pointer"
+            >
               Cancelar
             </UButton>
             <UButton
@@ -431,6 +543,7 @@
               @click="confirmReject"
               :loading="isRejecting"
               :disabled="!rejectionReason.trim()"
+              class="cursor-pointer"
             >
               Confirmar Rejeição
             </UButton>
@@ -458,12 +571,13 @@ const route = useRoute();
 const router = useRouter();
 const bloodbankStore = useBloodbankStore();
 const userStore = useUserStore();
+const { bloodbankData } = storeToRefs(bloodbankStore);
+const { currentBloodBankRole } = storeToRefs(userStore);
 
 const requestId = route.params.requestId as string;
 const bloodbankSlug = route.params.bloodbankSlug as string;
-
 const bloodBanksLocationId = computed(
-  () => userStore.currentBloodBankRole?.bloodBanksLocationId
+  () => currentBloodBankRole.value?.bloodBanksLocationId
 );
 
 const request = ref<CollectionRequest | null>(null);
@@ -483,9 +597,6 @@ const mapRef = ref<any>(null);
 const mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 const mapCenter = ref<[number, number]>([-43.1915792, -22.9077772]);
 const mapZoom = ref<number>(10);
-
-// Bloodbank data
-const { bloodbankData } = storeToRefs(bloodbankStore);
 
 const loadRequestDetails = async () => {
   isLoading.value = true;
@@ -686,6 +797,13 @@ const confirmReject = async () => {
 };
 
 onMounted(async () => {
+  if (!bloodBanksLocationId.value) {
+    return;
+  }
+  await bloodbankStore.loadBloodbankData(
+    bloodBanksLocationId.value as string,
+    true
+  );
   await loadRequestDetails();
 });
 </script>

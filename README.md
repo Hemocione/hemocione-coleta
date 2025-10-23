@@ -41,6 +41,8 @@ npm run build
 
 Locally preview production build:
 
+V1 Trigger Deploy
+
 ```bash
 npm run preview
 ```

@@ -270,7 +270,10 @@
                   {{ slot.locked ? "Bloqueado" : "Disponível" }}
                 </UBadge>
                 <UButton
-                  v-if="!selectedAvailableDate.isAllTeams"
+                  v-if="
+                    !selectedAvailableDate.isAllTeams &&
+                    selectedAvailableDate.slots.length > 1
+                  "
                   variant="ghost"
                   size="xs"
                   color="error"
@@ -289,10 +292,7 @@
                 >
                   {{ getTeamName(slot.teamId) }}
                 </p>
-                <div
-                  v-if="!selectedAvailableDate.isAllTeams"
-                  class="flex items-center space-x-2 mt-1"
-                >
+                <div class="flex items-center space-x-2 mt-1">
                   <UInput
                     :model-value="editingTimes[slot._id]?.startTime"
                     @update:model-value="
@@ -327,9 +327,6 @@
                     Salvar
                   </UButton>
                 </div>
-                <p v-else class="text-xs text-gray-600">
-                  {{ formatTimeRange(slot.startTime, slot.endTime) }}
-                </p>
               </div>
             </div>
           </div>
@@ -353,16 +350,128 @@
               >
                 Adicionar Equipes
               </UButton>
-              <UButton
-                v-if="selectedAvailableDate.isAllTeams"
-                color="warning"
-                icon="i-lucide-settings"
-                @click="handleMigrateToIndividual"
-              >
-                Migrar para Individual
-              </UButton>
             </div>
           </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Add Teams Modal -->
+    <UModal v-model:open="showAddTeamsModal" title="Adicionar Equipes">
+      <template #body>
+        <div v-if="selectedAvailableDate" class="space-y-6">
+          <!-- Informações da data -->
+          <div class="bg-gray-50 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-600">Data</p>
+                <p class="font-semibold">
+                  {{ formatDateToYYYYMMDD(selectedAvailableDate.date) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600">Equipes atuais</p>
+                <p class="font-semibold">
+                  {{ selectedAvailableDate.slots.length }} equipe(s)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de equipes disponíveis -->
+          <UFormField label="Selecionar Equipes">
+            <div class="space-y-3">
+              <div
+                v-for="team in teams"
+                :key="team._id"
+                class="flex items-center space-x-4 p-3 border-2 rounded-lg"
+                :style="{
+                  borderColor: team.color,
+                  backgroundColor: `${team.color}10`,
+                }"
+              >
+                <!-- Checkbox da equipe -->
+                <UCheckbox
+                  :id="`add-team-${team._id}`"
+                  :model-value="
+                    addTeamsFormState.selectedTeamIds.includes(team._id)
+                  "
+                  @update:model-value="
+                    (checked) =>
+                      toggleAddTeamSelection(
+                        team._id,
+                        checked === 'indeterminate' ? false : checked
+                      )
+                  "
+                  class="shrink-0"
+                />
+
+                <!-- Nome da equipe -->
+                <label
+                  :for="`add-team-${team._id}`"
+                  class="flex-1 font-medium text-sm cursor-pointer"
+                  :style="{ color: team.color }"
+                >
+                  {{ team.name }}
+                </label>
+
+                <!-- Horários da equipe -->
+                <div class="flex items-center space-x-2">
+                  <div class="flex items-center space-x-1">
+                    <label class="text-xs text-gray-600">Início:</label>
+                    <UInput
+                      :model-value="
+                        addTeamsFormState.teamTimes[team._id]?.startTime
+                      "
+                      @update:model-value="
+                        (value) =>
+                          updateAddTeamTime(team._id, 'startTime', value)
+                      "
+                      type="time"
+                      size="sm"
+                      class="w-24"
+                      :disabled="
+                        !addTeamsFormState.selectedTeamIds.includes(team._id)
+                      "
+                    />
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <label class="text-xs text-gray-600">Fim:</label>
+                    <UInput
+                      :model-value="
+                        addTeamsFormState.teamTimes[team._id]?.endTime
+                      "
+                      @update:model-value="
+                        (value) => updateAddTeamTime(team._id, 'endTime', value)
+                      "
+                      type="time"
+                      size="sm"
+                      class="w-24"
+                      :disabled="
+                        !addTeamsFormState.selectedTeamIds.includes(team._id)
+                      "
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UFormField>
+        </div>
+      </template>
+
+      <template #footer="{ close }">
+        <div class="flex justify-end space-x-3">
+          <UButton variant="ghost" @click="close" :disabled="isSubmitting">
+            Cancelar
+          </UButton>
+          <UButton
+            color="primary"
+            :loading="isSubmitting"
+            :disabled="!canSubmitAddTeams"
+            @click="handleAddTeamsSubmit"
+          >
+            {{ isSubmitting ? "Adicionando..." : "Adicionar Equipes" }}
+          </UButton>
         </div>
       </template>
     </UModal>
@@ -400,6 +509,7 @@ const bloodBankTimezone = computed(
 const selectedDate = ref<DateValue | null>(null);
 const showCreateModal = ref(false);
 const showDetailModal = ref(false);
+const showAddTeamsModal = ref(false);
 const selectedAvailableDate = ref<AvailableDate | null>(null);
 const isSubmitting = ref(false);
 const isUpdating = ref(false);
@@ -420,6 +530,12 @@ const formState = ref({
   teamTimes: {} as Record<string, { startTime: string; endTime: string }>,
   globalStartTime: "08:00",
   globalEndTime: "17:00",
+});
+
+// Form state for add teams modal
+const addTeamsFormState = ref({
+  selectedTeamIds: [] as string[],
+  teamTimes: {} as Record<string, { startTime: string; endTime: string }>,
 });
 
 // Computed
@@ -494,6 +610,16 @@ const canSubmit = computed(() => {
   // Verificar se todos os times selecionados têm horários definidos
   return formState.value.selectedTeamIds.every((teamId) => {
     const teamTime = formState.value.teamTimes[teamId];
+    return teamTime?.startTime && teamTime?.endTime;
+  });
+});
+
+const canSubmitAddTeams = computed(() => {
+  if (addTeamsFormState.value.selectedTeamIds.length === 0) return false;
+
+  // Verificar se todos os times selecionados têm horários definidos
+  return addTeamsFormState.value.selectedTeamIds.every((teamId) => {
+    const teamTime = addTeamsFormState.value.teamTimes[teamId];
     return teamTime?.startTime && teamTime?.endTime;
   });
 });
@@ -782,6 +908,31 @@ const updateTeamTime = (
   formState.value.teamTimes[teamId][field] = value;
 };
 
+const toggleAddTeamSelection = (teamId: string, checked: boolean) => {
+  if (checked) {
+    if (!addTeamsFormState.value.selectedTeamIds.includes(teamId)) {
+      addTeamsFormState.value.selectedTeamIds.push(teamId);
+    }
+  } else {
+    addTeamsFormState.value.selectedTeamIds =
+      addTeamsFormState.value.selectedTeamIds.filter((id) => id !== teamId);
+  }
+};
+
+const updateAddTeamTime = (
+  teamId: string,
+  field: "startTime" | "endTime",
+  value: string
+) => {
+  if (!addTeamsFormState.value.teamTimes[teamId]) {
+    addTeamsFormState.value.teamTimes[teamId] = {
+      startTime: "08:00",
+      endTime: "17:00",
+    };
+  }
+  addTeamsFormState.value.teamTimes[teamId][field] = value;
+};
+
 const resetForm = () => {
   formState.value = {
     date: null,
@@ -791,6 +942,23 @@ const resetForm = () => {
     globalStartTime: "08:00",
     globalEndTime: "17:00",
   };
+};
+
+const resetAddTeamsForm = () => {
+  addTeamsFormState.value = {
+    selectedTeamIds: [],
+    teamTimes: {},
+  };
+
+  // Inicializar horários para todas as equipes
+  const teamTimes: Record<string, { startTime: string; endTime: string }> = {};
+  teams.value.forEach((team) => {
+    teamTimes[team._id] = {
+      startTime: "08:00",
+      endTime: "17:00",
+    };
+  });
+  addTeamsFormState.value.teamTimes = teamTimes;
 };
 
 const getTeamName = (teamId: string) => {
@@ -872,16 +1040,45 @@ const saveSlotTime = async (slotId: string) => {
     endTime.setHours(endHours, endMinutes, 0, 0);
 
     const updates = {
-      startTime,
-      endTime,
+      startTime: editingTime.startTime,
+      endTime: editingTime.endTime,
     };
 
-    await bloodbankStore.updateSlot(
+    // A migração automática agora é feita diretamente na API
+    const updatedDate = await bloodbankStore.updateSlot(
       bloodBanksLocationId.value,
       selectedAvailableDate.value._id,
       slotId,
       updates
     );
+
+    // Atualizar o selectedAvailableDate com os dados retornados
+    if (updatedDate) {
+      selectedAvailableDate.value = {
+        ...updatedDate,
+        deletedAt: updatedDate.deletedAt
+          ? new Date(updatedDate.deletedAt)
+          : undefined,
+        createdAt: new Date(updatedDate.createdAt),
+        updatedAt: new Date(updatedDate.updatedAt),
+        slots: updatedDate.slots.map((slot: any) => ({
+          ...slot,
+          startTime: new Date(slot.startTime),
+          endTime: new Date(slot.endTime),
+        })),
+      };
+
+      // Atualizar o editingTimes apenas para o slot que foi alterado
+      const updatedSlot = selectedAvailableDate.value.slots.find(
+        (s) => s._id === slotId
+      );
+      if (updatedSlot) {
+        editingTimes.value[slotId] = {
+          startTime: formatTimeForInput(updatedSlot.startTime),
+          endTime: formatTimeForInput(updatedSlot.endTime),
+        };
+      }
+    }
 
     // Remover da lista de slots alterados
     changedSlots.value = changedSlots.value.filter((id) => id !== slotId);
@@ -907,11 +1104,29 @@ const handleRemoveSlot = async (slot: any) => {
   if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
 
   try {
-    await bloodbankStore.removeSlotFromDate(
+    // A migração automática agora é feita diretamente na API
+    const updatedDate = await bloodbankStore.removeSlotFromDate(
       bloodBanksLocationId.value,
       selectedAvailableDate.value._id,
       slot._id
     );
+
+    // Atualizar o selectedAvailableDate com os dados retornados
+    if (updatedDate) {
+      selectedAvailableDate.value = {
+        ...updatedDate,
+        deletedAt: updatedDate.deletedAt
+          ? new Date(updatedDate.deletedAt)
+          : undefined,
+        createdAt: new Date(updatedDate.createdAt),
+        updatedAt: new Date(updatedDate.updatedAt),
+        slots: updatedDate.slots.map((slot: any) => ({
+          ...slot,
+          startTime: new Date(slot.startTime),
+          endTime: new Date(slot.endTime),
+        })),
+      };
+    }
 
     useToast().add({
       title: "Equipe removida!",
@@ -956,33 +1171,71 @@ const handleDeleteDate = async () => {
 };
 
 const handleAddTeams = () => {
-  // TODO: Implementar modal para adicionar equipes
-  console.log("Add teams functionality to be implemented");
+  showAddTeamsModal.value = true;
+  resetAddTeamsForm();
 };
 
-const handleMigrateToIndividual = async () => {
-  if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
+const handleAddTeamsSubmit = async () => {
+  if (
+    !bloodBanksLocationId.value ||
+    !selectedAvailableDate.value ||
+    addTeamsFormState.value.selectedTeamIds.length === 0
+  )
+    return;
+
+  isSubmitting.value = true;
 
   try {
-    // TODO: Implementar migração de "todas as equipes" para individual
-    // Isso envolveria:
-    // 1. Criar slots individuais para cada equipe existente
-    // 2. Atualizar o availableDate para isAllTeams: false
-    // 3. Recarregar os dados
+    // Filtrar equipes que ainda não estão na data
+    const existingTeamIds = selectedAvailableDate.value.slots.map(
+      (slot) => slot.teamId
+    );
+    const newTeamIds = addTeamsFormState.value.selectedTeamIds.filter(
+      (teamId) => !existingTeamIds.includes(teamId)
+    );
+
+    if (newTeamIds.length === 0) {
+      useToast().add({
+        title: "Nenhuma equipe nova",
+        description: "Todas as equipes selecionadas já estão nesta data.",
+        color: "warning",
+      });
+      return;
+    }
+
+    // Usar horários padrão (primeira equipe selecionada ou padrão)
+    const firstTeamId = newTeamIds[0];
+    const defaultTimes = {
+      defaultStartTime:
+        addTeamsFormState.value.teamTimes[firstTeamId]?.startTime || "08:00",
+      defaultEndTime:
+        addTeamsFormState.value.teamTimes[firstTeamId]?.endTime || "17:00",
+    };
+
+    await bloodbankStore.addTeamsToDate(
+      bloodBanksLocationId.value,
+      selectedAvailableDate.value._id,
+      newTeamIds,
+      defaultTimes
+    );
 
     useToast().add({
-      title: "Funcionalidade em desenvolvimento",
-      description:
-        "A migração para gerenciamento individual será implementada em breve.",
-      color: "info",
+      title: "Equipes adicionadas!",
+      description: `${newTeamIds.length} equipe(s) foram adicionadas à data.`,
+      color: "success",
     });
+
+    showAddTeamsModal.value = false;
+    resetAddTeamsForm();
   } catch (error: any) {
-    console.error("Error migrating to individual:", error);
+    console.error("Error adding teams:", error);
     useToast().add({
-      title: "Erro na migração",
+      title: "Erro ao adicionar equipes",
       description: error.message || "Tente novamente mais tarde.",
       color: "error",
     });
+  } finally {
+    isSubmitting.value = false;
   }
 };
 

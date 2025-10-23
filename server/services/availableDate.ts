@@ -4,8 +4,7 @@ import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank"
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
-import { QueryOptions, Types } from "mongoose";
-import { Binary } from "mongodb";
+import { Types } from "mongoose";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -233,6 +232,12 @@ export async function updateSlot(
     locked?: boolean;
   }
 ): Promise<AvailableDateData | null> {
+  // Obter timezone do banco de sangue
+  const bloodBank = await getBloodBankByBloodBanksLocationId(
+    bloodBanksLocationId
+  );
+  const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
+
   // Verificar se availableDate pertence ao bloodbank
   const availableDate = await AvailableDate.findOne({
     _id: availableDateId,
@@ -256,16 +261,22 @@ export async function updateSlot(
   const slotUpdates: any = {};
 
   if (updates.startTime !== undefined) {
-    const newStartTime = new Date(
-      `${availableDate.date}T${updates.startTime}:00.000Z`
+    // Converter horário do timezone do banco de sangue para UTC
+    const startTimeLocal = dayjs.tz(
+      `${availableDate.date}T${updates.startTime}`,
+      bloodBankTimezone
     );
+    const newStartTime = startTimeLocal.utc().toDate();
     slotUpdates["slots.$.startTime"] = newStartTime;
   }
 
   if (updates.endTime !== undefined) {
-    const newEndTime = new Date(
-      `${availableDate.date}T${updates.endTime}:00.000Z`
+    // Converter horário do timezone do banco de sangue para UTC
+    const endTimeLocal = dayjs.tz(
+      `${availableDate.date}T${updates.endTime}`,
+      bloodBankTimezone
     );
+    const newEndTime = endTimeLocal.utc().toDate();
     slotUpdates["slots.$.endTime"] = newEndTime;
   }
 
@@ -276,19 +287,65 @@ export async function updateSlot(
   // Validar que startTime < endTime se ambos foram fornecidos
   const finalStartTime =
     updates.startTime !== undefined
-      ? new Date(`${availableDate.date}T${updates.startTime}:00.000Z`)
+      ? dayjs
+          .tz(`${availableDate.date}T${updates.startTime}`, bloodBankTimezone)
+          .utc()
+          .toDate()
       : slot.startTime;
 
   const finalEndTime =
     updates.endTime !== undefined
-      ? new Date(`${availableDate.date}T${updates.endTime}:00.000Z`)
+      ? dayjs
+          .tz(`${availableDate.date}T${updates.endTime}`, bloodBankTimezone)
+          .utc()
+          .toDate()
       : slot.endTime;
 
   if (finalStartTime >= finalEndTime) {
     throw new Error("Horário de início deve ser anterior ao horário de fim");
   }
 
-  // Atualizar slot
+  // Se está no modo "todas as equipes" e um horário foi alterado, migrar para individual
+  if (
+    availableDate.isAllTeams &&
+    (updates.startTime !== undefined || updates.endTime !== undefined)
+  ) {
+    // Apenas atualizar o isAllTeams para false e o slot específico
+    const updatedAvailableDate = await AvailableDate.findOneAndUpdate(
+      {
+        _id: availableDateId,
+        bloodBanksLocationId,
+        deletedAt: null,
+        "slots._id": slotId,
+      },
+      {
+        $set: {
+          isAllTeams: false,
+          ...slotUpdates,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedAvailableDate) {
+      return null;
+    }
+
+    // Converter para o formato esperado
+    return {
+      ...updatedAvailableDate.toObject(),
+      _id: updatedAvailableDate._id?.toString() || "",
+      bloodBanksLocationId:
+        updatedAvailableDate.bloodBanksLocationId.toString(),
+      slots: updatedAvailableDate.slots.map((slot) => ({
+        ...slot.toObject(),
+        _id: slot._id?.toString() || "",
+        teamId: slot.teamId.toString(),
+      })),
+    } as AvailableDateData;
+  }
+
+  // Atualizar slot normalmente (modo individual)
   const updatedAvailableDate = await AvailableDate.findOneAndUpdate(
     {
       _id: availableDateId,
@@ -297,10 +354,24 @@ export async function updateSlot(
       "slots._id": slotId,
     },
     { $set: slotUpdates },
-    { new: true, lean: true }
+    { new: true }
   );
 
-  return updatedAvailableDate as AvailableDateData | null;
+  if (!updatedAvailableDate) {
+    return null;
+  }
+
+  // Converter para o formato esperado
+  return {
+    ...updatedAvailableDate.toObject(),
+    _id: updatedAvailableDate._id?.toString() || "",
+    bloodBanksLocationId: updatedAvailableDate.bloodBanksLocationId.toString(),
+    slots: updatedAvailableDate.slots.map((slot) => ({
+      ...slot.toObject(),
+      _id: slot._id?.toString() || "",
+      teamId: slot.teamId.toString(),
+    })),
+  } as AvailableDateData;
 }
 
 export async function addTeamsToAvailableDate(

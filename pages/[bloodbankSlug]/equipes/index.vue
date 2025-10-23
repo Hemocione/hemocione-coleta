@@ -21,7 +21,7 @@
         <!-- Team Color Avatar -->
         <div class="relative">
           <div
-            class="w-10 h-10 rounded-full border-2 border-gray-200 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform"
+            class="w-10 h-10 rounded-full border-2 border-gray-200 shrink-0 cursor-pointer hover:scale-110 transition-transform"
             :style="{ backgroundColor: team.color }"
             @click.stop="toggleColorPicker(team._id)"
           ></div>
@@ -102,8 +102,9 @@
         </div>
       </div>
 
-      <!-- Add New Team Button -->
+      <!-- Add New Team Button or Limit Message -->
       <div
+        v-if="teams.length < 5"
         class="group bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer flex items-center space-x-4"
         @click="showCreateTeamModal = true"
       >
@@ -117,6 +118,27 @@
         >
           Adicionar Equipe
         </h3>
+      </div>
+
+      <!-- Limit Reached Message -->
+      <div
+        v-else
+        class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center space-x-4"
+      >
+        <div
+          class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"
+        >
+          <UIcon name="i-lucide-info" class="w-5 h-5" />
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-amber-800">
+            Limite de Equipes Atingido
+          </h3>
+          <p class="text-sm text-amber-700">
+            Você pode ter no máximo 5 equipes. Exclua uma equipe para adicionar
+            uma nova.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -172,7 +194,10 @@
               color="primary"
               :loading="isLoadingTeams"
               :disabled="
-                !newTeam.name?.trim() || !newTeam.color || isLoadingTeams
+                !newTeam.name?.trim() ||
+                !newTeam.color ||
+                isLoadingTeams ||
+                teams.length >= 5
               "
             >
               Criar Equipe
@@ -190,11 +215,30 @@
             Confirmar Exclusão
           </h3>
 
-          <p class="text-gray-700 mb-6">
+          <p class="text-gray-700 mb-4">
             Tem certeza que deseja excluir a equipe
             <strong>{{ teamToDelete?.name }}</strong
             >? Esta ação não pode ser desfeita.
           </p>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start space-x-3">
+              <UIcon
+                name="i-lucide-alert-triangle"
+                class="w-5 h-5 text-amber-600 mt-0.5 shrink-0"
+              />
+              <div>
+                <p class="text-sm font-medium text-amber-800 mb-1">
+                  Atenção: Horários da equipe serão removidos
+                </p>
+                <p class="text-sm text-amber-700">
+                  Todos os horários desta equipe serão removidos das datas
+                  disponibilizadas. Se uma data tiver apenas esta equipe, a data
+                  inteira será deletada.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div class="flex justify-end space-x-3">
             <UButton
@@ -276,6 +320,17 @@ const createTeam = async () => {
     !newTeam.value.color
   )
     return;
+
+  // Check team limit
+  if (teams.value.length >= 5) {
+    useToast().add({
+      title: "Limite de equipes atingido",
+      description:
+        "Você pode ter no máximo 5 equipes. Exclua uma equipe para adicionar uma nova.",
+      color: "error",
+    });
+    return;
+  }
 
   try {
     await bloodbankStore.createTeam(

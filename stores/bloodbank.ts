@@ -119,6 +119,31 @@ export interface CollectionRequestsPagination {
   pages: number;
 }
 
+export interface DashboardCollection {
+  _id: string;
+  institutionName: string;
+  institutionLocation: {
+    type: "Point";
+    coordinates: [number, number];
+  } | null;
+  institutionAddress: string;
+  institutionLogo?: string;
+  institutionBanner?: string;
+  date: string;
+  startTime?: Date;
+  endTime?: Date;
+  teamName: string;
+  teamColor: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DashboardData {
+  upcomingCollections: DashboardCollection[];
+  pendingRequestsCount: number;
+  nextCollection: DashboardCollection | null;
+}
+
 export const useBloodbankStore = defineStore("bloodbank", {
   state: () => ({
     bloodbankData: null as BloodbankData | null,
@@ -136,12 +161,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
       } as CollectionRequestsPagination,
     },
     currentCollectionRequest: null as CollectionRequest | null,
+    dashboardData: null as DashboardData | null,
     isLoading: false,
     isSaving: false,
     isLoadingTeams: false,
     isLoadingRestrictions: false,
     isLoadingAvailableDates: false,
     isLoadingCollectionRequests: false,
+    isLoadingDashboard: false,
     error: null as string | null,
   }),
 
@@ -1172,6 +1199,63 @@ export const useBloodbankStore = defineStore("bloodbank", {
 
     clearCurrentCollectionRequest() {
       this.currentCollectionRequest = null;
+    },
+
+    // Dashboard Actions
+    async loadDashboardData(bloodBanksLocationId: string) {
+      this.isLoadingDashboard = true;
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/dashboard`
+        );
+
+        if (response.success) {
+          this.dashboardData = {
+            upcomingCollections: response.data.upcomingCollections.map(
+              (collection: any) => ({
+                ...collection,
+                createdAt: new Date(collection.createdAt),
+                updatedAt: new Date(collection.updatedAt),
+                startTime: collection.startTime
+                  ? new Date(collection.startTime)
+                  : undefined,
+                endTime: collection.endTime
+                  ? new Date(collection.endTime)
+                  : undefined,
+              })
+            ),
+            pendingRequestsCount: response.data.pendingRequestsCount,
+            nextCollection: response.data.nextCollection
+              ? {
+                  ...response.data.nextCollection,
+                  createdAt: new Date(response.data.nextCollection.createdAt),
+                  updatedAt: new Date(response.data.nextCollection.updatedAt),
+                  startTime: response.data.nextCollection.startTime
+                    ? new Date(response.data.nextCollection.startTime)
+                    : undefined,
+                  endTime: response.data.nextCollection.endTime
+                    ? new Date(response.data.nextCollection.endTime)
+                    : undefined,
+                }
+              : null,
+          };
+          return response.data;
+        } else {
+          throw new Error("Failed to load dashboard data");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error loading dashboard data";
+        console.error("Error loading dashboard data:", error);
+        throw error;
+      } finally {
+        this.isLoadingDashboard = false;
+      }
+    },
+
+    clearDashboardData() {
+      this.dashboardData = null;
     },
   },
 });

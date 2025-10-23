@@ -575,3 +575,13 @@ export async function validateSlotsAvailability(
 
   return unavailableSlots.length > 0 ? unavailableSlots : null;
 }
+
+// Get collection requests by IDs
+export async function getCollectionRequestsByIds(ids: string[]) {
+  const collectionRequests = await CollectionRequest.find({
+    _id: { $in: ids },
+    deletedAt: null,
+  }).lean();
+
+  return collectionRequests;
+}

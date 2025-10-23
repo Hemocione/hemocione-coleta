@@ -3,7 +3,6 @@ import {
   getCollectionRequestsByBloodBank,
   getCollectionRequestsByIds,
 } from "~/server/services/collectionRequest";
-import { getAvailableDatesByBloodBank } from "~/server/services/availableDate";
 import { getInstitutionsByIds } from "~/server/services/hemocioneId";
 import { Team } from "~/server/models/team";
 import { AvailableDate } from "~/server/models/availableDate";

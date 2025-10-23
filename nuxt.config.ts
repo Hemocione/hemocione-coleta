@@ -76,7 +76,13 @@ export default defineNuxtConfig({
   image: {
     domains: ["cdn.hemocione.com.br"],
   },
+  icon: {
+    serverBundle: {
+      remote: true,
+    },
+  },
   bugsnag: {
+    disabled: true,
     publishRelease: true,
     disableLog: false, // might activate later
     baseUrl: siteUrl,

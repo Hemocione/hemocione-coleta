@@ -7,10 +7,12 @@ export default defineNitroPlugin(async (_nitro) => {
     const config = useRuntimeConfig();
     try {
       mongoose.set("debug", process.env.NODE_ENV === "development");
+      console.log("Connecting to MongoDB...");
       await mongoose.connect(config.mongodbUri, {
         dbName: config.dbName,
         authSource: "admin",
       });
+      console.log("MongoDB connected successfully");
     } catch (error: any) {
       console.error("Failed to connect to MongoDB:", error);
       useBugsnag().notify(error);

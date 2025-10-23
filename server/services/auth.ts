@@ -72,7 +72,8 @@ export function assertHemocioneIdIntegrationSecret(event: H3Event) {
 
 export function assertUserAccessToBloodBanksLocationId(
   user: HemocioneUserAuthTokenData,
-  bloodBankLocationId: string
+  bloodBankLocationId: string,
+  neededRoles?: BloodBankRole["role"][]
 ) {
   if (!user.bloodBankRoles.length) {
     throw createError({
@@ -88,6 +89,18 @@ export function assertUserAccessToBloodBanksLocationId(
     throw createError({
       statusCode: 403,
       statusMessage: "User does not have access to this bloodbank",
+    });
+  }
+
+  if (
+    neededRoles?.length &&
+    !neededRoles.some((role) =>
+      user.bloodBankRoles.some((r) => r.role === role)
+    )
+  ) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "User does not have the required roles",
     });
   }
 }

@@ -82,7 +82,6 @@ export default defineNuxtConfig({
     },
   },
   bugsnag: {
-    disabled: true,
     publishRelease: true,
     disableLog: false, // might activate later
     baseUrl: siteUrl,

@@ -66,7 +66,7 @@ export default defineNuxtConfig({
   ],
   modules: [
     "@nuxt/ui",
-    // "nuxt-bugsnag",
+    "nuxt-bugsnag",
     "@nuxt/fonts",
     "@pinia/nuxt",
     "@nuxt/image",
@@ -76,17 +76,17 @@ export default defineNuxtConfig({
   image: {
     domains: ["cdn.hemocione.com.br"],
   },
-  // bugsnag: {
-  //   publishRelease: true,
-  //   disableLog: false, // might activate later
-  //   baseUrl: siteUrl,
-  //   config: {
-  //     apiKey: process.env.BUGSNAG_API_KEY ?? "",
-  //     enabledReleaseStages: ["prod", "dev"],
-  //     releaseStage: currentEnv,
-  //     appVersion: `${currentEnv}-${process.env.VERCEL_GIT_COMMIT_SHA}`,
-  //   },
-  // },
+  bugsnag: {
+    publishRelease: true,
+    disableLog: false, // might activate later
+    baseUrl: siteUrl,
+    config: {
+      apiKey: process.env.BUGSNAG_API_KEY ?? "",
+      enabledReleaseStages: ["prod", "dev"],
+      releaseStage: currentEnv,
+      appVersion: `${currentEnv}-${process.env.VERCEL_GIT_COMMIT_SHA}`,
+    },
+  },
 
   compatibilityDate: "2025-10-23",
   ssr: false,

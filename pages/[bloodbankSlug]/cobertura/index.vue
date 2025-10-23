@@ -360,7 +360,10 @@ const loadBloodbankData = async () => {
   }
 
   try {
-    const data = await bloodbankStore.loadBloodbankData(bloodBanksLocationId);
+    const data = await bloodbankStore.loadBloodbankData(
+      bloodBanksLocationId,
+      true
+    );
 
     // Set map center to bloodbank location if available
     if (data.location) {

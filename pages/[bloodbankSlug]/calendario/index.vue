@@ -52,7 +52,7 @@
           <UFormField label="Data" required>
             <UCalendar
               v-model="formState.date as any"
-              :default-value="(selectedDate || currentCalendarDate) as any"
+              :default-value="selectedDate as any"
               :min-value="currentCalendarDate as any"
               size="lg"
             />
@@ -563,9 +563,20 @@ watch(
   { immediate: true }
 );
 
+// Watch for selectedDate changes and handle date selection
 watch(selectedDate, (newDate, oldDate) => {
-  if (newDate && newDate !== oldDate) {
+  if (newDate && newDate !== oldDate && isInitialized.value) {
     handleDateSelect(newDate as CalendarDate);
+  } else if (!newDate && oldDate && isInitialized.value) {
+    // If the selection was cleared, restore it if it had availability
+    const jsDate = new Date(oldDate.year, oldDate.month - 1, oldDate.day);
+    const dateStr = formatDateToYYYYMMDD(jsDate);
+    const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
+
+    if (availableDate) {
+      // Restore the selection for dates with availability
+      selectedDate.value = oldDate as CalendarDate;
+    }
   }
 });
 
@@ -659,47 +670,23 @@ const handleDateSelect = (date: CalendarDate | null) => {
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
 
   if (availableDate) {
-    // Abrir modal de detalhes
+    // Abrir modal de detalhes - não modificar selectedDate aqui
     selectedAvailableDate.value = availableDate;
     showDetailModal.value = true;
   } else {
-    // Abrir modal de criação
-    selectedDate.value = date;
+    // Abrir modal de criação - selectedDate já está definido pelo v-model
     formState.value.date = date;
     showCreateModal.value = true;
   }
 };
 
 const handleCreateDate = () => {
-  // Verificar se a data selecionada já tem disponibilidade
-  if (selectedDate.value) {
-    const jsDate = new Date(
-      selectedDate.value.year,
-      selectedDate.value.month - 1,
-      selectedDate.value.day
-    );
-    const dateStr = formatDateToYYYYMMDD(jsDate);
-    const existingDate = bloodbankStore.getAvailableDateByDate(dateStr);
-
-    if (existingDate) {
-      useToast().add({
-        title: "Data já possui disponibilidade",
-        description:
-          "Esta data já possui slots de disponibilidade cadastrados.",
-        color: "warning",
-      });
-      return;
-    }
-  }
-
   // Abrir modal de criação manualmente
   showCreateModal.value = true;
-  formState.value.date = (selectedDate.value ||
-    currentCalendarDate.value) as CalendarDate;
   // Resetar o form para valores padrão
   resetForm();
-  formState.value.date = (selectedDate.value ||
-    currentCalendarDate.value) as CalendarDate;
+  // Não definir uma data padrão - deixar o usuário escolher
+  formState.value.date = null;
 };
 
 const handleCreateDateSubmit = async () => {

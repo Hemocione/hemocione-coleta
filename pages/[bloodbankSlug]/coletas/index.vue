@@ -255,6 +255,7 @@ const isLoading = computed(() => isLoadingCollectionRequests.value);
 const filterTabs = [
   { value: "pending", label: "Pendentes" },
   { value: "accepted", label: "Aceitas" },
+  { value: "rejected", label: "Rejeitadas" },
 ];
 
 // Methods
@@ -288,7 +289,7 @@ const getStatusColor = (status: string) => {
     case "accepted":
       return "success";
     case "rejected":
-      return "error";
+      return "neutral";
     case "cancelled":
       return "neutral";
     default:

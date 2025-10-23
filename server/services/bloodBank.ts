@@ -9,6 +9,19 @@ export async function getBloodBankByBloodBanksLocationId(
   }).lean();
 }
 
+export async function getBloodBankBySlug(slug: string) {
+  return await BloodBank.findOne({
+    slug,
+  }).lean();
+}
+
+export async function getBloodBanksLocationIdBySlug(
+  slug: string
+): Promise<string | null> {
+  const bloodBank = await getBloodBankBySlug(slug);
+  return bloodBank?.bloodBanksLocationId?.toString() || null;
+}
+
 export async function getBloodBanksByBloodBanksLocationIds(
   bloodBanksLocationIds: string[]
 ) {

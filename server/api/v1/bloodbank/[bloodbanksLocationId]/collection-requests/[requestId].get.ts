@@ -22,8 +22,7 @@ export default defineEventHandler(async (event) => {
     // Get collection request details
     const request = await getCollectionRequestById(
       requestId,
-      bloodBanksLocationId,
-      event
+      bloodBanksLocationId
     );
 
     if (!request) {

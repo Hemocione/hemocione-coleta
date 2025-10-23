@@ -1088,6 +1088,23 @@ export const useBloodbankStore = defineStore("bloodbank", {
       }
     },
 
+    // Utility method to refresh collection requests list
+    async refreshCollectionRequests(
+      bloodBanksLocationId: string,
+      currentFilter: string = "pending"
+    ) {
+      try {
+        await this.loadCollectionRequests(
+          bloodBanksLocationId,
+          { status: currentFilter },
+          1
+        );
+      } catch (error) {
+        console.error("Error refreshing collection requests:", error);
+        // Don't throw error to avoid breaking the main flow
+      }
+    },
+
     async cancelCollectionRequest(
       requestId: string,
       bloodBanksLocationId: string

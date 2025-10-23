@@ -200,7 +200,7 @@ export async function getCollectionRequestById(
   bloodBanksLocationId?: string
 ): Promise<CollectionRequestWithDetails | null> {
   const query: any = {
-    _id: new Types.ObjectId(requestId),
+    _id: requestId,
     deletedAt: null,
   };
 
@@ -273,7 +273,8 @@ export async function acceptCollectionRequest(
   requestId: string,
   selectedAvailableDateId: string,
   selectedSlotId: string,
-  acceptedByUserId: string
+  acceptedByUserId: string,
+  bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
   try {
     // For development, we'll skip transactions and use a simpler approach
@@ -283,6 +284,7 @@ export async function acceptCollectionRequest(
       _id: requestId,
       status: "pending",
       deletedAt: null,
+      bloodBanksLocationId,
     });
 
     if (!request) {
@@ -325,7 +327,7 @@ export async function acceptCollectionRequest(
       {
         $set: {
           "slots.$.locked": true,
-          "slots.$.lockedBy": new Types.ObjectId(requestId),
+          "slots.$.lockedBy": requestId,
         },
       }
     );
@@ -338,8 +340,13 @@ export async function acceptCollectionRequest(
       reason: "Request accepted by blood bank",
     };
 
-    const updatedRequest = await CollectionRequest.findOneAndUpdate(
-      { _id: requestId },
+    await CollectionRequest.findOneAndUpdate(
+      {
+        _id: requestId,
+        bloodBanksLocationId,
+        status: "pending",
+        deletedAt: null,
+      },
       {
         $set: {
           status: "accepted",
@@ -347,15 +354,10 @@ export async function acceptCollectionRequest(
           selectedSlotId: new Types.ObjectId(selectedSlotId),
         },
         $push: { statusHistory: statusHistoryEntry },
-      },
-      { new: true }
+      }
     );
 
-    if (!updatedRequest) {
-      throw new Error("Failed to update request status");
-    }
-
-    return updatedRequest.toObject();
+    return await getCollectionRequestById(requestId, bloodBanksLocationId);
   } catch (error: any) {
     console.error("Error accepting collection request:", error);
     throw error;
@@ -365,7 +367,8 @@ export async function acceptCollectionRequest(
 export async function rejectCollectionRequest(
   requestId: string,
   rejectionReason: string,
-  rejectedByUserId: string
+  rejectedByUserId: string,
+  bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
   const statusHistoryEntry = {
     status: "rejected",
@@ -379,6 +382,7 @@ export async function rejectCollectionRequest(
       _id: requestId,
       status: "pending",
       deletedAt: null,
+      bloodBanksLocationId,
     },
     {
       $set: {
@@ -387,9 +391,9 @@ export async function rejectCollectionRequest(
       },
       $push: { statusHistory: statusHistoryEntry },
     }
-  );
+  ).lean();
 
-  return await getCollectionRequestById(requestId);
+  return await getCollectionRequestById(requestId, bloodBanksLocationId);
 }
 
 export async function cancelCollectionRequest(

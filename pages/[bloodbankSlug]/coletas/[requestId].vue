@@ -650,7 +650,7 @@ const getStatusColor = (status: string) => {
     case "accepted":
       return "success";
     case "rejected":
-      return "error";
+      return "neutral";
     case "cancelled":
       return "neutral";
     default:
@@ -718,10 +718,10 @@ const confirmAccept = async () => {
 
     // Call API to accept request with selected time slot
     await bloodbankStore.acceptCollectionRequest(
-      bloodBanksLocationId.value,
       requestId,
       selectedTimeSlot.value.availableDateId,
-      selectedTimeSlot.value.slotIds?.[0] || ""
+      selectedTimeSlot.value.slotIds?.[0] || "",
+      bloodBanksLocationId.value
     );
 
     useToast().add({
@@ -731,9 +731,19 @@ const confirmAccept = async () => {
       duration: 3000,
     });
 
-    // Close modal and reload request details
+    // Close modal and update local data
     showAcceptModal.value = false;
-    await loadRequestDetails();
+
+    // Update request data from store (already updated by the store)
+    request.value = bloodbankStore.currentCollectionRequest;
+
+    // Refresh the collection requests list to reflect changes
+    if (bloodBanksLocationId.value) {
+      await bloodbankStore.refreshCollectionRequests(
+        bloodBanksLocationId.value,
+        "accepted"
+      );
+    }
   } catch (error: any) {
     console.error("Error accepting request:", error);
     useToast().add({
@@ -767,9 +777,9 @@ const confirmReject = async () => {
 
     // Call API to reject request with reason
     await bloodbankStore.rejectCollectionRequest(
-      bloodBanksLocationId.value,
       requestId,
-      rejectionReason.value.trim()
+      rejectionReason.value.trim(),
+      bloodBanksLocationId.value
     );
 
     useToast().add({
@@ -779,10 +789,20 @@ const confirmReject = async () => {
       duration: 3000,
     });
 
-    // Close modal and reload request details
+    // Close modal and update local data
     showRejectModal.value = false;
     rejectionReason.value = "";
-    await loadRequestDetails();
+
+    // Update request data from store (already updated by the store)
+    request.value = bloodbankStore.currentCollectionRequest;
+
+    // Refresh the collection requests list to reflect changes
+    if (bloodBanksLocationId.value) {
+      await bloodbankStore.refreshCollectionRequests(
+        bloodBanksLocationId.value,
+        "pending"
+      );
+    }
   } catch (error: any) {
     console.error("Error rejecting request:", error);
     useToast().add({

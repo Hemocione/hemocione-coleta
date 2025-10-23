@@ -1,4 +1,6 @@
 import { rejectCollectionRequest } from "~/server/services/collectionRequest";
+import { getBloodBanksLocationIdBySlug } from "~/server/services/bloodBank";
+import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -11,6 +13,11 @@ export default defineEventHandler(async (event) => {
         statusMessage: "Blood bank location ID is required",
       });
     }
+
+    assertUserAccessToBloodBanksLocationId(
+      event.context.auth.user,
+      bloodBanksLocationId
+    );
 
     if (!requestId) {
       throw createError({
@@ -30,14 +37,14 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // TODO: Get user ID from auth context
-    const rejectedByUserId = "system"; // This should come from auth middleware
+    const rejectedByUserId = event.context.auth.user.id;
 
     // Reject collection request
     const updatedRequest = await rejectCollectionRequest(
       requestId,
       rejectionReason.trim(),
-      rejectedByUserId
+      rejectedByUserId,
+      bloodBanksLocationId
     );
 
     if (!updatedRequest) {

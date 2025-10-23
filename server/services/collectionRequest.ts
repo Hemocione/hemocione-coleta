@@ -293,9 +293,7 @@ export async function acceptCollectionRequest(
 
     // 2. Validate selected date/slot is in requestedDates
     const isRequestedDate = request.requestedDates.some(
-      (rd) =>
-        rd.availableDateId.toString() === selectedAvailableDateId &&
-        rd.slotId.toString() === selectedSlotId
+      (rd) => rd.availableDateId.toString() === selectedAvailableDateId
     );
 
     if (!isRequestedDate) {

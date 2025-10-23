@@ -33,7 +33,7 @@ export interface CollectionRequestWithDetails {
   institutionLocation: {
     type: "Point";
     coordinates: [number, number];
-  };
+  } | null;
   institutionAddress: string;
   institutionLogo?: string;
   institutionBanner?: string;
@@ -197,8 +197,7 @@ export async function getCollectionRequestsByBloodBank(
 
 export async function getCollectionRequestById(
   requestId: string,
-  bloodBanksLocationId?: string,
-  event?: any
+  bloodBanksLocationId?: string
 ): Promise<CollectionRequestWithDetails | null> {
   const query: any = {
     _id: new Types.ObjectId(requestId),
@@ -215,35 +214,22 @@ export async function getCollectionRequestById(
     return null;
   }
 
-  // Get institution data
-  const authHeader = event ? getHeader(event, "authorization") : "";
-  let institutions: Institution[] = [];
-
-  try {
-    institutions = await getInstitutionsByIds([
-      request.institutionId.toString(),
-    ]);
-  } catch (error) {
-    console.warn(
-      "Failed to fetch institution data from hemocioneId API:",
-      error.message
-    );
-    // Continue without institution data - will show fallback values
-  }
+  const [institutions, availableDates] = await Promise.all([
+    getInstitutionsByIds([request.institutionId.toString()]),
+    (() => {
+      const requestedDateIds = request.requestedDates.map(
+        (rd) => rd.availableDateId
+      );
+      return AvailableDate.find({
+        _id: { $in: requestedDateIds },
+        deletedAt: null,
+      })
+        .populate("slots.teamId", "name color")
+        .lean();
+    })(),
+  ]);
 
   const institution = institutions[0];
-
-  // Get available dates for requested dates
-  const requestedDateIds = request.requestedDates.map(
-    (rd) => rd.availableDateId
-  );
-
-  const availableDates = await AvailableDate.find({
-    _id: { $in: requestedDateIds },
-    deletedAt: null,
-  })
-    .populate("slots.teamId", "name color")
-    .lean();
 
   const availableDateMap = new Map(
     availableDates.map((ad) => [ad._id.toString(), ad])
@@ -252,10 +238,13 @@ export async function getCollectionRequestById(
   const requestWithDetails = {
     ...request,
     institutionName: institution?.name || "Instituição não encontrada",
-    institutionLocation: institution?.location || {
-      type: "Point",
-      coordinates: [0, 0],
-    },
+    institutionLocation:
+      institution?.latitude && institution?.longitude
+        ? {
+            type: "Point",
+            coordinates: [institution.longitude, institution.latitude],
+          }
+        : null,
     institutionAddress: institution?.address || "",
     institutionLogo: institution?.logo,
     institutionBanner: institution?.banner,
@@ -277,7 +266,7 @@ export async function getCollectionRequestById(
     }),
   };
 
-  return requestWithDetails as CollectionRequestWithDetails;
+  return requestWithDetails as unknown as CollectionRequestWithDetails;
 }
 
 export async function acceptCollectionRequest(

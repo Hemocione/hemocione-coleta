@@ -16,70 +16,71 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <USpinner size="lg" />
-      <span class="ml-3 text-gray-600">Carregando detalhes...</span>
-    </div>
+    <Transition name="fade" mode="out-in">
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <USpinner size="lg" />
+        <span class="ml-3 text-gray-600">Carregando detalhes...</span>
+      </div>
 
-    <!-- Error State -->
-    <div v-else-if="error" class="text-center py-12">
-      <UIcon
-        name="i-lucide-alert-circle"
-        class="w-16 h-16 text-red-400 mx-auto mb-4"
-      />
-      <h3 class="text-lg font-medium text-gray-900 mb-2">
-        Erro ao carregar solicitação
-      </h3>
-      <p class="text-gray-600 mb-4">{{ error }}</p>
-      <UButton @click="loadRequestDetails">Tentar novamente</UButton>
-    </div>
+      <!-- Error State -->
+      <div v-else-if="error" class="text-center py-12">
+        <UIcon
+          name="i-lucide-alert-circle"
+          class="w-16 h-16 text-red-400 mx-auto mb-4"
+        />
+        <h3 class="text-lg font-medium text-gray-900 mb-2">
+          Erro ao carregar solicitação
+        </h3>
+        <p class="text-gray-600 mb-4">{{ error }}</p>
+        <UButton @click="loadRequestDetails">Tentar novamente</UButton>
+      </div>
 
-    <!-- Request Details -->
-    <div v-else-if="request" class="space-y-6">
-      <!-- Institution Information Card -->
-      <UCard>
-        <template #header>
-          <div class="flex items-center space-x-4">
-            <UAvatar
-              v-if="request.institutionLogo"
-              :src="request.institutionLogo"
-              :alt="request.institutionName"
-              size="lg"
-            />
-            <UAvatar
-              v-else
-              :alt="request.institutionName"
-              size="lg"
-              class="bg-blue-500"
-            >
-              {{ request.institutionName.charAt(0) }}
-            </UAvatar>
-            <div>
-              <h2 class="text-xl font-semibold text-gray-900">
-                {{ request.institutionName }}
-              </h2>
-              <p class="text-gray-600">{{ request.institutionAddress }}</p>
+      <!-- Request Details -->
+      <div v-else-if="request" class="space-y-6">
+        <!-- Institution Information Card -->
+        <UCard>
+          <template #header>
+            <div class="flex items-center space-x-4">
+              <UAvatar
+                v-if="request.institutionLogo"
+                :src="request.institutionLogo"
+                :alt="request.institutionName"
+                size="lg"
+              />
+              <UAvatar
+                v-else
+                :alt="request.institutionName"
+                size="lg"
+                class="bg-blue-500"
+              >
+                {{ request.institutionName.charAt(0) }}
+              </UAvatar>
+              <div>
+                <h2 class="text-xl font-semibold text-gray-900">
+                  {{ request.institutionName }}
+                </h2>
+                <p class="text-gray-600">{{ request.institutionAddress }}</p>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
 
-        <div class="space-y-4">
-          <!-- Status Badge -->
-          <div class="flex items-center justify-between">
-            <UBadge
-              :color="getStatusColor(request.status)"
-              variant="subtle"
-              size="lg"
-            >
-              {{ getStatusLabel(request.status) }}
-            </UBadge>
-            <span class="text-sm text-gray-500">
-              Criado em {{ formatDate(request.createdAt) }}
-            </span>
-          </div>
+          <div class="space-y-4">
+            <!-- Status Badge -->
+            <div class="flex items-center justify-between">
+              <UBadge
+                :color="getStatusColor(request.status)"
+                variant="subtle"
+                size="lg"
+              >
+                {{ getStatusLabel(request.status) }}
+              </UBadge>
+              <span class="text-sm text-gray-500">
+                Criado em {{ formatDate(request.createdAt) }}
+              </span>
+            </div>
 
-          <!-- Institution Details -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Institution Details -->
+            <!-- <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <h4 class="text-sm font-medium text-gray-900 mb-2">
                 Informações da Instituição
@@ -115,76 +116,160 @@
                 </div>
               </div>
             </div>
+          </div> -->
           </div>
-        </div>
-      </UCard>
+        </UCard>
 
-      <!-- Requested Dates Card -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">Datas Solicitadas</h3>
-        </template>
+        <!-- Map Card -->
+        <UCard v-if="request.institutionLocation">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">Localização</h3>
+          </template>
 
-        <div class="space-y-4">
-          <div
-            v-for="(date, index) in request.requestedDates"
-            :key="index"
-            class="border rounded-lg p-4"
-          >
-            <div class="flex items-center justify-between mb-2">
-              <h4 class="font-medium text-gray-900">Opção {{ index + 1 }}</h4>
-              <UBadge
-                v-if="
+          <div class="h-96 rounded-lg overflow-hidden">
+            <MglMap
+              :map-style="mapStyle"
+              :center="mapCenter"
+              :zoom="mapZoom"
+              ref="mapRef"
+              @map:load="initializeMap"
+            >
+              <MglNavigationControl />
+
+              <!-- Institution Marker -->
+              <MglMarker
+                :coordinates="[
+                  request.institutionLocation.coordinates[0],
+                  request.institutionLocation.coordinates[1],
+                ]"
+                :color="'#3B82F6'"
+              >
+                <MglPopup>
+                  <div class="p-2">
+                    <h3 class="font-semibold text-gray-900">
+                      {{ request.institutionName }}
+                    </h3>
+                    <p class="text-sm text-gray-600">
+                      {{ request.institutionAddress }}
+                    </p>
+                  </div>
+                </MglPopup>
+              </MglMarker>
+
+              <!-- Blood Bank Marker -->
+              <MglMarker
+                v-if="bloodbankData?.location"
+                :coordinates="[
+                  bloodbankData.location.coordinates[0],
+                  bloodbankData.location.coordinates[1],
+                ]"
+                :color="'#bb0a08'"
+              >
+                <MglPopup>
+                  <div class="p-2">
+                    <h3 class="font-semibold text-gray-900">
+                      {{ bloodbankData.name }}
+                    </h3>
+                    <p class="text-sm text-gray-600">Banco de Sangue</p>
+                  </div>
+                </MglPopup>
+              </MglMarker>
+            </MglMap>
+          </div>
+        </UCard>
+
+        <!-- Requested Dates Card -->
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Opções de Horário
+            </h3>
+          </template>
+
+          <div class="space-y-4">
+            <div
+              v-for="(date, index) in request.requestedDates"
+              :key="index"
+              class="border rounded-lg p-4 transition-all duration-200 hover:shadow-md"
+              :class="{
+                'border-green-500 bg-green-50':
                   request.status === 'accepted' &&
                   request.selectedAvailableDateId ===
                     date.availableDateId.toString() &&
-                  request.selectedSlotId === date.slotId.toString()
-                "
-                color="success"
-                variant="subtle"
-              >
-                Selecionada
-              </UBadge>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span class="text-gray-600">Data:</span>
-                <p class="font-medium">{{ formatDate(date.date) }}</p>
-              </div>
-              <div>
-                <span class="text-gray-600">Horário:</span>
-                <p class="font-medium">
-                  {{ formatTimeRange(date.startTime, date.endTime) }}
-                </p>
-              </div>
-              <div>
-                <span class="text-gray-600">Equipe:</span>
+                  request.selectedSlotId === date.slotIds?.[0]?.toString(),
+                'border-gray-200': !(
+                  request.status === 'accepted' &&
+                  request.selectedAvailableDateId ===
+                    date.availableDateId.toString() &&
+                  request.selectedSlotId === date.slotIds?.[0]?.toString()
+                ),
+              }"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-medium text-gray-900">Opção {{ index + 1 }}</h4>
                 <div class="flex items-center space-x-2">
-                  <div
-                    class="w-3 h-3 rounded-full"
-                    :style="{ backgroundColor: date.teamColor }"
-                  ></div>
-                  <span class="font-medium">{{ date.teamName }}</span>
+                  <UBadge
+                    v-if="
+                      request.status === 'accepted' &&
+                      request.selectedAvailableDateId ===
+                        date.availableDateId.toString() &&
+                      request.selectedSlotId === date.slotIds?.[0]?.toString()
+                    "
+                    color="success"
+                    variant="subtle"
+                  >
+                    Selecionada
+                  </UBadge>
+                  <UButton
+                    v-else-if="request.status === 'pending'"
+                    color="success"
+                    size="sm"
+                    @click="showAcceptDialog(date)"
+                  >
+                    Aceitar
+                  </UButton>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span class="text-gray-600">Data:</span>
+                  <p class="font-medium">{{ formatDate(date.date) }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-600">Horário:</span>
+                  <p class="font-medium">
+                    {{ formatTimeRange(date.startTime, date.endTime) }}
+                  </p>
+                </div>
+                <div>
+                  <span class="text-gray-600">Equipe:</span>
+                  <div class="flex items-center space-x-2">
+                    <div
+                      class="w-3 h-3 rounded-full"
+                      :style="{ backgroundColor: date.teamColor }"
+                    ></div>
+                    <span class="font-medium">{{ date.teamName }}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </UCard>
 
-      <!-- Map Card -->
-      <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">Localização</h3>
-        </template>
+          <!-- Reject Button -->
+          <div v-if="request.status === 'pending'" class="mt-6 pt-4 border-t">
+            <UButton
+              color="error"
+              variant="outline"
+              @click="showRejectDialog"
+              class="w-full"
+            >
+              Rejeitar Solicitação
+            </UButton>
+          </div>
+        </UCard>
 
-        <div class="h-96 rounded-lg overflow-hidden">
-          <div ref="mapContainer" class="w-full h-full" data-testid="map-container"></div>
-        </div>
-      </UCard>
-
-      <!-- Status History Card -->
-      <UCard>
+        <!-- Status History Card -->
+        <!-- <UCard>
         <template #header>
           <h3 class="text-lg font-semibold text-gray-900">
             Histórico de Status
@@ -221,36 +306,138 @@
             </div>
           </div>
         </div>
-      </UCard>
+      </UCard> -->
 
-      <!-- Rejection Reason (if rejected) -->
-      <UCard v-if="request.status === 'rejected' && request.rejectionReason">
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">
-            Motivo da Rejeição
-          </h3>
-        </template>
+        <!-- Rejection Reason (if rejected) -->
+        <UCard v-if="request.status === 'rejected' && request.rejectionReason">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Motivo da Rejeição
+            </h3>
+          </template>
 
-        <p class="text-gray-700">{{ request.rejectionReason }}</p>
-      </UCard>
+          <p class="text-gray-700">{{ request.rejectionReason }}</p>
+        </UCard>
 
-      <!-- Actions -->
-      <div class="flex items-center justify-between pt-6 border-t">
-        <UButton variant="ghost" icon="i-lucide-arrow-left" @click="goBack">
-          Voltar para Lista
-        </UButton>
-
-        <div
-          v-if="request.status === 'pending'"
-          class="flex items-center space-x-3"
-        >
-          <UButton color="error" variant="outline" @click="rejectRequest">
-            Rejeitar
+        <!-- Back Button -->
+        <div class="flex items-center justify-start pt-6 border-t">
+          <UButton variant="ghost" icon="i-lucide-arrow-left" @click="goBack">
+            Voltar para Lista
           </UButton>
-          <UButton color="success" @click="acceptRequest"> Aceitar </UButton>
         </div>
       </div>
-    </div>
+    </Transition>
+
+    <!-- Accept Confirmation Modal -->
+    <UModal v-model:open="showAcceptModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Confirmar Aceitação
+          </h3>
+
+          <div class="space-y-4">
+            <p class="text-gray-600">
+              Tem certeza que deseja aceitar esta solicitação de coleta?
+            </p>
+
+            <div v-if="selectedTimeSlot" class="bg-gray-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-900 mb-2">
+                Horário Selecionado:
+              </h4>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span class="text-gray-600">Data:</span>
+                  <p class="font-medium">
+                    {{ formatDate(selectedTimeSlot.date) }}
+                  </p>
+                </div>
+                <div>
+                  <span class="text-gray-600">Horário:</span>
+                  <p class="font-medium">
+                    {{
+                      formatTimeRange(
+                        selectedTimeSlot.startTime,
+                        selectedTimeSlot.endTime
+                      )
+                    }}
+                  </p>
+                </div>
+                <div>
+                  <span class="text-gray-600">Equipe:</span>
+                  <div class="flex items-center space-x-2">
+                    <div
+                      class="w-3 h-3 rounded-full"
+                      :style="{ backgroundColor: selectedTimeSlot.teamColor }"
+                    ></div>
+                    <span class="font-medium">{{
+                      selectedTimeSlot.teamName
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton variant="ghost" @click="showAcceptModal = false">
+              Cancelar
+            </UButton>
+            <UButton
+              color="success"
+              @click="confirmAccept"
+              :loading="isAccepting"
+            >
+              Confirmar Aceitação
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Reject Confirmation Modal -->
+    <UModal v-model:open="showRejectModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Rejeitar Solicitação
+          </h3>
+
+          <div class="space-y-4">
+            <p class="text-gray-600">
+              Tem certeza que deseja rejeitar esta solicitação de coleta?
+            </p>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Motivo da rejeição <span class="text-red-500">*</span>
+              </label>
+              <UTextarea
+                v-model="rejectionReason"
+                placeholder="Explique o motivo da rejeição desta solicitação..."
+                :rows="4"
+                class="w-full resize-y"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton variant="ghost" @click="showRejectModal = false">
+              Cancelar
+            </UButton>
+            <UButton
+              color="error"
+              @click="confirmReject"
+              :loading="isRejecting"
+              :disabled="!rejectionReason.trim()"
+            >
+              Confirmar Rejeição
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -263,7 +450,6 @@ import type { CollectionRequest } from "~/stores/bloodbank";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import maplibregl from "maplibre-gl";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -283,8 +469,23 @@ const bloodBanksLocationId = computed(
 const request = ref<CollectionRequest | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
-const mapContainer = ref<HTMLDivElement | null>(null);
-let map: maplibregl.Map | null = null;
+const selectedTimeSlot = ref<any>(null);
+
+// Modal states
+const showAcceptModal = ref(false);
+const showRejectModal = ref(false);
+const isAccepting = ref(false);
+const isRejecting = ref(false);
+const rejectionReason = ref("");
+
+// Map configuration
+const mapRef = ref<any>(null);
+const mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+const mapCenter = ref<[number, number]>([-43.1915792, -22.9077772]);
+const mapZoom = ref<number>(10);
+
+// Bloodbank data
+const { bloodbankData } = storeToRefs(bloodbankStore);
 
 const loadRequestDetails = async () => {
   isLoading.value = true;
@@ -304,6 +505,12 @@ const loadRequestDetails = async () => {
 
     if (!request.value) {
       error.value = "Solicitação não encontrada";
+    } else {
+      // Set map center to institution location
+      mapCenter.value = [
+        request.value.institutionLocation.coordinates[0],
+        request.value.institutionLocation.coordinates[1],
+      ];
     }
   } catch (err: any) {
     error.value = err.message || "Erro ao carregar detalhes da solicitação";
@@ -316,18 +523,27 @@ const goBack = () => {
   router.push(`/${bloodbankSlug}/coletas`);
 };
 
+const showAcceptDialog = (timeSlot: any) => {
+  selectedTimeSlot.value = timeSlot;
+  showAcceptModal.value = true;
+};
+
+const showRejectDialog = () => {
+  showRejectModal.value = true;
+};
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case "pending":
-      return "yellow";
+      return "warning";
     case "accepted":
-      return "green";
+      return "success";
     case "rejected":
-      return "red";
+      return "error";
     case "cancelled":
-      return "gray";
+      return "neutral";
     default:
-      return "blue";
+      return "primary";
   }
 };
 
@@ -356,98 +572,120 @@ const formatDateTime = (date: string | Date) => {
   return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY HH:mm");
 };
 
-const formatTimeRange = (startTime: Date, endTime: Date) => {
+const formatTimeRange = (
+  startTime: Date | undefined,
+  endTime: Date | undefined
+) => {
+  if (!startTime || !endTime) return "N/A";
   const start = dayjs(startTime).tz("America/Sao_Paulo").format("HH:mm");
   const end = dayjs(endTime).tz("America/Sao_Paulo").format("HH:mm");
   return `${start} - ${end}`;
 };
 
 const initializeMap = () => {
-  if (!mapContainer.value || !request.value) return;
-
-  // Initialize map
-  map = new maplibregl.Map({
-    container: mapContainer.value,
-    style: {
-      version: 8,
-      sources: {
-        "raster-tiles": {
-          type: "raster",
-          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-          tileSize: 256,
-          attribution: "© OpenStreetMap contributors",
-        },
-      },
-      layers: [
-        {
-          id: "simple-tiles",
-          type: "raster",
-          source: "raster-tiles",
-          minzoom: 0,
-          maxzoom: 22,
-        },
-      ],
-    },
-    center: [
-      request.value.institutionLocation.coordinates[0],
-      request.value.institutionLocation.coordinates[1],
-    ],
-    zoom: 13,
-  });
-
-  // Add institution marker
-  new maplibregl.Marker({ color: "#3B82F6" })
-    .setLngLat([
-      request.value.institutionLocation.coordinates[0],
-      request.value.institutionLocation.coordinates[1],
-    ])
-    .setPopup(
-      new maplibregl.Popup().setHTML(`
-        <div class="p-2">
-          <h3 class="font-semibold">${request.value.institutionName}</h3>
-          <p class="text-sm text-gray-600">${request.value.institutionAddress}</p>
-        </div>
-      `)
-    )
-    .addTo(map);
-
-  // Add blood bank marker (you'll need to get the blood bank location)
-  // For now, we'll use a placeholder location
-  new maplibregl.Marker({ color: "#EF4444" })
-    .setLngLat([-43.1729, -22.9068]) // Placeholder coordinates
-    .setPopup(
-      new maplibregl.Popup().setHTML(`
-        <div class="p-2">
-          <h3 class="font-semibold">HEMORIO</h3>
-          <p class="text-sm text-gray-600">Banco de Sangue</p>
-        </div>
-      `)
-    )
-    .addTo(map);
+  // Map will be initialized by MglMap component
+  console.log("Map initialized");
 };
 
-const acceptRequest = () => {
-  // Navigate to accept modal or implement accept logic
-  router.push(`/${bloodbankSlug}/coletas?accept=${requestId}`);
+const confirmAccept = async () => {
+  if (!selectedTimeSlot.value) {
+    useToast().add({
+      title: "Erro",
+      description: "Nenhum horário selecionado.",
+      color: "error",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isAccepting.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    // Call API to accept request with selected time slot
+    await bloodbankStore.acceptCollectionRequest(
+      bloodBanksLocationId.value,
+      requestId,
+      selectedTimeSlot.value.availableDateId,
+      selectedTimeSlot.value.slotIds?.[0] || ""
+    );
+
+    useToast().add({
+      title: "Solicitação aceita!",
+      description: "A solicitação foi aceita com sucesso.",
+      color: "success",
+      duration: 3000,
+    });
+
+    // Close modal and reload request details
+    showAcceptModal.value = false;
+    await loadRequestDetails();
+  } catch (error: any) {
+    console.error("Error accepting request:", error);
+    useToast().add({
+      title: "Erro ao aceitar solicitação",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isAccepting.value = false;
+  }
 };
 
-const rejectRequest = () => {
-  // Navigate to reject modal or implement reject logic
-  router.push(`/${bloodbankSlug}/coletas?reject=${requestId}`);
+const confirmReject = async () => {
+  if (!rejectionReason.value.trim()) {
+    useToast().add({
+      title: "Motivo obrigatório",
+      description: "Por favor, informe o motivo da rejeição.",
+      color: "warning",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isRejecting.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    // Call API to reject request with reason
+    await bloodbankStore.rejectCollectionRequest(
+      bloodBanksLocationId.value,
+      requestId,
+      rejectionReason.value.trim()
+    );
+
+    useToast().add({
+      title: "Solicitação rejeitada!",
+      description: "A solicitação foi rejeitada com sucesso.",
+      color: "success",
+      duration: 3000,
+    });
+
+    // Close modal and reload request details
+    showRejectModal.value = false;
+    rejectionReason.value = "";
+    await loadRequestDetails();
+  } catch (error: any) {
+    console.error("Error rejecting request:", error);
+    useToast().add({
+      title: "Erro ao rejeitar solicitação",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isRejecting.value = false;
+  }
 };
 
 onMounted(async () => {
   await loadRequestDetails();
-
-  // Initialize map after request is loaded
-  if (request.value) {
-    setTimeout(initializeMap, 100);
-  }
-});
-
-onUnmounted(() => {
-  if (map) {
-    map.remove();
-  }
 });
 </script>

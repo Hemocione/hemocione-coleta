@@ -218,8 +218,8 @@
     >
       <template #body>
         <div v-if="selectedAvailableDate" class="space-y-6">
-          <!-- Informações da data -->
-          <div class="bg-gray-50 rounded-lg p-4">
+          <!-- Informações da data (DEBUG)-->
+          <!-- <div class="bg-gray-50 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-gray-600">Data</p>
@@ -244,7 +244,7 @@
                 </p>
               </div>
             </div>
-          </div>
+          </div> -->
 
           <!-- Lista de slots -->
           <div class="space-y-2">

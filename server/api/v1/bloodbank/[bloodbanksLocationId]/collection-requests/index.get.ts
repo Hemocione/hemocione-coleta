@@ -38,8 +38,7 @@ export default defineEventHandler(async (event) => {
     const result = await getCollectionRequestsByBloodBank(
       bloodBanksLocationId,
       filters,
-      pagination,
-      event
+      pagination
     );
 
     return {

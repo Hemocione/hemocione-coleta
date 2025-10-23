@@ -33,6 +33,7 @@ export default defineNuxtConfig({
       process.env.MONGO_URI ||
       "mongodb://localhost:27017/coleta?authSource=admin&directConnection=true",
     dbName: process.env.DB_NAME || "coleta",
+    secret: process.env.SECRET || "dev-secret",
     public: {
       bugsnagApiKey: process.env.BUGSNAG_API_KEY || "",
       authCookieKey: process.env.HEMOCIONE_AUTH_COOKIE_KEY || "devHemocioneId",

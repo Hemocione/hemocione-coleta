@@ -1,9 +1,13 @@
-import { useHemocioneUserAuth } from "~/server/services/auth";
+import { useHemocioneUserAuth, assertSecretAuth } from "~/server/services/auth";
 
 export default defineEventHandler((event) => {
   // only run this for API routes
   if (!event.path.startsWith("/api/v1")) {
     return;
+  }
+
+  if (event.path.startsWith("/api/backoffice")) {
+    return assertSecretAuth(event);
   }
 
   const token = event.headers

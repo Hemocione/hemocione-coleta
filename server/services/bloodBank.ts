@@ -179,3 +179,46 @@ export async function deleteRestrictionItem(
 
   return updatedBloodBank?.restrictionChecklist || [];
 }
+
+// Blood Bank Creation
+export interface CreateBloodBankData {
+  name: string;
+  logo?: string;
+  slug?: string;
+  bloodBanksLocationId: string;
+  timezone?: string;
+}
+
+export async function createBloodBank(data: CreateBloodBankData) {
+  // Generate slug if not provided
+  let slug = data.slug;
+  if (!slug) {
+    slug = slugify(data.name, { lower: true, strict: true });
+  }
+
+  // Ensure slug is unique
+  let finalSlug = slug;
+  let counter = 1;
+  while (await BloodBank.findOne({ slug: finalSlug })) {
+    finalSlug = `${slug}-${counter}`;
+    counter++;
+  }
+
+  // Set default timezone
+  const timezone = data.timezone || "America/Sao_Paulo";
+
+  const bloodBank = new BloodBank({
+    name: data.name.trim(),
+    slug: finalSlug,
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    logo: data.logo || null,
+    timezone,
+    active: false, // New blood banks are inactive by default
+    location: {
+      type: "Point",
+      coordinates: [0, 0], // Default location - should be updated later
+    },
+  });
+
+  return await bloodBank.save();
+}

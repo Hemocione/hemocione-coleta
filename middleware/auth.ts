@@ -16,7 +16,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   const isLoggedIn = await evaluateCurrentLogin(from.query);
   const fromQueryHasToken = from.query.token;
-  console.log("isLoggedIn", isLoggedIn);
   if (!isLoggedIn) {
     const redirectPath = fromQueryHasToken ? "/" : to.fullPath;
     console.log("redirectPath", redirectPath);

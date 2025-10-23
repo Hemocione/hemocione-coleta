@@ -117,21 +117,17 @@ export async function getCollectionRequestsByBloodBank(
       )
     )
   );
-  // Get institution data from hemocioneId service
-  let institutions: Institution[] = [];
-  try {
-    if (institutionIds.length > 0) {
-      institutions = await getInstitutionsByIds(institutionIds);
-    }
-  } catch (error) {
-    console.error("Error fetching institutions:", error);
-    // Continue with empty institutions array
-  }
 
-  const availableDates = await AvailableDate.find({
-    _id: { $in: allRequestedDateIds },
-    deletedAt: null,
-  });
+  // Parallelize institution and availableDates calls
+  const [institutions, availableDates] = await Promise.all([
+    institutionIds.length > 0
+      ? getInstitutionsByIds(institutionIds)
+      : Promise.resolve([]),
+    AvailableDate.find({
+      _id: { $in: allRequestedDateIds },
+      deletedAt: null,
+    }),
+  ]);
   // Create institution lookup map
   const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
 
@@ -143,33 +139,25 @@ export async function getCollectionRequestsByBloodBank(
   const requestsWithDetails = requests
     .map((request) => {
       const institution = institutionMap.get(request.institutionId.toString());
-      
-      // If institution not found, use placeholder data
-      const institutionData = institution || {
-        id: request.institutionId.toString(),
-        name: "Instituição não encontrada",
-        address: "",
-        logo: undefined,
-        banner: undefined,
-        latitude: undefined,
-        longitude: undefined,
-        status: "active",
-      };
+
+      if (!institution) {
+        return null;
+      }
 
       return {
         ...request,
-        institutionName: institutionData.name,
+        institutionName: institution.name,
         institutionLocation:
-          institutionData.latitude && institutionData.longitude
+          institution.latitude && institution.longitude
             ? {
                 type: "Point",
-                coordinates: [institutionData.longitude, institutionData.latitude],
+                coordinates: [institution.longitude, institution.latitude],
               }
             : null,
-        institutionAddress: institutionData.address || "",
-        institutionLogo: institutionData.logo,
-        institutionBanner: institutionData.banner,
-        institutionStatus: institutionData.status,
+        institutionAddress: institution.address || "",
+        institutionLogo: institution.logo,
+        institutionBanner: institution.banner,
+        institutionStatus: institution.status,
         requestedDates: request.requestedDates.map((rd) => {
           const availableDate = availableDateMap.get(
             rd.availableDateId.toString()
@@ -190,14 +178,14 @@ export async function getCollectionRequestsByBloodBank(
         }),
       };
     })
-    .filter((request) => {
+    .filter((request): request is NonNullable<typeof request> => {
       return request !== null;
     });
 
   const pages = Math.ceil(requestsWithDetails.length / limit);
 
   return {
-    data: requestsWithDetails as CollectionRequestWithDetails[],
+    data: requestsWithDetails as unknown as CollectionRequestWithDetails[],
     pagination: {
       total: requestsWithDetails.length,
       page,

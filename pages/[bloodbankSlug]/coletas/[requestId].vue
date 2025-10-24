@@ -34,30 +34,32 @@
       </div>
 
       <!-- Request Details -->
-      <div v-else-if="request" class="space-y-6">
+      <div v-else-if="currentCollectionRequest" class="space-y-6">
         <!-- Institution Information Card -->
         <UCard>
           <template #header>
             <div class="flex items-center space-x-4">
               <UAvatar
-                v-if="request.institutionLogo"
-                :src="request.institutionLogo"
-                :alt="request.institutionName"
+                v-if="currentCollectionRequest.institutionLogo"
+                :src="currentCollectionRequest.institutionLogo"
+                :alt="currentCollectionRequest.institutionName"
                 size="lg"
               />
               <UAvatar
                 v-else
-                :alt="request.institutionName"
+                :alt="currentCollectionRequest.institutionName"
                 size="lg"
                 class="bg-blue-500"
               >
-                {{ request.institutionName.charAt(0) }}
+                {{ currentCollectionRequest.institutionName.charAt(0) }}
               </UAvatar>
               <div>
                 <h2 class="text-xl font-semibold text-gray-900">
-                  {{ request.institutionName }}
+                  {{ currentCollectionRequest.institutionName }}
                 </h2>
-                <p class="text-gray-600">{{ request.institutionAddress }}</p>
+                <p class="text-gray-600">
+                  {{ currentCollectionRequest.institutionAddress }}
+                </p>
               </div>
             </div>
           </template>
@@ -66,60 +68,21 @@
             <!-- Status Badge -->
             <div class="flex items-center justify-between">
               <UBadge
-                :color="getStatusColor(request.status)"
+                :color="getStatusColor(currentCollectionRequest.status)"
                 variant="subtle"
                 size="lg"
               >
-                {{ getStatusLabel(request.status) }}
+                {{ getStatusLabel(currentCollectionRequest.status) }}
               </UBadge>
               <span class="text-sm text-gray-500">
-                Criado em {{ formatDate(request.createdAt) }}
+                Criado em {{ formatDate(currentCollectionRequest.createdAt) }}
               </span>
             </div>
-
-            <!-- Institution Details -->
-            <!-- <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-900 mb-2">
-                Informações da Instituição
-              </h4>
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">ID da Instituição:</span>
-                  <span class="font-mono text-xs">{{
-                    request.institutionId
-                  }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Solicitado por:</span>
-                  <span class="font-mono text-xs">{{
-                    request.requestedByUserId
-                  }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-900 mb-2">
-                Localização
-              </h4>
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Latitude:</span>
-                  <span>{{ request.institutionLocation.coordinates[1] }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Longitude:</span>
-                  <span>{{ request.institutionLocation.coordinates[0] }}</span>
-                </div>
-              </div>
-            </div>
-          </div> -->
           </div>
         </UCard>
 
         <!-- Map Card -->
-        <UCard v-if="request.institutionLocation">
+        <UCard v-if="currentCollectionRequest.institutionLocation">
           <template #header>
             <h3 class="text-lg font-semibold text-gray-900">Localização</h3>
           </template>
@@ -137,17 +100,20 @@
               <!-- Institution Marker -->
               <MglMarker
                 :coordinates="[
-                  request.institutionLocation.coordinates[0],
-                  request.institutionLocation.coordinates[1],
+                  currentCollectionRequest.institutionLocation.coordinates[0],
+                  currentCollectionRequest.institutionLocation.coordinates[1],
                 ]"
                 :color="'#3B82F6'"
               >
                 <!-- MglPopup and marker visuals for institution -->
-                <template v-if="request.institutionLogo" v-slot:marker>
+                <template
+                  v-if="currentCollectionRequest.institutionLogo"
+                  v-slot:marker
+                >
                   <div class="flex flex-col items-center">
                     <NuxtImg
-                      :src="request.institutionLogo"
-                      :alt="`Logo da instituição ${request.institutionName}`"
+                      :src="currentCollectionRequest.institutionLogo"
+                      :alt="`Logo da instituição ${currentCollectionRequest.institutionName}`"
                       class="w-8 h-8 rounded-full object-cover border-2"
                       style="border-color: #3b82f6"
                     />
@@ -164,7 +130,7 @@
                   </div>
                 </template>
                 <MglPopup
-                  v-if="!request.institutionLogo"
+                  v-if="!currentCollectionRequest.institutionLogo"
                   ref="institutionPopup"
                   :close-button="false"
                   :offset="[0, -40]"
@@ -172,9 +138,9 @@
                   <div class="flex items-center space-x-3">
                     <div class="shrink-0">
                       <NuxtImg
-                        v-if="request.institutionLogo"
-                        :src="request.institutionLogo"
-                        :alt="`Logo da instituição ${request.institutionName}`"
+                        v-if="currentCollectionRequest.institutionLogo"
+                        :src="currentCollectionRequest.institutionLogo"
+                        :alt="`Logo da instituição ${currentCollectionRequest.institutionName}`"
                         class="w-8 h-8 rounded-full object-cover"
                       />
                       <div
@@ -194,10 +160,10 @@
                     </div>
                     <div>
                       <h3 class="text-lg font-semibold text-gray-800">
-                        {{ request.institutionName }}
+                        {{ currentCollectionRequest.institutionName }}
                       </h3>
                       <p class="text-sm text-gray-600">
-                        {{ request.institutionAddress }}
+                        {{ currentCollectionRequest.institutionAddress }}
                       </p>
                     </div>
                   </div>
@@ -283,22 +249,26 @@
 
           <div class="space-y-4">
             <div
-              v-for="(slot, index) in request.availableSlotOptions"
+              v-for="(
+                slot, index
+              ) in currentCollectionRequest.availableSlotOptions"
               :key="index"
               class="border rounded-lg p-4 transition-all duration-200 hover:shadow-md"
               :class="{
                 'border-green-500 bg-green-50':
-                  request.status === 'accepted' &&
-                  request.selectedAvailableDateId === slot.availableDateId &&
-                  request.selectedSlotId === slot.slotId,
+                  currentCollectionRequest.status === 'accepted' &&
+                  currentCollectionRequest.selectedAvailableDateId ===
+                    slot.availableDateId &&
+                  currentCollectionRequest.selectedSlotId === slot.slotId,
                 'border-gray-300 bg-gray-100 opacity-60': slot.isLocked,
                 'border-blue-300 bg-blue-50':
                   slot.isRequested && !slot.isLocked,
                 'border-gray-200':
                   !(
-                    request.status === 'accepted' &&
-                    request.selectedAvailableDateId === slot.availableDateId &&
-                    request.selectedSlotId === slot.slotId
+                    currentCollectionRequest.status === 'accepted' &&
+                    currentCollectionRequest.selectedAvailableDateId ===
+                      slot.availableDateId &&
+                    currentCollectionRequest.selectedSlotId === slot.slotId
                   ) && !slot.isLocked,
               }"
             >
@@ -330,10 +300,10 @@
                 <div class="flex items-center space-x-2">
                   <UBadge
                     v-if="
-                      request.status === 'accepted' &&
-                      request.selectedAvailableDateId ===
+                      currentCollectionRequest.status === 'accepted' &&
+                      currentCollectionRequest.selectedAvailableDateId ===
                         slot.availableDateId &&
-                      request.selectedSlotId === slot.slotId
+                      currentCollectionRequest.selectedSlotId === slot.slotId
                     "
                     color="success"
                     variant="subtle"
@@ -341,7 +311,10 @@
                     Selecionada
                   </UBadge>
                   <UButton
-                    v-else-if="request.status === 'pending' && !slot.isLocked"
+                    v-else-if="
+                      currentCollectionRequest.status === 'pending' &&
+                      !slot.isLocked
+                    "
                     color="success"
                     size="sm"
                     @click="showAcceptDialog(slot)"
@@ -350,7 +323,10 @@
                     Aceitar
                   </UButton>
                   <UButton
-                    v-else-if="request.status === 'pending' && slot.isLocked"
+                    v-else-if="
+                      currentCollectionRequest.status === 'pending' &&
+                      slot.isLocked
+                    "
                     color="neutral"
                     size="sm"
                     disabled
@@ -410,7 +386,10 @@
           </div>
 
           <!-- Reject Button -->
-          <div v-if="request.status === 'pending'" class="mt-6 pt-4 border-t">
+          <div
+            v-if="currentCollectionRequest.status === 'pending'"
+            class="mt-6 pt-4 border-t"
+          >
             <UButton
               color="error"
               variant="outline"
@@ -422,55 +401,22 @@
           </div>
         </UCard>
 
-        <!-- Status History Card -->
-        <!-- <UCard>
-        <template #header>
-          <h3 class="text-lg font-semibold text-gray-900">
-            Histórico de Status
-          </h3>
-        </template>
-
-        <div class="space-y-4">
-          <div
-            v-for="(history, index) in request.statusHistory"
-            :key="index"
-            class="flex items-start space-x-3"
-          >
-            <div class="shrink-0">
-              <div
-                class="w-3 h-3 rounded-full mt-2"
-                :class="getStatusColor(history.status)"
-              ></div>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between">
-                <p class="text-sm font-medium text-gray-900">
-                  {{ getStatusLabel(history.status) }}
-                </p>
-                <p class="text-xs text-gray-500">
-                  {{ formatDateTime(history.changedAt) }}
-                </p>
-              </div>
-              <p v-if="history.reason" class="text-sm text-gray-600 mt-1">
-                {{ history.reason }}
-              </p>
-              <p v-if="history.changedBy" class="text-xs text-gray-500 mt-1">
-                Alterado por: {{ history.changedBy }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </UCard> -->
-
         <!-- Rejection Reason (if rejected) -->
-        <UCard v-if="request.status === 'rejected' && request.rejectionReason">
+        <UCard
+          v-if="
+            currentCollectionRequest.status === 'rejected' &&
+            currentCollectionRequest.rejectionReason
+          "
+        >
           <template #header>
             <h3 class="text-lg font-semibold text-gray-900">
               Motivo da Rejeição
             </h3>
           </template>
 
-          <p class="text-gray-700">{{ request.rejectionReason }}</p>
+          <p class="text-gray-700">
+            {{ currentCollectionRequest.rejectionReason }}
+          </p>
         </UCard>
 
         <!-- Back Button -->
@@ -627,7 +573,7 @@ const route = useRoute();
 const router = useRouter();
 const bloodbankStore = useBloodbankStore();
 const userStore = useUserStore();
-const { bloodbankData } = storeToRefs(bloodbankStore);
+const { bloodbankData, currentCollectionRequest } = storeToRefs(bloodbankStore);
 const { currentBloodBankRole } = storeToRefs(userStore);
 
 const requestId = route.params.requestId as string;
@@ -636,7 +582,6 @@ const bloodBanksLocationId = computed(
   () => currentBloodBankRole.value?.bloodBanksLocationId
 );
 
-const request = ref<CollectionRequest | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const selectedTimeSlot = ref<any>(null);
@@ -668,16 +613,15 @@ const loadRequestDetails = async () => {
       requestId,
       bloodBanksLocationId.value
     );
-    request.value = bloodbankStore.currentCollectionRequest;
 
-    if (!request.value) {
+    if (!currentCollectionRequest.value) {
       error.value = "Solicitação não encontrada";
     } else {
       // Set map center to institution location
-      if (request.value.institutionLocation) {
+      if (currentCollectionRequest.value.institutionLocation) {
         mapCenter.value = [
-          request.value.institutionLocation.coordinates[0],
-          request.value.institutionLocation.coordinates[1],
+          currentCollectionRequest.value.institutionLocation.coordinates[0],
+          currentCollectionRequest.value.institutionLocation.coordinates[1],
         ];
       }
     }
@@ -789,11 +733,8 @@ const confirmAccept = async () => {
       duration: 3000,
     });
 
-    // Close modal and update local data
+    // Close modal
     showAcceptModal.value = false;
-
-    // Update request data from store (already updated by the store)
-    request.value = bloodbankStore.currentCollectionRequest;
 
     // Refresh the collection requests list to reflect changes
     if (bloodBanksLocationId.value) {
@@ -847,14 +788,11 @@ const confirmReject = async () => {
       duration: 3000,
     });
 
-    // Close modal and update local data
+    // Close modal and clear
     showRejectModal.value = false;
     rejectionReason.value = "";
 
-    // Update request data from store (already updated by the store)
-    request.value = bloodbankStore.currentCollectionRequest;
-
-    // Refresh the collection requests list to reflect changes
+    // Refresh collection requests list if needed
     if (bloodBanksLocationId.value) {
       await bloodbankStore.refreshCollectionRequests(
         bloodBanksLocationId.value,

@@ -585,3 +585,80 @@ export async function getCollectionRequestsByIds(ids: string[]) {
 
   return collectionRequests;
 }
+
+// Collection Request Creation for Backoffice
+export interface CreateCollectionRequestData {
+  institutionId: string;
+  requestedByUserId: string;
+  requestedDates: Array<{
+    availableDateId: string;
+    slotIds?: string[];
+  }>;
+}
+
+export async function createCollectionRequest(
+  bloodBanksLocationId: string,
+  data: CreateCollectionRequestData
+): Promise<CollectionRequestWithDetails> {
+  // Validate that the blood bank exists
+  const bloodBank = await BloodBank.findOne({
+    bloodBanksLocationId,
+    deletedAt: null,
+  });
+
+  if (!bloodBank) {
+    throw new Error("Blood bank not found");
+  }
+
+  // Validate requested dates exist and belong to this blood bank
+  const availableDateIds = data.requestedDates.map((rd) => rd.availableDateId);
+  const availableDates = await AvailableDate.find({
+    _id: { $in: availableDateIds },
+    bloodBanksLocationId,
+    deletedAt: null,
+  });
+
+  if (availableDates.length !== availableDateIds.length) {
+    throw new Error(
+      "One or more requested dates are invalid or don't belong to this blood bank"
+    );
+  }
+
+  // Create the collection request
+  const collectionRequest = new CollectionRequest({
+    institutionId: data.institutionId,
+    requestedByUserId: data.requestedByUserId,
+    bloodBanksLocationId,
+    requestedDates: data.requestedDates.map((rd) => ({
+      availableDateId: new Types.ObjectId(rd.availableDateId),
+      slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
+    })),
+    status: "pending",
+    statusHistory: [
+      {
+        status: "pending",
+        changedAt: new Date(),
+        changedBy: data.requestedByUserId,
+        reason: "Request created by backoffice",
+      },
+    ],
+  });
+
+  const savedRequest = await collectionRequest.save();
+
+  // Return the request with details
+  if (!savedRequest._id) {
+    throw new Error("Failed to save collection request");
+  }
+
+  const requestWithDetails = await getCollectionRequestById(
+    savedRequest._id.toString(),
+    bloodBanksLocationId
+  );
+
+  if (!requestWithDetails) {
+    throw new Error("Failed to retrieve created request");
+  }
+
+  return requestWithDetails;
+}

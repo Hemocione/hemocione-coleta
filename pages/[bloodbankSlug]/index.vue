@@ -8,7 +8,11 @@
       </div>
 
       <!-- Dashboard Content -->
-      <div v-else class="space-y-6 flex flex-col gap-6">
+      <div
+        v-else
+        class="space-y-6 flex flex-col gap-6"
+        data-testid="dashboard-content"
+      >
         <!-- Banner de Pedidos Pendentes -->
         <NuxtLink
           :to="`/${bloodbankSlug}/coletas`"
@@ -460,7 +464,11 @@ const loadDashboardData = async () => {
   if (!bloodBanksLocationId.value) return;
 
   try {
-    await bloodbankStore.loadDashboardData(bloodBanksLocationId.value);
+    // Load both dashboard data and bloodbank data
+    await Promise.all([
+      bloodbankStore.loadDashboardData(bloodBanksLocationId.value),
+      bloodbankStore.loadBloodbankData(bloodBanksLocationId.value, true),
+    ]);
 
     // Show location modal if there's a next collection with valid data
     if (

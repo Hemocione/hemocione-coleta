@@ -19,13 +19,7 @@
             color="warning"
             icon="i-lucide-bell"
             title="Solicitações de Coleta Pendentes"
-            :description="`Você tem ${
-              dashboardData?.pendingRequestsCount || 0
-            } ${
-              (dashboardData?.pendingRequestsCount || 0) === 1
-                ? 'solicitação'
-                : 'solicitações'
-            } aguardando aprovação`"
+            :description="'Há solicitações de coleta aguardando aprovação.'"
           >
           </UAlert>
         </NuxtLink>

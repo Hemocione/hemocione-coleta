@@ -41,7 +41,7 @@ npm run build
 
 Locally preview production build:
 
-AGORA VAI
+DALE
 ```bash
 npm run preview
 ```

@@ -77,21 +77,22 @@ export interface CollectionRequest {
   institutionLocation: {
     type: "Point";
     coordinates: [number, number];
-  };
+  } | null;
   institutionAddress: string;
   institutionLogo?: string;
   institutionBanner?: string;
   requestedByUserId: string;
   bloodBanksLocationId: string;
-  requestedDates: Array<{
+  availableSlotOptions: Array<{
     availableDateId: string;
-    slotIds?: string[]; // Now optional array of slot IDs
-    date: string;
-    startTime?: Date;
-    endTime?: Date;
+    slotId: string;
+    date: string; // This is a string from the database
+    startTime?: Date; // These are already correct as Date objects
+    endTime?: Date; // These are already correct as Date objects
     teamName?: string;
     teamColor?: string;
     isLocked?: boolean;
+    isRequested?: boolean; // Indicates if this slot was specifically requested
   }>;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
@@ -910,11 +911,15 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...request,
               createdAt: new Date(request.createdAt),
               updatedAt: new Date(request.updatedAt),
-              requestedDates: request.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: request.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  startTime: slot.startTime
+                    ? new Date(slot.startTime)
+                    : undefined,
+                  endTime: slot.endTime ? new Date(slot.endTime) : undefined,
+                })
+              ),
               statusHistory: request.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -952,11 +957,15 @@ export const useBloodbankStore = defineStore("bloodbank", {
             ...response.data,
             createdAt: new Date(response.data.createdAt),
             updatedAt: new Date(response.data.updatedAt),
-            requestedDates: response.data.requestedDates.map((rd: any) => ({
-              ...rd,
-              startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-              endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-            })),
+            availableSlotOptions: response.data.availableSlotOptions.map(
+              (slot: any) => ({
+                ...slot,
+                startTime: slot.startTime
+                  ? new Date(slot.startTime)
+                  : undefined,
+                endTime: slot.endTime ? new Date(slot.endTime) : undefined,
+              })
+            ),
             statusHistory: response.data.statusHistory.map((sh: any) => ({
               ...sh,
               changedAt: new Date(sh.changedAt),
@@ -1005,11 +1014,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1023,11 +1035,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1074,11 +1089,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1092,11 +1110,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1142,7 +1163,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
         const response = await fetchWithAuth(
           `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/cancel`,
           {
-            method: "POST",
+            method: "POST" as any,
           }
         );
 
@@ -1156,11 +1177,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1174,11 +1198,14 @@ export const useBloodbankStore = defineStore("bloodbank", {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              requestedDates: response.data.requestedDates.map((rd: any) => ({
-                ...rd,
-                startTime: rd.startTime ? new Date(rd.startTime) : undefined,
-                endTime: rd.endTime ? new Date(rd.endTime) : undefined,
-              })),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  // Keep dates as strings - they are stored as strings in the database
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
               statusHistory: response.data.statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
@@ -1229,9 +1256,33 @@ export const useBloodbankStore = defineStore("bloodbank", {
             pendingRequestsCount: response.data.pendingRequestsCount,
             nextCollection: response.data.nextCollection
               ? {
-                  ...response.data.nextCollection,
-                  createdAt: new Date(response.data.nextCollection.createdAt),
-                  updatedAt: new Date(response.data.nextCollection.updatedAt),
+                  _id: (response.data.nextCollection as any)._id || "",
+                  institutionName: response.data.nextCollection.institutionName,
+                  institutionLocation: response.data.nextCollection
+                    .institutionLocation
+                    ? {
+                        ...response.data.nextCollection.institutionLocation,
+                        coordinates: response.data.nextCollection
+                          .institutionLocation.coordinates as [number, number],
+                      }
+                    : null,
+                  institutionAddress:
+                    response.data.nextCollection.institutionAddress,
+                  institutionLogo: response.data.nextCollection.institutionLogo,
+                  institutionBanner:
+                    response.data.nextCollection.institutionBanner,
+                  date: response.data.nextCollection.date,
+                  teamName:
+                    (response.data.nextCollection as any).teamName || "",
+                  teamColor:
+                    (response.data.nextCollection as any).teamColor ||
+                    "#3B82F6",
+                  createdAt: new Date(
+                    (response.data.nextCollection as any).createdAt
+                  ),
+                  updatedAt: new Date(
+                    (response.data.nextCollection as any).updatedAt
+                  ),
                   startTime: response.data.nextCollection.startTime
                     ? new Date(response.data.nextCollection.startTime)
                     : undefined,

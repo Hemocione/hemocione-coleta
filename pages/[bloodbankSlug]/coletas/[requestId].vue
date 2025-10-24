@@ -285,32 +285,57 @@
 
           <div class="space-y-4">
             <div
-              v-for="(date, index) in request.requestedDates"
+              v-for="(slot, index) in request.availableSlotOptions"
               :key="index"
               class="border rounded-lg p-4 transition-all duration-200 hover:shadow-md"
               :class="{
                 'border-green-500 bg-green-50':
                   request.status === 'accepted' &&
-                  request.selectedAvailableDateId ===
-                    date.availableDateId.toString() &&
-                  request.selectedSlotId === date.slotIds?.[0]?.toString(),
-                'border-gray-200': !(
-                  request.status === 'accepted' &&
-                  request.selectedAvailableDateId ===
-                    date.availableDateId.toString() &&
-                  request.selectedSlotId === date.slotIds?.[0]?.toString()
-                ),
+                  request.selectedAvailableDateId === slot.availableDateId &&
+                  request.selectedSlotId === slot.slotId,
+                'border-gray-300 bg-gray-100 opacity-60': slot.isLocked,
+                'border-blue-300 bg-blue-50':
+                  slot.isRequested && !slot.isLocked,
+                'border-gray-200':
+                  !(
+                    request.status === 'accepted' &&
+                    request.selectedAvailableDateId === slot.availableDateId &&
+                    request.selectedSlotId === slot.slotId
+                  ) && !slot.isLocked,
               }"
             >
               <div class="flex items-center justify-between mb-3">
-                <h4 class="font-medium text-gray-900">Opção {{ index + 1 }}</h4>
+                <div class="flex items-center space-x-2">
+                  <h4
+                    class="font-medium"
+                    :class="slot.isLocked ? 'text-gray-500' : 'text-gray-900'"
+                  >
+                    Opção {{ index + 1 }}
+                  </h4>
+                  <UBadge
+                    v-if="slot.isRequested"
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    Solicitado
+                  </UBadge>
+                  <UBadge
+                    v-if="slot.isLocked"
+                    color="error"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    Bloqueado
+                  </UBadge>
+                </div>
                 <div class="flex items-center space-x-2">
                   <UBadge
                     v-if="
                       request.status === 'accepted' &&
                       request.selectedAvailableDateId ===
-                        date.availableDateId.toString() &&
-                      request.selectedSlotId === date.slotIds?.[0]?.toString()
+                        slot.availableDateId &&
+                      request.selectedSlotId === slot.slotId
                     "
                     color="success"
                     variant="subtle"
@@ -318,35 +343,68 @@
                     Selecionada
                   </UBadge>
                   <UButton
-                    v-else-if="request.status === 'pending'"
+                    v-else-if="request.status === 'pending' && !slot.isLocked"
                     color="success"
                     size="sm"
-                    @click="showAcceptDialog(date)"
+                    @click="showAcceptDialog(slot)"
                     class="cursor-pointer"
                   >
                     Aceitar
+                  </UButton>
+                  <UButton
+                    v-else-if="request.status === 'pending' && slot.isLocked"
+                    color="neutral"
+                    size="sm"
+                    disabled
+                    class="cursor-not-allowed"
+                  >
+                    Indisponível
                   </UButton>
                 </div>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <span class="text-gray-600">Data:</span>
-                  <p class="font-medium">{{ formatDate(date.date) }}</p>
-                </div>
-                <div>
-                  <span class="text-gray-600">Horário:</span>
-                  <p class="font-medium">
-                    {{ formatTimeRange(date.startTime, date.endTime) }}
+                  <span
+                    :class="slot.isLocked ? 'text-gray-400' : 'text-gray-600'"
+                    >Data:</span
+                  >
+                  <p
+                    class="font-medium"
+                    :class="slot.isLocked ? 'text-gray-500' : 'text-gray-900'"
+                  >
+                    {{ formatDate(slot.date) }}
                   </p>
                 </div>
                 <div>
-                  <span class="text-gray-600">Equipe:</span>
+                  <span
+                    :class="slot.isLocked ? 'text-gray-400' : 'text-gray-600'"
+                    >Horário:</span
+                  >
+                  <p
+                    class="font-medium"
+                    :class="slot.isLocked ? 'text-gray-500' : 'text-gray-900'"
+                  >
+                    {{ formatTimeRange(slot.startTime, slot.endTime) }}
+                  </p>
+                </div>
+                <div>
+                  <span
+                    :class="slot.isLocked ? 'text-gray-400' : 'text-gray-600'"
+                    >Equipe:</span
+                  >
                   <div class="flex items-center space-x-2">
                     <div
                       class="w-3 h-3 rounded-full"
-                      :style="{ backgroundColor: date.teamColor }"
+                      :style="{
+                        backgroundColor: slot.teamColor,
+                        opacity: slot.isLocked ? 0.5 : 1,
+                      }"
                     ></div>
-                    <span class="font-medium">{{ date.teamName }}</span>
+                    <span
+                      class="font-medium"
+                      :class="slot.isLocked ? 'text-gray-500' : 'text-gray-900'"
+                      >{{ slot.teamName }}</span
+                    >
                   </div>
                 </div>
               </div>
@@ -618,10 +676,12 @@ const loadRequestDetails = async () => {
       error.value = "Solicitação não encontrada";
     } else {
       // Set map center to institution location
-      mapCenter.value = [
-        request.value.institutionLocation.coordinates[0],
-        request.value.institutionLocation.coordinates[1],
-      ];
+      if (request.value.institutionLocation) {
+        mapCenter.value = [
+          request.value.institutionLocation.coordinates[0],
+          request.value.institutionLocation.coordinates[1],
+        ];
+      }
     }
   } catch (err: any) {
     error.value = err.message || "Erro ao carregar detalhes da solicitação";
@@ -720,7 +780,7 @@ const confirmAccept = async () => {
     await bloodbankStore.acceptCollectionRequest(
       requestId,
       selectedTimeSlot.value.availableDateId,
-      selectedTimeSlot.value.slotIds?.[0] || "",
+      selectedTimeSlot.value.slotId,
       bloodBanksLocationId.value
     );
 

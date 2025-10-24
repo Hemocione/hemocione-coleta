@@ -164,24 +164,21 @@
                   </span>
                 </div>
 
-                <!-- Requested Dates -->
+                <!-- Available Dates -->
                 <div>
                   <h4 class="text-sm font-medium text-gray-900 mb-2">
                     Opções de Data
                   </h4>
                   <div class="space-y-1">
                     <div
-                      v-for="(date, index) in request.requestedDates"
+                      v-for="(date, index) in getUniqueDates(
+                        request.availableSlotOptions
+                      )"
                       :key="index"
-                      class="flex items-center justify-between text-sm"
+                      class="text-sm"
                     >
                       <span class="text-gray-600">{{
-                        formatDate(date.date)
-                      }}</span>
-                      <span class="text-gray-500">{{
-                        date.startTime && date.endTime
-                          ? formatTimeRange(date.startTime, date.endTime)
-                          : "N/A"
+                        formatStringDate(date)
                       }}</span>
                     </div>
                   </div>
@@ -312,12 +309,22 @@ const getStatusLabel = (status: string) => {
   }
 };
 
+const formatStringDate = (date: string) => {
+  // Espera o formato "YYYY-MM-DD" e retorna "DD/MM/YYYY"
+  if (!date) return "";
+  const [year, month, day] = date.split("-");
+  if (!year || !month || !day) return date;
+  return `${day}/${month}/${year}`;
+};
+
 const formatDate = (date: string | Date) => {
   const d = new Date(date);
   return d.toLocaleDateString("pt-BR");
 };
 
 const formatTimeRange = (startTime: Date | string, endTime: Date | string) => {
+  if (!startTime || !endTime) return "N/A";
+
   const start = new Date(startTime).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -331,6 +338,12 @@ const formatTimeRange = (startTime: Date | string, endTime: Date | string) => {
 
 const viewRequestDetails = (requestId: string) => {
   navigateTo(`/hemorio/coletas/${requestId}`);
+};
+
+// Helper functions for date display
+const getUniqueDates = (availableSlotOptions: any[]) => {
+  const dates = availableSlotOptions.map((slot) => slot.date);
+  return [...new Set(dates)].sort();
 };
 
 // Watchers

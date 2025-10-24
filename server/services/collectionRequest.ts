@@ -39,15 +39,16 @@ export interface CollectionRequestWithDetails {
   institutionBanner?: string;
   requestedByUserId: string;
   bloodBanksLocationId: string;
-  requestedDates: Array<{
+  availableSlotOptions: Array<{
     availableDateId: string;
-    slotIds?: string[]; // Now optional array of slot IDs
+    slotId: string;
     date: string;
     startTime?: Date;
     endTime?: Date;
     teamName?: string;
     teamColor?: string;
     isLocked?: boolean;
+    isRequested?: boolean; // Indicates if this slot was specifically requested
   }>;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
@@ -126,7 +127,9 @@ export async function getCollectionRequestsByBloodBank(
     AvailableDate.find({
       _id: { $in: allRequestedDateIds },
       deletedAt: null,
-    }),
+    })
+      .populate("slots.teamId", "name color")
+      .lean(),
   ]);
   // Create institution lookup map
   const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
@@ -144,6 +147,64 @@ export async function getCollectionRequestsByBloodBank(
         return null;
       }
 
+      // Build available slot options for this request
+      const availableSlotOptions: Array<{
+        availableDateId: string;
+        slotId: string;
+        date: string;
+        startTime?: Date;
+        endTime?: Date;
+        teamName?: string;
+        teamColor?: string;
+        isLocked?: boolean;
+        isRequested?: boolean;
+      }> = [];
+
+      // Create a set of requested slot IDs for quick lookup
+      const requestedSlotIds = new Set<string>();
+      request.requestedDates.forEach((rd) => {
+        if (rd.slotIds) {
+          rd.slotIds.forEach((slotId) => {
+            requestedSlotIds.add(slotId.toString());
+          });
+        }
+      });
+
+      // Process each requested date and extract all available slots
+      request.requestedDates.forEach((rd) => {
+        const availableDate = availableDateMap.get(
+          rd.availableDateId.toString()
+        );
+
+        if (availableDate && availableDate.slots) {
+          availableDate.slots.forEach((slot) => {
+            // If specific slotIds were requested, only include those slots
+            // If no specific slotIds were requested, include all slots
+            const shouldIncludeSlot =
+              !rd.slotIds ||
+              rd.slotIds.length === 0 ||
+              rd.slotIds.some(
+                (requestedSlotId) =>
+                  requestedSlotId.toString() === slot._id.toString()
+              );
+
+            if (shouldIncludeSlot) {
+              availableSlotOptions.push({
+                availableDateId: rd.availableDateId.toString(),
+                slotId: slot._id.toString(),
+                date: availableDate.date,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                teamName: (slot.teamId as any)?.name || "Equipe não definida",
+                teamColor: (slot.teamId as any)?.color || "#3B82F6",
+                isLocked: slot.locked || false,
+                isRequested: requestedSlotIds.has(slot._id.toString()),
+              });
+            }
+          });
+        }
+      });
+
       return {
         ...request,
         institutionName: institution.name,
@@ -158,24 +219,7 @@ export async function getCollectionRequestsByBloodBank(
         institutionLogo: institution.logo,
         institutionBanner: institution.banner,
         institutionStatus: institution.status,
-        requestedDates: request.requestedDates.map((rd) => {
-          const availableDate = availableDateMap.get(
-            rd.availableDateId.toString()
-          );
-
-          return {
-            availableDateId: rd.availableDateId.toString(),
-            slotIds: rd.slotIds?.map((id) => id.toString()),
-            date: availableDate?.date || "",
-            // If specific slots are requested, show details for those slots
-            // Otherwise, show general date info
-            startTime: availableDate?.slots?.[0]?.startTime,
-            endTime:
-              availableDate?.slots?.[availableDate.slots.length - 1]?.endTime,
-            isLocked:
-              availableDate?.slots?.some((slot) => slot.locked) || false,
-          };
-        }),
+        availableSlotOptions,
       };
     })
     .filter((request): request is NonNullable<typeof request> => {
@@ -235,6 +279,54 @@ export async function getCollectionRequestById(
     availableDates.map((ad) => [ad._id.toString(), ad])
   );
 
+  // Build available slot options from all requested dates
+  const availableSlotOptions: Array<{
+    availableDateId: string;
+    slotId: string;
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+    teamColor?: string;
+    isLocked?: boolean;
+    isRequested?: boolean;
+  }> = [];
+
+  // Process each requested date and extract all available slots
+  request.requestedDates.forEach((rd) => {
+    const availableDate = availableDateMap.get(rd.availableDateId.toString());
+    const requestedSlotIds = new Set<string>();
+
+    if (availableDate && availableDate.slots) {
+      availableDate.slots.forEach((slot) => {
+        // If specific slotIds were requested, only include those slots
+        // If no specific slotIds were requested, include all slots
+        const shouldIncludeSlot =
+          !rd.slotIds ||
+          rd.slotIds.length === 0 ||
+          rd.slotIds.some(
+            (requestedSlotId) =>
+              requestedSlotId.toString() === slot._id.toString()
+          );
+
+        if (shouldIncludeSlot) {
+          availableSlotOptions.push({
+            availableDateId: rd.availableDateId.toString(),
+            slotId: slot._id.toString(),
+            date: availableDate.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            teamName:
+              (slot.teamId as { name?: string })?.name || "Equipe não definida",
+            teamColor: (slot.teamId as { color?: string })?.color || "#3B82F6",
+            isLocked: slot.locked || false,
+            isRequested: requestedSlotIds.has(slot._id.toString()),
+          });
+        }
+      });
+    }
+  });
+
   const requestWithDetails = {
     ...request,
     institutionName: institution?.name || "Instituição não encontrada",
@@ -248,22 +340,7 @@ export async function getCollectionRequestById(
     institutionAddress: institution?.address || "",
     institutionLogo: institution?.logo,
     institutionBanner: institution?.banner,
-    requestedDates: request.requestedDates.map((rd) => {
-      const availableDate = availableDateMap.get(rd.availableDateId.toString());
-
-      return {
-        availableDateId: rd.availableDateId.toString(),
-        slotIds: rd.slotIds?.map((id) => id.toString()),
-        date: availableDate?.date || "",
-        startTime: availableDate?.slots?.[0]?.startTime,
-        endTime:
-          availableDate?.slots?.[availableDate.slots.length - 1]?.endTime,
-        teamName:
-          availableDate?.slots?.[0]?.teamId?.name || "Equipe não definida",
-        teamColor: availableDate?.slots?.[0]?.teamId?.color || "#3B82F6",
-        isLocked: availableDate?.slots?.some((slot) => slot.locked) || false,
-      };
-    }),
+    availableSlotOptions,
   };
 
   return requestWithDetails as unknown as CollectionRequestWithDetails;
@@ -518,31 +595,11 @@ export async function validateSlotsAvailability(
     }).lean();
 
     if (!availableDate) {
-      // If no specific slots requested, check if any slots are available
-      if (!requestedDate.slotIds || requestedDate.slotIds.length === 0) {
-        const hasAvailableSlots = availableDate?.slots?.some(
-          (slot) => !slot.locked && !slot.lockedBy
-        );
-        if (!hasAvailableSlots) {
-          unavailableSlots.push({
-            availableDateId: requestedDate.availableDateId,
-            slotId: "any",
-          });
-        }
-      } else {
-        // Check specific slots
-        for (const slotId of requestedDate.slotIds) {
-          const slot = availableDate?.slots?.find(
-            (s) => s._id.toString() === slotId
-          );
-          if (!slot || slot.locked || slot.lockedBy) {
-            unavailableSlots.push({
-              availableDateId: requestedDate.availableDateId,
-              slotId,
-            });
-          }
-        }
-      }
+      // If available date not found, mark as unavailable
+      unavailableSlots.push({
+        availableDateId: requestedDate.availableDateId,
+        slotId: "any",
+      });
       continue;
     }
 

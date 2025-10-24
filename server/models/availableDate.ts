@@ -10,7 +10,6 @@ const SlotSchema = new Schema(
     lockedBy: {
       type: Schema.Types.ObjectId,
       required: false,
-      ref: "CollectionRequest",
     },
   },
   { _id: true }

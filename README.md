@@ -1,5 +1,6 @@
 # Hemocione Coleta
-lesgo again eminem resolvendo treta
+lesgo again eminem resolvendo treta é o mongoose apenas
+
 Deploy your [Nuxt](https://nuxt.com) project to Vercel with zero configuration.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vercel/examples/tree/main/framework-boilerplates/nuxtjs&template=nuxtjs)

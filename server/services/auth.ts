@@ -7,6 +7,11 @@ export interface BloodBankRole {
   role: "admin" | "staff";
 }
 
+export interface InstitutionRole {
+  institutionId: string;
+  role: "admin" | "staff";
+}
+
 export function assertSecretAuth(event: H3Event) {
   const headers = event.headers;
   const secret = headers.get("x-secret");
@@ -35,6 +40,7 @@ export interface HemocioneUserAuthTokenData {
   document: string;
   gender: Gender;
   bloodBankRoles: BloodBankRole[];
+  institutionRoles: InstitutionRole[];
 }
 
 export function useHemocioneUserAuth(event: H3Event) {

@@ -16,7 +16,13 @@
     <!-- Loading State -->
     <Transition name="fade" mode="out-in">
       <div v-if="isLoading" class="flex items-center justify-center py-12">
-        <USpinner size="lg" />
+        <ULoader
+          size="lg"
+          class="mx-auto mb-4"
+          color="blue"
+          :ui="{ rounded: 'rounded-full' }"
+          aria-label="Carregando"
+        />
         <span class="ml-3 text-gray-600">Carregando detalhes...</span>
       </div>
 

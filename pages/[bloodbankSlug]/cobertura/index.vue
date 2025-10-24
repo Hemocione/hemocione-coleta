@@ -196,9 +196,13 @@
         class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[1000]"
       >
         <div class="text-center">
-          <div
-            class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"
-          ></div>
+          <ULoader
+            size="lg"
+            class="mx-auto mb-4"
+            color="blue"
+            :ui="{ rounded: 'rounded-full' }"
+            aria-label="Carregando"
+          />
           <p class="text-grey-600 font-medium">Carregando dados...</p>
         </div>
       </div>

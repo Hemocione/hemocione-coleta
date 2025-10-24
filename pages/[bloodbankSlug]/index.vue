@@ -467,7 +467,7 @@ const loadDashboardData = async () => {
     // Load both dashboard data and bloodbank data
     await Promise.all([
       bloodbankStore.loadDashboardData(bloodBanksLocationId.value),
-      bloodbankStore.loadBloodbankData(bloodBanksLocationId.value, true),
+      bloodbankStore.loadBloodbankData(bloodBanksLocationId.value, false),
     ]);
 
     // Show location modal if there's a next collection with valid data

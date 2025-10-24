@@ -4,8 +4,9 @@ import {
   getCollectionRequestsByIds,
 } from "~/server/services/collectionRequest";
 import { getInstitutionsByIds } from "~/server/services/hemocioneId";
-import { Team } from "~/server/models/team";
-import { AvailableDate } from "~/server/models/availableDate";
+import { team, availableDate } from "~/server/models";
+const { Team } = team;
+const { AvailableDate } = availableDate;
 import dayjs from "dayjs";
 
 // Helper function to get available dates by specific IDs

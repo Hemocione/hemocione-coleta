@@ -1,4 +1,5 @@
-import { BloodBank } from "~/server/models/bloodBank";
+import { bloodBank } from "~/server/models";
+const { BloodBank } = bloodBank;
 import slugify from "slugify";
 
 export async function getBloodBankByBloodBanksLocationId(

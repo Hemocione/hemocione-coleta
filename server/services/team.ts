@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
-import { Team } from "~/server/models/team";
+import { team } from "~/server/models";
+const { Team } = team;
 
 export interface TeamData {
   _id: string | Types.ObjectId;

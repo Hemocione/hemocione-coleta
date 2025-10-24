@@ -1,9 +1,15 @@
-import { CollectionRequest } from "~/server/models/collectionRequest";
-import { AvailableDate } from "~/server/models/availableDate";
-import { BloodBank } from "~/server/models/bloodBank";
-import { Team } from "~/server/models/team";
 import { Types } from "mongoose";
-import { getInstitutionsByIds, Institution } from "./hemocioneId";
+import {
+  team,
+  collectionRequest,
+  availableDate,
+  bloodBank,
+} from "~/server/models";
+const { Team } = team;
+const { CollectionRequest } = collectionRequest;
+const { AvailableDate } = availableDate;
+const { BloodBank } = bloodBank;
+import { getInstitutionsByIds } from "./hemocioneId";
 
 export interface CollectionRequestFilters {
   status?: string;

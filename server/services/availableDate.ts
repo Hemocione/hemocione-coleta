@@ -1,5 +1,6 @@
-import { AvailableDate } from "~/server/models/availableDate";
-import { Team } from "~/server/models/team";
+import { availableDate, team } from "~/server/models";
+const { AvailableDate } = availableDate;
+const { Team } = team;
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";

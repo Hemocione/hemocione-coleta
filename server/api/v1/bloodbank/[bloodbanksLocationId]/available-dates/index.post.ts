@@ -42,17 +42,6 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event);
   const { date, isAllTeams, slotsConfig } = bodySchema.parse(body);
 
-  // Não permitir criação de datas no passado
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const dateObj = new Date(date + "T00:00:00Z");
-  if (dateObj < today) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Não é permitido criar datas no passado",
-    });
-  }
-
   // Validações adicionais
   if (slotsConfig.type === "global") {
     if (!slotsConfig.globalStartTime || !slotsConfig.globalEndTime) {

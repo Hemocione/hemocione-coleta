@@ -6,12 +6,10 @@ const RequestedDateSchema = new Schema(
     availableDateId: {
       type: Schema.Types.ObjectId,
       required: true,
-      ref: "AvailableDate",
     },
     slotIds: {
       type: [Schema.Types.ObjectId],
       required: false,
-      ref: "Slot",
     },
   },
   { _id: false }
@@ -56,7 +54,6 @@ export const CollectionRequestSchema = new Schema(
     bloodBanksLocationId: {
       type: Schema.Types.UUID,
       required: true,
-      ref: "BloodBank",
     },
     requestedDates: {
       type: [RequestedDateSchema],
@@ -71,7 +68,6 @@ export const CollectionRequestSchema = new Schema(
     selectedAvailableDateId: {
       type: Schema.Types.ObjectId,
       required: false,
-      ref: "AvailableDate",
     },
     selectedSlotId: {
       type: Schema.Types.ObjectId,

@@ -3,7 +3,7 @@ import { InferSchemaType, Schema, model } from "mongoose";
 // Slot Schema - subdocumento para cada time
 const SlotSchema = new Schema(
   {
-    teamId: { type: Schema.Types.ObjectId, required: true, ref: "Team" },
+    teamId: { type: Schema.Types.ObjectId, required: true },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
     locked: { type: Boolean, default: false },

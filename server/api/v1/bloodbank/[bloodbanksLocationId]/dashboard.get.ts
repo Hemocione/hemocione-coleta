@@ -15,7 +15,7 @@ async function getAvailableDatesByIds(availableDateIds: string[]) {
     _id: { $in: availableDateIds },
     deletedAt: null,
   })
-    .populate("slots.teamId", "name color")
+    .populate({ path: "slots.teamId", select: "name color", model: Team })
     .lean();
 
   return availableDates;
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
         $lte: nextWeek.format("YYYY-MM-DD"),
       },
     })
-      .populate("slots.teamId", "name color")
+      .populate({ path: "slots.teamId", select: "name color", model: Team })
       .lean();
 
     // Get all locked slots from the available dates

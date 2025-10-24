@@ -134,7 +134,7 @@ export async function getCollectionRequestsByBloodBank(
       _id: { $in: allRequestedDateIds },
       deletedAt: null,
     })
-      .populate("slots.teamId", "name color")
+      .populate({ path: "slots.teamId", select: "name color", model: Team })
       .lean(),
   ]);
   // Create institution lookup map
@@ -274,7 +274,7 @@ export async function getCollectionRequestById(
         _id: { $in: requestedDateIds },
         deletedAt: null,
       })
-        .populate("slots.teamId", "name color")
+        .populate({ path: "slots.teamId", select: "name color", model: Team })
         .lean();
     })(),
   ]);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import * as models from "../models"; // Import all models from the models folder
 
 const isBuilding = () => process.env.IS_BUILDING === "TRUE";
 

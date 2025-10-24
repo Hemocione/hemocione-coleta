@@ -26,24 +26,12 @@
         >
           <!-- MglPopup for bloodbank info -->
           <template v-if="bloodbankData.logo" v-slot:marker>
-            <div class="flex flex-col items-center">
-              <NuxtImg
-                :src="bloodbankData.logo"
-                :alt="`Logo do ${bloodbankData.name}`"
-                class="w-8 h-8 rounded-full object-cover border-2"
-                style="border-color: #bb0a08"
-              />
-              <svg
-                class="mt-[-2px]"
-                width="10"
-                height="6"
-                viewBox="0 0 10 6"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <polygon points="5,6 0,0 10,0" fill="#bb0a08" />
-              </svg>
-            </div>
+            <NuxtImg
+              :src="bloodbankData.logo"
+              :alt="`Logo do ${bloodbankData.name}`"
+              class="w-8 h-8 rounded-full object-cover border-2"
+              style="border-color: #bb0a08"
+            />
           </template>
           <MglPopup
             v-if="!bloodbankData.logo"

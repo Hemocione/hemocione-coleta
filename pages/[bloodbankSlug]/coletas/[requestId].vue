@@ -16,14 +16,11 @@
     <!-- Loading State -->
     <Transition name="fade" mode="out-in">
       <div v-if="isLoading" class="flex items-center justify-center py-12">
-        <ULoader
-          size="lg"
-          class="mx-auto mb-4"
-          color="blue"
-          :ui="{ rounded: 'rounded-full' }"
+        <div
+          class="mx-auto mb-4 w-14 h-14 rounded-full border-4 border-red-500 border-t-transparent animate-spin transition-all"
+          role="status"
           aria-label="Carregando"
         />
-        <span class="ml-3 text-gray-600">Carregando detalhes...</span>
       </div>
 
       <!-- Error State -->

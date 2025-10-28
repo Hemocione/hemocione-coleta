@@ -41,8 +41,21 @@ export interface Institution {
   status: "pending" | "validated" | "rejected";
 }
 
-export interface InstitutionListResponse {
-  institutions: Institution[];
+export interface InstitutionListResponseItem {
+  institution: Institution;
+}
+export type InstitutionListResponse = InstitutionListResponseItem[];
+
+export interface CreateInstitutionPayload {
+  name: string;
+  document: string;
+  kind: string;
+  address: string;
+  phone: string;
+  city: string;
+  state: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export async function getMe(token: string): Promise<EnrichedMe> {
@@ -61,21 +74,13 @@ export async function getMe(token: string): Promise<EnrichedMe> {
   // Get blood bank roles from JWT token since /me API doesn't return them
   const jwtUserData = currentUserTokenDecoder(token);
 
-  if (!jwtUserData?.bloodBankRoles) {
-    throw new Error("No blood bank roles found");
-  }
-
   const localBloodBanks = await getBloodBanksByBloodBanksLocationIds(
-    jwtUserData.bloodBankRoles.map((role) => role.bloodBanksLocationId)
+    jwtUserData?.bloodBankRoles?.map((role) => role.bloodBanksLocationId) || []
   );
-
-  if (!localBloodBanks.length) {
-    throw new Error("No blood banks found");
-  }
 
   const enrichedBloodBankRoles: EnrichedBloodBankRole[] = localBloodBanks
     .map((bloodBank) => {
-      const bloodBankRole = jwtUserData.bloodBankRoles.find(
+      const bloodBankRole = jwtUserData?.bloodBankRoles?.find(
         (role) =>
           role.bloodBanksLocationId.toString() ===
           bloodBank.bloodBanksLocationId.toString()
@@ -123,4 +128,40 @@ export async function getInstitutionsByIds(
   );
 
   return response.institutions;
+}
+
+export async function createInstitution(
+  token: string,
+  payload: CreateInstitutionPayload
+): Promise<Institution> {
+  const config = useRuntimeConfig();
+  const response = await $fetch<Institution>(
+    `${config.public.hemocioneIdApiUrl}/institutions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: token.startsWith("Bearer") ? token : `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    }
+  );
+  return response;
+}
+
+export async function getUserInstitutions(
+  token: string
+): Promise<Institution[]> {
+  const config = useRuntimeConfig();
+  const response = await $fetch<InstitutionListResponse>(
+    `${config.public.hemocioneIdApiUrl}/users/me/institutions`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: token.startsWith("Bearer") ? token : `Bearer ${token}`,
+      },
+    }
+  );
+  const institutions = response?.map((data) => data.institution) || [];
+  return institutions;
 }

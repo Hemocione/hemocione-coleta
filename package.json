@@ -18,6 +18,7 @@
     "@playwright/test": "^1.56.1",
     "@types/jsonwebtoken": "^9.0.10",
     "jsonwebtoken": "^9.0.2",
+    "maska": "^3.2.0",
     "mongoose": "^8.19.1",
     "nuxt": "^3.8.2",
     "nuxt-bugsnag": "^8.6.0",

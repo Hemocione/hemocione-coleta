@@ -6,6 +6,11 @@ export default defineEventHandler((event) => {
     return;
   }
 
+  // Allow public endpoints without authentication
+  if (event.path.startsWith("/api/v1/public")) {
+    return;
+  }
+
   if (event.path.startsWith("/api/backoffice")) {
     return assertSecretAuth(event);
   }
@@ -22,12 +27,6 @@ export default defineEventHandler((event) => {
   }
 
   const user = useHemocioneUserAuth(event);
-  if (!user.bloodBankRoles.length) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: "User does not have any blood bank roles",
-    });
-  }
 
   event.context.auth = {
     token,

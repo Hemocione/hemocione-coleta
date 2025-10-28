@@ -3,6 +3,18 @@ import { useUserStore } from "~/stores/user";
 import { getHemocioneIdUrl } from "~/utils/getHemocioneIdUrl";
 import type { EnrichedMe } from "~/server/services/hemocioneId";
 
+const routeBypassBloodBankRolesPrefixes = ["/agendar"];
+export const routeBypassesBloodbankRoles = (route: string) => {
+  return routeBypassBloodBankRolesPrefixes.some((prefix) =>
+    route.startsWith(prefix)
+  );
+};
+
+const publicRoutesPrefixes = ["/agendar"];
+export const isPublicRoute = (route: string) => {
+  return publicRoutesPrefixes.some((prefix) => route.startsWith(prefix));
+};
+
 const getMeWithAuth = (token: string) => {
   return $fetch<EnrichedMe>("/api/v1/me", {
     headers: {
@@ -16,10 +28,22 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   const isLoggedIn = await evaluateCurrentLogin(from.query);
   const fromQueryHasToken = from.query.token;
+  if (isPublicRoute(to.path)) {
+    return;
+  }
+
   if (!isLoggedIn) {
     const redirectPath = fromQueryHasToken ? "/" : to.fullPath;
-    console.log("redirectPath", redirectPath);
     redirectToID(redirectPath);
+    return;
+  }
+  const userStore = useUserStore();
+  if (
+    !routeBypassesBloodbankRoles(to.fullPath) &&
+    !userStore.userHasBloodBankRole
+  ) {
+    // user doesn't have any blood bank role, redirect to ID as he's trying to access a route that requires a blood bank role
+    redirectToID(to.fullPath);
     return;
   }
 });
@@ -54,9 +78,9 @@ export async function evaluateCurrentLogin(query?: LocationQuery) {
   try {
     // Get enriched user data with blood bank information
     const enrichedUserData = await getMeWithAuth(token);
-
     // User must have at least one blood bank role
-    if (!enrichedUserData || !enrichedUserData.bloodBankRoles.length) {
+
+    if (!enrichedUserData) {
       return false;
     }
 

@@ -673,6 +673,20 @@ export async function createCollectionRequest(
     throw new Error("Blood bank not found");
   }
 
+  // Check if institution already has an open request for this blood bank
+  const existingOpenRequest = await CollectionRequest.findOne({
+    institutionId: data.institutionId,
+    bloodBanksLocationId,
+    status: "pending",
+    deletedAt: null,
+  });
+
+  if (existingOpenRequest) {
+    throw new Error(
+      "Esta instituição já possui uma solicitação em aberto para este banco de sangue"
+    );
+  }
+
   // Validate requested dates exist and belong to this blood bank
   const availableDateIds = data.requestedDates.map((rd) => rd.availableDateId);
   const availableDates = await AvailableDate.find({

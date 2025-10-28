@@ -169,7 +169,7 @@
     </Transition>
 
     <!-- Confirmation Modal -->
-    <UModal v-model:open="showConfirmationModal">
+    <UModal v-model:open="showConfirmationModal" :dismissible="false">
       <template #content>
         <div class="p-6 space-y-4">
           <div class="text-center">
@@ -382,8 +382,23 @@ const submit = async () => {
       }
     );
     showConfirmationModal.value = true;
-  } catch (e) {
-    useToast().add({ title: "Erro ao enviar solicitação", color: "error" });
+  } catch (e: any) {
+    // Verificar se é o erro de solicitação duplicada
+    const errorMessage = e?.data?.message || e?.message || "";
+    if (errorMessage.includes("já possui uma solicitação em aberto")) {
+      useToast().add({
+        title: "Solicitação duplicada",
+        description:
+          "Sua instituição já possui uma solicitação em aberto para este banco de sangue. Aguarde a resposta antes de criar uma nova solicitação.",
+        color: "warning",
+      });
+    } else {
+      useToast().add({
+        title: "Erro ao enviar solicitação",
+        description: errorMessage || "Tente novamente mais tarde",
+        color: "error",
+      });
+    }
   }
 };
 

@@ -31,20 +31,18 @@
           </UCard>
         </div>
       </div>
-      <div v-else class="text-center py-12 text-gray-600">
+      <div
+        v-else-if="selectedInstitution && !nearbyBloodBanks.length"
+        class="text-center py-12 text-gray-600"
+      >
         <UIcon
           name="i-lucide-building"
           class="w-10 h-10 mx-auto mb-3 text-gray-400"
         />
-        <p v-if="!selectedInstitution">
-          Selecione ou registre uma instituição para ver bancos de sangue
-          disponíveis.
+        <p>
+          Nenhum banco de sangue localizado próximo à instituição selecionada.
         </p>
-        <p v-else>
-          A instituição selecionada não possui coordenadas para buscar bancos
-          próximos.
-        </p>
-        <div v-if="selectedInstitution" class="mt-4">
+        <div class="mt-4">
           <UButton
             color="primary"
             icon="i-lucide-crosshair"
@@ -54,6 +52,16 @@
             Usar minha localização
           </UButton>
         </div>
+      </div>
+      <div v-else class="text-center py-12 text-gray-600">
+        <UIcon
+          name="i-lucide-building"
+          class="w-10 h-10 mx-auto mb-3 text-gray-400"
+        />
+        <p>
+          Selecione ou registre uma instituição para ver bancos de sangue
+          disponíveis.
+        </p>
       </div>
     </Transition>
   </div>

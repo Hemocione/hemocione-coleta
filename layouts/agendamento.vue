@@ -91,6 +91,23 @@
                 <UIcon name="i-lucide-loader-2" class="animate-spin" />
               </div>
             </Transition>
+            <!-- Alerta informativo sobre endereço -->
+            <div
+              class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800"
+              key="address-info"
+            >
+              <div class="flex items-start gap-2">
+                <UIcon
+                  name="i-lucide-map-pin"
+                  class="w-4 h-4 mt-0.5 shrink-0"
+                />
+                <div>
+                  <strong>Endereço de coleta:</strong> Informe o endereço onde a
+                  coleta de sangue será realizada. Este local será usado para
+                  coordenar a visita do banco de sangue.
+                </div>
+              </div>
+            </div>
             <UFormField label="Eu represento uma..." key="kind">
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <UCard
@@ -234,6 +251,7 @@ const onLogout = async () => {
 
 // Institution select/create (global)
 const scheduling = useSchedulingStore();
+const { selectedInstitution } = storeToRefs(scheduling);
 const openCreate = ref(false);
 const loginPromptOpen = ref(false);
 const saving = ref(false);
@@ -244,7 +262,7 @@ const institutionItems = computed(() =>
   userInstitutions.value.map((i) => ({ label: i.name, value: i.id }))
 );
 const selectedInstitutionId = ref<string | undefined>(
-  scheduling.selectedInstitution?.id || undefined
+  selectedInstitution.value?.id || undefined
 );
 
 onMounted(async () => {
@@ -253,7 +271,7 @@ onMounted(async () => {
       await scheduling.loadUserInstitutions();
       if (
         !scheduling.selectedInstitution &&
-        scheduling.userInstitutions.length
+        scheduling?.userInstitutions?.length
       ) {
         const firstInst = scheduling.userInstitutions[0];
         scheduling.setSelectedInstitution(firstInst);
@@ -267,16 +285,21 @@ onMounted(async () => {
   }
 });
 
+watch(selectedInstitution, (newVal, oldVal) => {
+  if (newVal?.id !== oldVal?.id) {
+    selectedInstitutionId.value = newVal?.id;
+    onSelectInstitution();
+  }
+});
+
 const onSelectInstitution = () => {
   const inst =
-    scheduling.userInstitutions.find(
+    scheduling?.userInstitutions?.find(
       (i) => i.id === selectedInstitutionId.value
     ) || null;
   scheduling.setSelectedInstitution(inst);
   // Load blood banks if institution has coordinates
-  if (inst?.latitude && inst?.longitude) {
-    scheduling.loadBloodBanksByCoverage();
-  }
+  scheduling.loadBloodBanksByCoverage();
 };
 
 const form = reactive({
@@ -369,6 +392,9 @@ const geocode = async () => {
     if (typeof r.latitude === "number" && typeof r.longitude === "number") {
       scheduling.latitude = r.latitude;
       scheduling.longitude = r.longitude;
+    } else {
+      scheduling.latitude = null;
+      scheduling.longitude = null;
     }
   } catch {
     useToast().add({ title: "Erro ao buscar CEP", color: "error" });
@@ -407,6 +433,32 @@ const onCnpjInput = () => {
   }
 };
 
+const populateLatLong = async () => {
+  const encodedAddress = encodeURIComponent(form.address.trim());
+  const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+  // Fetch coordinates from Nominatim
+  const response = await $fetch(nominatimUrl, {
+    headers: {
+      "User-Agent": "Hemocione Coleta/1.0",
+    },
+  });
+
+  if (!response || !Array.isArray(response) || response.length === 0) {
+    return;
+  }
+
+  const result = response[0];
+  const lat = parseFloat(result.lat);
+  const lng = parseFloat(result.lon);
+  if (lat && lng) {
+    scheduling.latitude = lat;
+    scheduling.longitude = lng;
+  } else {
+    scheduling.latitude = null;
+    scheduling.longitude = null;
+  }
+};
+
 const createInst = async () => {
   if (!isLoggedIn.value) {
     loginPromptOpen.value = true;
@@ -414,7 +466,10 @@ const createInst = async () => {
   }
   saving.value = true;
   try {
-    const inst = await scheduling.createInstitution({
+    if (!scheduling.latitude || !scheduling.longitude) {
+      await populateLatLong(); // Populate latitude and longitude if not available
+    }
+    await scheduling.createInstitution({
       name: form.name,
       document: (form.document || "").replace(/[^a-zA-Z0-9]/g, ""),
       kind: form.kind,
@@ -424,15 +479,13 @@ const createInst = async () => {
       state: form.state,
       latitude: scheduling.latitude ?? undefined,
       longitude: scheduling.longitude ?? undefined,
-    } as any);
-    if (inst) {
-      useToast().add({ title: "Instituição criada", color: "success" });
-      openCreate.value = false;
-    }
+    });
+    useToast().add({ title: "Instituição criada", color: "success" });
   } catch {
     useToast().add({ title: "Erro ao criar instituição", color: "error" });
   } finally {
     saving.value = false;
+    openCreate.value = false;
   }
 };
 

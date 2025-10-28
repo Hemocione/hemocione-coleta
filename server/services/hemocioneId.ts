@@ -127,7 +127,8 @@ export async function getInstitutionsByIds(
     }
   );
 
-  return response.institutions;
+  // TODO: fix this type system
+  return (response as unknown as { institutions: Institution[] }).institutions;
 }
 
 export async function createInstitution(
@@ -135,7 +136,7 @@ export async function createInstitution(
   payload: CreateInstitutionPayload
 ): Promise<Institution> {
   const config = useRuntimeConfig();
-  const response = await $fetch<Institution>(
+  const response = await $fetch<{ message: string; institution: Institution }>(
     `${config.public.hemocioneIdApiUrl}/institutions`,
     {
       method: "POST",
@@ -146,7 +147,7 @@ export async function createInstitution(
       body: payload,
     }
   );
-  return response;
+  return response.institution;
 }
 
 export async function getUserInstitutions(

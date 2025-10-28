@@ -71,10 +71,8 @@ export const useSchedulingStore = defineStore("scheduling", {
     async selectFirstInstitution() {
       if (!this.userInstitutions) {
         await this.loadUserInstitutions();
-        console.log("userInstitutions", this.userInstitutions);
       }
       if (this.userInstitutions?.length) {
-        console.log("setting first institution", this.userInstitutions[0]);
         this.setSelectedInstitution(this.userInstitutions[0]);
       }
     },
@@ -83,10 +81,8 @@ export const useSchedulingStore = defineStore("scheduling", {
     },
     setSelectedInstitution(inst: Institution | null) {
       this.selectedInstitution = inst;
-      if (inst?.latitude && inst?.longitude) {
-        this.latitude = inst.latitude;
-        this.longitude = inst.longitude;
-      }
+      this.latitude = inst?.latitude ?? null;
+      this.longitude = inst?.longitude ?? null;
     },
     setTemporaryInstitutionData(data: Partial<Institution> | null) {
       this.temporaryInstitutionData = data;
@@ -140,8 +136,7 @@ export const useSchedulingStore = defineStore("scheduling", {
         // Reload institutions
         await this.loadUserInstitutions();
         const inst =
-          this.userInstitutions.find((i) => i.id === (created as any)?.id) ||
-          null;
+          this.userInstitutions?.find((i) => i.id === created?.id) || null;
         this.setSelectedInstitution(inst);
         return inst;
       } finally {

@@ -38,7 +38,7 @@ export interface SelectedDate {
 export const useSchedulingStore = defineStore("scheduling", {
   state: () => ({
     // Institution
-    userInstitutions: [] as Institution[],
+    userInstitutions: null as Institution[] | null,
     selectedInstitution: null as Institution | null,
     temporaryInstitutionData: null as Partial<Institution> | null,
 
@@ -68,6 +68,16 @@ export const useSchedulingStore = defineStore("scheduling", {
       typeof s.latitude === "number" && typeof s.longitude === "number",
   },
   actions: {
+    async selectFirstInstitution() {
+      if (!this.userInstitutions) {
+        await this.loadUserInstitutions();
+        console.log("userInstitutions", this.userInstitutions);
+      }
+      if (this.userInstitutions?.length) {
+        console.log("setting first institution", this.userInstitutions[0]);
+        this.setSelectedInstitution(this.userInstitutions[0]);
+      }
+    },
     setAccessedAgendarPage(value: boolean) {
       this.accessedAgendarPage = value;
     },

@@ -79,7 +79,7 @@ export async function evaluateCurrentLogin(query?: LocationQuery) {
     // Get enriched user data with blood bank information
     const enrichedUserData = await getMeWithAuth(token);
     // User must have at least one blood bank role
-
+    console.log("enrichedUserData", enrichedUserData);
     if (!enrichedUserData) {
       return false;
     }

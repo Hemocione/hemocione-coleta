@@ -43,21 +43,36 @@ export interface SlotConfig {
 
 export async function getAvailableDatesByBloodBank(
   bloodBanksLocationId: string,
-  year?: number,
-  month?: number
+  options?: {
+    start?: string;
+    end?: string;
+    monthsAhead?: number;
+    year?: number;
+  }
 ): Promise<AvailableDateData[]> {
   const query: Record<string, any> = {
     bloodBanksLocationId,
     deletedAt: null,
   };
 
-  if (year) {
-    query.year = year;
+  const today = dayjs();
+  // Começar a partir de 3 dias no futuro
+  const threeDaysFromNow = today.add(3, "day");
+  const start = options?.start ? dayjs(options.start) : threeDaysFromNow;
+  const end = options?.end
+    ? dayjs(options.end)
+    : threeDaysFromNow.add(options?.monthsAhead ?? 12, "month");
+
+  // Ensure range boundaries and format match stored format 'YYYY-MM-DD'
+  const startStr = start.format("YYYY-MM-DD");
+  const endStr = end.format("YYYY-MM-DD");
+
+  // Keep year filter for index usage if provided
+  if (options?.year) {
+    query.year = options.year;
   }
 
-  // Only get future dates -- considering date format is 'YYYY-MM-DD'
-  const todayStr = dayjs().format("YYYY-MM-DD");
-  query.date = { $gte: todayStr };
+  query.date = { $gte: startStr, $lte: endStr };
 
   const availableDates = await AvailableDate.find(query)
     .sort({ date: 1 })

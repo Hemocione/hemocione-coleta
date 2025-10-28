@@ -77,6 +77,10 @@ onMounted(() => {
   store.setAccessedAgendarPage(true);
 });
 
+useHead({
+  title: "Agendar Coleta",
+});
+
 const geolocLoading = ref(false);
 const useMyLocation = async () => {
   if (!navigator.geolocation) {

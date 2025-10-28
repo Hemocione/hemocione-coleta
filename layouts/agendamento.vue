@@ -8,12 +8,13 @@
         class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between"
       >
         <div class="flex items-center gap-2">
-          <div
+          <!-- <div
             class="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center"
           >
             <UIcon name="i-lucide-droplet" class="text-white" />
-          </div>
-          <span class="font-semibold">Hemocione Coleta</span>
+          </div> -->
+          <img src="/logo.svg" alt="Hemocione Coleta" class="w-8 h-8" />
+          <span class="font-semibold">Agendar Coleta</span>
         </div>
         <div class="flex items-center gap-2">
           <UButton
@@ -415,10 +416,10 @@ const createInst = async () => {
   try {
     const inst = await scheduling.createInstitution({
       name: form.name,
-      document: form.document,
+      document: (form.document || "").replace(/[^a-zA-Z0-9]/g, ""),
       kind: form.kind,
       address: form.address,
-      phone: form.phone,
+      phone: `+${(form.phone || "").replace(/[^a-zA-Z0-9]/g, "")}`,
       city: form.city,
       state: form.state,
       latitude: scheduling.latitude ?? undefined,

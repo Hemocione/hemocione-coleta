@@ -3,6 +3,7 @@ import { createInstitution } from "~/server/services/hemocioneId";
 
 const bodySchema = z.object({
   name: z.string().min(2),
+  legalName: z.string().min(2),
   document: z.string().min(8),
   kind: z.string().default("company"),
   address: z.string().min(3),

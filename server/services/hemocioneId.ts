@@ -48,6 +48,7 @@ export type InstitutionListResponse = InstitutionListResponseItem[];
 
 export interface CreateInstitutionPayload {
   name: string;
+  legalName: string;
   document: string;
   kind: string;
   address: string;

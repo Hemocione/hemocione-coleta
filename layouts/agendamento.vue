@@ -140,6 +140,13 @@
                 :disabled="saving || cnpjLoading || geocodeLoading"
               />
             </UFormField>
+            <UFormField label="Razão Social" key="legalName">
+              <UInput
+                v-model="form.legalName"
+                placeholder="Razão Social da empresa"
+                :disabled="saving || cnpjLoading || geocodeLoading"
+              />
+            </UFormField>
             <UFormField label="CEP" key="cep">
               <UInput
                 v-model="form.cep"
@@ -305,6 +312,7 @@ const onSelectInstitution = () => {
 const form = reactive({
   name: "",
   document: "",
+  legalName: "",
   cep: "",
   address: "",
   city: "",
@@ -324,6 +332,7 @@ const isFormValid = computed(() => {
   return (
     form.name.trim() !== "" &&
     form.document.trim() !== "" &&
+    form.legalName.trim() !== "" &&
     form.cep.trim() !== "" &&
     form.address.trim() !== "" &&
     form.city.trim() !== "" &&
@@ -414,6 +423,9 @@ const onCnpj = async () => {
     if (!form.name && (data?.nome_fantasia || data?.razao_social)) {
       form.name = data?.nome_fantasia || data?.razao_social || form.name;
     }
+    if (!form.legalName && data?.razao_social) {
+      form.legalName = data.razao_social || form.legalName;
+    }
     if (data?.cep) {
       form.cep = String(data.cep);
       await geocode();
@@ -471,6 +483,7 @@ const createInst = async () => {
     }
     await scheduling.createInstitution({
       name: form.name,
+      legalName: form.legalName,
       document: (form.document || "").replace(/[^a-zA-Z0-9]/g, ""),
       kind: form.kind,
       address: form.address,

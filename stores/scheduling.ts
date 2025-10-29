@@ -122,7 +122,12 @@ export const useSchedulingStore = defineStore("scheduling", {
           Institution,
           "name" | "document" | "address" | "phone" | "city" | "state"
         >
-      > & { kind: string; latitude?: number; longitude?: number }
+      > & {
+        legalName: string;
+        kind: string;
+        latitude?: number;
+        longitude?: number;
+      }
     ) {
       this.isCreatingInstitution = true;
       try {

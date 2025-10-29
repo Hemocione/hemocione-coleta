@@ -10,11 +10,9 @@
 </template>
 
 <script setup lang="ts">
-import { redirectToID } from "~/middleware/auth";
 import { useUserStore } from "~/stores/user";
 
 const userStore = useUserStore();
-const route = useRoute();
 
 // Redirect to the user's first blood bank
 onMounted(() => {
@@ -24,9 +22,8 @@ onMounted(() => {
     // Redirect to the blood bank dashboard
     navigateTo(`/${firstBloodBankSlug}`, { replace: true });
   } else {
-    // If no blood bank slug is available, show an error or redirect to a default page
-    console.error("No blood bank slug found for user");
-    redirectToID("");
+    // If no blood bank slug is available, redirect to the agendar page (user is either not logged in or not a blood bank user)
+    navigateTo("/agendar", { replace: true });
   }
 });
 

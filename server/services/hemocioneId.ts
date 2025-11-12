@@ -114,22 +114,50 @@ export async function getInstitutionsByIds(
 ): Promise<Institution[]> {
   const config = useRuntimeConfig();
 
-  const response = await $fetch<InstitutionListResponse>(
-    `${config.public.hemocioneIdApiUrl}/backoffice/institutions`,
-    {
-      method: "POST",
-      headers: {
-        "x-secret": config.hemocioneIdIntegrationSecret,
-        "Content-Type": "application/json",
-      },
-      body: {
-        institutionIds,
-      },
-    }
-  );
+  try {
+    const response = await $fetch<InstitutionListResponse>(
+      `${config.public.hemocioneIdApiUrl}/backoffice/institutions`,
+      {
+        method: "POST",
+        headers: {
+          "x-secret": config.hemocioneIdIntegrationSecret,
+          "Content-Type": "application/json",
+        },
+        body: {
+          institutionIds,
+        },
+      }
+    );
 
-  // TODO: fix this type system
-  return (response as unknown as { institutions: Institution[] }).institutions;
+    console.log("=== DEBUG getInstitutionsByIds ===");
+    console.log("Requested IDs:", institutionIds);
+    console.log("Response type:", typeof response);
+    console.log("Response:", JSON.stringify(response, null, 2));
+
+    // Handle different response formats
+    if (Array.isArray(response)) {
+      // If response is already an array of institutions
+      return response.map((item: any) => 
+        item.institution ? item.institution : item
+      );
+    }
+
+    // Handle response format: { success: true, institutions: [...] }
+    if (response && typeof response === 'object' && 'institutions' in response) {
+      const institutions = (response as any).institutions || [];
+      // If institutions is an array of objects with 'institution' property
+      return institutions.map((item: any) => 
+        item.institution ? item.institution : item
+      );
+    }
+
+    // Fallback: try to extract institutions from response
+    return [];
+  } catch (error: any) {
+    console.error("Error fetching institutions:", error);
+    console.error("Error details:", error.message, error.statusCode);
+    return [];
+  }
 }
 
 export async function createInstitution(

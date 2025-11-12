@@ -46,6 +46,13 @@ export async function getTechnicalVisitsByBloodBank(
 
   // Fetch institution details
   const institutions = await getInstitutionsByIds(institutionIds);
+  
+  console.log("=== DEBUG getTechnicalVisitsByBloodBank ===");
+  console.log("Requested institution IDs:", institutionIds);
+  console.log("Institutions returned:", institutions.length);
+  institutions.forEach((inst) => {
+    console.log(`  - ${inst.id}: ${inst.name}`);
+  });
 
   // Create institution lookup map
   const institutionMap = new Map(
@@ -62,7 +69,7 @@ export async function getTechnicalVisitsByBloodBank(
         bloodBankId: visit.bloodBankId.toString(),
         institutionId: visit.institutionId.toString(),
         institutionName:
-          institution?.name || "Instituição não encontrada",
+          institution?.name || `Instituição ${visit.institutionId.toString().substring(0, 8)}...`,
         institutionLogo: institution?.logo,
         institutionBanner: institution?.banner,
         date: visit.date,

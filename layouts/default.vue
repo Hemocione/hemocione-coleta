@@ -314,6 +314,7 @@ const currentPageTitle = computed(() => {
   if (path.includes("/calendario")) return "Calendário";
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/equipes")) return "Equipes";
+  if (path.includes("/historico-visitas")) return "Histórico de Visitas";
   if (path.includes("/restricoes")) return "Restrições";
   if (path.includes("/coletas")) return "Coletas";
   return "Painel";
@@ -326,6 +327,8 @@ const currentPageDescription = computed(() => {
     return "Área de cobertura para coleta externa";
   if (path.includes("/equipes"))
     return "Organize as equipes disponíveis para coleta";
+  if (path.includes("/historico-visitas"))
+    return "Consulte o histórico de visitas técnicas";
   if (path.includes("/restricoes"))
     return "Defina restrições e regras para coleta externa";
   if (path.includes("/coletas"))
@@ -354,6 +357,11 @@ const navigationItems = [
     label: "Área de Cobertura",
     icon: "i-lucide-map-pin",
     to: `/${bloodbankSlug.value}/cobertura`,
+  },
+  {
+    label: "Histórico de Visitas",
+    icon: "i-lucide-clipboard-list",
+    to: `/${bloodbankSlug.value}/historico-visitas`,
   },
   {
     label: "Equipes de Coleta",

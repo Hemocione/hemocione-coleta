@@ -84,6 +84,38 @@
           </div>
         </UCard>
 
+        <!-- Last Visit Card (only shown when status is accepted) -->
+        <UCard v-if="currentCollectionRequest.status === 'accepted'">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-900">Última Visita</h3>
+              <UButton
+                color="primary"
+                icon="i-lucide-plus"
+                size="sm"
+              >
+                Nova Visita
+              </UButton>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <!-- Status Badge and Date -->
+            <div class="flex items-center justify-between">
+              <UBadge
+                color="neutral"
+                variant="subtle"
+                size="lg"
+              >
+                Pendente
+              </UBadge>
+              <span class="text-sm text-gray-500">
+                {{ formatDate(new Date()) }}
+              </span>
+            </div>
+          </div>
+        </UCard>
+
         <!-- Map Card -->
         <UCard v-if="currentCollectionRequest.institutionLocation">
           <template #header>

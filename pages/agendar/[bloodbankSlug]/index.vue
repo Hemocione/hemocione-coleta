@@ -70,6 +70,74 @@
           <USkeleton v-for="i in 6" :key="i" class="h-24" />
         </div>
         <div v-else class="space-y-4">
+          <!-- Restrições do Banco de Sangue -->
+          <div v-if="restrictions.length > 0" class="space-y-3">
+            <UCollapsible
+              v-model:open="restrictionsOpen"
+              @update:open="onRestrictionsOpenChange"
+              class="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden"
+            >
+              <UButton
+                class="w-full justify-between group"
+                color="neutral"
+                variant="ghost"
+                :ui="{
+                  trailingIcon:
+                    'group-data-[state=open]:rotate-180 transition-transform duration-200',
+                }"
+                trailing-icon="i-lucide-chevron-down"
+              >
+                <div class="flex items-center gap-2 flex-1 text-left">
+                  <UIcon
+                    name="i-lucide-shield-alert"
+                    class="w-5 h-5 shrink-0 text-amber-600"
+                  />
+                  <span class="font-semibold text-amber-900">
+                    Restrições e Requisitos do Banco de Sangue
+                  </span>
+                </div>
+              </UButton>
+              <template #content>
+                <div class="p-4 pt-0 space-y-4">
+                  <p class="text-sm text-amber-800">
+                    Antes de solicitar a coleta, verifique se sua instituição
+                    atende aos seguintes requisitos:
+                  </p>
+                  <div class="space-y-3" v-auto-animate>
+                    <div
+                      v-for="restriction in restrictions"
+                      :key="restriction.slug"
+                      class="bg-white rounded-md p-3 border border-amber-200"
+                    >
+                      <h4 class="font-medium text-gray-900 mb-1">
+                        {{ restriction.title }}
+                      </h4>
+                      <p class="text-sm text-gray-700 leading-relaxed">
+                        {{ restriction.description }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </UCollapsible>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <UCheckbox
+                v-model="hasReadRestrictions"
+                :disabled="!hasOpenedRestrictions"
+                label="Li e compreendi todas as restrições acima"
+                :ui="{
+                  label: 'text-sm font-medium text-amber-900',
+                }"
+              />
+              <p
+                v-if="!hasOpenedRestrictions"
+                class="text-xs text-amber-700 mt-2 ml-6"
+              >
+                Leia as restrições acima antes de aceitá-las
+              </p>
+            </div>
+          </div>
+
           <!-- Explicação sobre as datas -->
           <div
             class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800"
@@ -159,7 +227,10 @@
 
         <div class="mt-4 md:mt-6 flex items-center justify-end">
           <UButton
-            :disabled="selected.length === 0"
+            :disabled="
+              selected.length === 0 ||
+              (restrictions.length > 0 && !hasReadRestrictions)
+            "
             color="primary"
             @click="submit"
             >Agendar Coleta</UButton
@@ -183,6 +254,11 @@
               notificado quando o pedido for aceito ou recusado pelo banco de
               sangue.
             </p>
+          </div>
+          <div class="flex justify-end">
+            <UButton color="primary" @click="closeConfirmationModal">
+              Fechar
+            </UButton>
           </div>
         </div>
       </template>
@@ -229,13 +305,29 @@ onBeforeMount(async () => {
         bloodBanksLocationId: bank.value.bloodBanksLocationId,
       });
     }
-    await loadDates();
+    await Promise.all([loadDates(), loadRestrictions()]);
   }
   updateHeadTitle();
   loading.value = false;
 });
 
 const dates = ref<any[]>([]);
+const restrictions = ref<
+  Array<{
+    slug: string;
+    title: string;
+    description: string;
+  }>
+>([]);
+const hasReadRestrictions = ref(false);
+const restrictionsOpen = ref(false);
+const hasOpenedRestrictions = ref(false);
+
+const onRestrictionsOpenChange = (open: boolean) => {
+  if (open && !hasOpenedRestrictions.value) {
+    hasOpenedRestrictions.value = true;
+  }
+};
 const bank = ref<{
   name: string;
   logo: string | null;
@@ -318,15 +410,28 @@ const getTimeItemsWithAny = (availableDateId: string) => {
 };
 
 const loadDates = async () => {
-  loading.value = true;
   try {
     const { data } = await useFetchWithAuth(
       `/api/v1/bloodbanks/${slug.value}/available-dates`,
       { query: { monthsAhead: 12 } }
     );
     dates.value = data.value?.data || [];
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error("Error loading dates:", error);
+  }
+};
+
+const loadRestrictions = async () => {
+  try {
+    const { data } = await useFetchWithAuth(
+      `/api/v1/bloodbanks/${slug.value}/restrictions`
+    );
+    restrictions.value = data.value?.data || [];
+    // Reset checkbox quando carregar novas restrições
+    hasReadRestrictions.value = false;
+  } catch (error) {
+    console.error("Error loading restrictions:", error);
+    restrictions.value = [];
   }
 };
 
@@ -348,6 +453,15 @@ const onLogin = () => {
   redirectToID(route.fullPath);
 };
 
+const closeConfirmationModal = () => {
+  showConfirmationModal.value = false;
+  // Reset form state
+  store.selectedDates = [];
+  calendarValue.value = [];
+  hasReadRestrictions.value = false;
+  selectedRangeByDateId.value = {};
+};
+
 const submit = async () => {
   if (!isLoggedIn.value) {
     return redirectToID(route.fullPath);
@@ -362,6 +476,16 @@ const submit = async () => {
   if (!store.selectedBloodBank) {
     useToast().add({
       title: "Selecione um banco na etapa anterior",
+      color: "warning",
+    });
+    return;
+  }
+
+  if (restrictions.value.length > 0 && !hasReadRestrictions.value) {
+    useToast().add({
+      title: "Leia as restrições",
+      description:
+        "Você precisa confirmar que leu e compreendeu todas as restrições antes de enviar a solicitação.",
       color: "warning",
     });
     return;

@@ -6,6 +6,7 @@
 - Typecheck command: `npx nuxi typecheck`
 - Use `fetchWithAuth` from `~/composables/useFetchWithAuth` for API calls
 - Nuxt UI components: `UAlert`, `UCard`, `USkeleton`, `UButton`, `UIcon`, `UAvatar`
+- When store actions change entity status (accept/reject/cancel), also update `dashboardData` counts manually since it's a separate cached snapshot
 
 ---
 
@@ -18,4 +19,15 @@
   - The store has multiple independent loading flags (`isLoading`, `isLoadingDashboard`, etc.) — when a page loads multiple datasets in parallel, the page's loading state must track ALL of them
   - `loadBloodbankData` uses `isLoading` (generic), while `loadDashboardData` uses `isLoadingDashboard` — be aware of which flag each action uses
   - Pre-existing type errors don't block work on other files — just verify your file isn't in the error list
+---
+
+## 2026-03-07 - US-002
+- Fixed pending requests alert not updating reactively after accept/reject actions
+- Added `dashboardData.pendingRequestsCount--` in both `acceptCollectionRequest` and `rejectCollectionRequest` store actions
+- The alert in the dashboard uses `dashboardData?.pendingRequestsCount` which is reactive via Pinia, so decrementing it triggers the `v-if` to hide the alert when count reaches 0
+- Files changed: `stores/bloodbank.ts`
+- **Learnings for future iterations:**
+  - `dashboardData` is loaded once from the dashboard API and cached in the store — any action that changes the underlying data must also update `dashboardData` manually
+  - The pending alert visibility is controlled by `(dashboardData?.pendingRequestsCount || 0) > 0` in the template — direct mutation of the count is sufficient for reactivity
+  - Accept and reject actions already update `collectionRequests.data` locally but were missing the dashboard count update
 ---

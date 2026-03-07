@@ -11,6 +11,9 @@
 - Nuxt UI components: `UAlert`, `UCard`, `USkeleton`, `UButton`, `UIcon`, `UAvatar`
 - When store actions change entity status (accept/reject/cancel), also update `dashboardData` counts manually since it's a separate cached snapshot
 - When store actions change an entity's status, REMOVE the item from `collectionRequests.data` (filter it out) instead of updating in-place, so it disappears from the current tab
+- CollectionRequest model uses subdocument schemas with `{ _id: false }` — follow this pattern for new embedded objects
+- Both institution and backoffice POST endpoints have their own Zod schemas — both must be updated when adding new required fields
+- The store's `CollectionRequest` interface in `stores/bloodbank.ts` mirrors the server's `CollectionRequestWithDetails` — keep them in sync
 
 ---
 
@@ -76,4 +79,19 @@
   - `navigateTo()` is a Nuxt composable available in setup context — no need to import `useRouter`
   - The route param for the bloodbank slug is accessed via `route.params.bloodbankSlug`
   - For the multiple-locked case, a simple UModal with clickable items is sufficient — no need for complex popover logic
+---
+
+## 2026-03-07 - US-006
+- Added `host` field (name, email, phone) to CollectionRequest Mongoose schema with HostSchema subdocument
+- Added Zod validation for `host` in both POST endpoints (institution and backoffice)
+- Updated `CreateCollectionRequestData` interface and `createCollectionRequest` service to accept and persist host data
+- Added `host` to `CollectionRequestWithDetails` interface (server) and `CollectionRequest` interface (store)
+- Host is returned automatically in list/detail APIs via `.lean()` spread — no explicit changes needed in GET endpoints
+- Files changed: `server/models/collectionRequest.ts`, `server/services/collectionRequest.ts`, `server/api/v1/institutions/[institutionId]/collection-requests/index.post.ts`, `server/api/backoffice/v1/bloodbanks/[bloodbanksLocationId]/collection-requests/index.post.ts`, `stores/bloodbank.ts`
+- **Learnings for future iterations:**
+  - The CollectionRequest model uses subdocument schemas (like `HostSchema`, `RequestedDateSchema`) with `{ _id: false }` — follow this pattern for new embedded objects
+  - Both institution and backoffice POST endpoints have their own Zod schemas — both must be updated when adding new required fields
+  - The `CreateCollectionRequestData` interface in `server/services/collectionRequest.ts` is the single source of truth for what data the service accepts
+  - Default host values (from authenticated user) are a frontend concern (US-007) — the API just requires the fields to be present
+  - The store's `CollectionRequest` interface in `stores/bloodbank.ts` mirrors the server's `CollectionRequestWithDetails` — keep them in sync
 ---

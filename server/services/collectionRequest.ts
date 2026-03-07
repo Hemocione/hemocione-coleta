@@ -760,3 +760,156 @@ export async function createCollectionRequest(
 
   return requestWithDetails;
 }
+
+export interface CollectionRequestPublicDetails {
+  _id: string;
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+  bloodBankName: string;
+  bloodBankLogo?: string | null;
+  institutionName: string;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  address?: StructuredAddress;
+  requestedDates: Array<{
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+  }>;
+  selectedDate?: {
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+  };
+  rejectionReason?: string;
+  statusHistory: Array<{
+    status: string;
+    changedAt: Date;
+    reason?: string;
+  }>;
+  createdAt: Date;
+}
+
+export async function getCollectionRequestPublic(
+  requestId: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    deletedAt: null,
+  }).lean();
+
+  if (!request) {
+    return null;
+  }
+
+  const [institutions, bloodBankDoc, availableDates] = await Promise.all([
+    getInstitutionsByIds([request.institutionId.toString()]),
+    BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
+    AvailableDate.find({
+      _id: { $in: request.requestedDates.map((rd) => rd.availableDateId) },
+      deletedAt: null,
+    })
+      .populate({ path: "slots.teamId", select: "name", model: Team })
+      .lean(),
+  ]);
+
+  const institution = institutions[0];
+  const availableDateMap = new Map(
+    availableDates.map((ad) => [ad._id.toString(), ad])
+  );
+
+  const requestedDatesInfo: CollectionRequestPublicDetails["requestedDates"] = [];
+  request.requestedDates.forEach((rd) => {
+    const ad = availableDateMap.get(rd.availableDateId.toString());
+    if (!ad) return;
+    if (rd.slotIds && rd.slotIds.length > 0) {
+      rd.slotIds.forEach((slotId) => {
+        const slot = ad.slots.find((s) => s._id.toString() === slotId.toString());
+        if (slot) {
+          requestedDatesInfo.push({
+            date: ad.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            teamName: (slot.teamId as any)?.name,
+          });
+        }
+      });
+    } else {
+      requestedDatesInfo.push({ date: ad.date });
+    }
+  });
+
+  let selectedDate: CollectionRequestPublicDetails["selectedDate"];
+  if (request.selectedAvailableDateId && request.selectedSlotId) {
+    const ad = availableDateMap.get(request.selectedAvailableDateId.toString());
+    if (ad) {
+      const slot = ad.slots.find(
+        (s) => s._id.toString() === request.selectedSlotId!.toString()
+      );
+      if (slot) {
+        selectedDate = {
+          date: ad.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          teamName: (slot.teamId as any)?.name,
+        };
+      }
+    }
+  }
+
+  return {
+    _id: request._id!.toString(),
+    status: request.status as CollectionRequestPublicDetails["status"],
+    bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
+    bloodBankLogo: bloodBankDoc?.logo,
+    institutionName: institution?.name || "Instituição",
+    host: request.host as CollectionRequestPublicDetails["host"],
+    address: request.address as StructuredAddress | undefined,
+    requestedDates: requestedDatesInfo,
+    selectedDate,
+    rejectionReason: request.rejectionReason || undefined,
+    statusHistory: (request.statusHistory || []).map((h) => ({
+      status: h.status as string,
+      changedAt: h.changedAt as Date,
+      reason: h.reason || undefined,
+    })),
+    createdAt: request.createdAt as Date,
+  };
+}
+
+export async function withdrawCollectionRequest(
+  requestId: string,
+  withdrawnByUserId: string,
+  reason?: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "pending",
+    deletedAt: null,
+  });
+
+  if (!request) {
+    throw new Error("Request not found or not in pending status");
+  }
+
+  const statusHistoryEntry = {
+    status: "cancelled",
+    changedAt: new Date(),
+    changedBy: withdrawnByUserId,
+    reason: reason || "Retirado pela instituição",
+  };
+
+  await CollectionRequest.findOneAndUpdate(
+    { _id: requestId, status: "pending", deletedAt: null },
+    {
+      $set: { status: "cancelled" },
+      $push: { statusHistory: statusHistoryEntry },
+    }
+  );
+
+  return await getCollectionRequestPublic(requestId);
+}

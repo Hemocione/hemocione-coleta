@@ -18,6 +18,10 @@
 - Scheduling store (`stores/scheduling.ts`) has address state for institution creation flow — separate from collection request address
 - Cancellation reason is stored in `statusHistory[].reason` (not a top-level field) — retrieve from statusHistory for display
 - Use `method: "POST"` (not `"POST" as any`) in `fetchWithAuth` options to preserve proper response typing
+- Public API routes go under `/api/v1/public/` — auth middleware skips them automatically
+- BloodBank model has no contact info (phone/email) — only name, slug, logo; contact data lives in hemocione-id
+- For public endpoints needing optional/conditional auth, call `useHemocioneUserAuth(event)` directly (reads from Authorization header)
+- `CollectionRequest.requestedByUserId` stores the creating user's ID — use for ownership verification on institution-side actions
 
 ---
 
@@ -162,4 +166,23 @@
   - The store's `cancelCollectionRequest` already existed but didn't send a reason body — it also had `method: "POST" as any` which caused the response to be typed as `unknown`; using `method: "POST"` (without `as any`) fixes this
   - Cancellation reason is stored in `statusHistory[].reason`, not as a top-level field like `rejectionReason` — use `statusHistory` to retrieve it for display
   - Pre-existing type errors in `server/services/team.ts` (ObjectId null) are the only remaining errors — they don't affect this work
+---
+
+## 2026-03-07 - US-011
+- Created public tracking page at `pages/agendar/acompanhar/[requestId]/index.vue` — shows request status, dates, host info, address, and status timeline
+- For accepted requests, shows "Precisa cancelar?" info alert directing institution to contact the blood bank directly — no cancel button available
+- For pending requests (with login), shows "Retirar Pedido" button that cancels with optional reason
+- Added `getCollectionRequestPublic` service function — returns request details with blood bank name/logo, institution name, dates, and sanitized status history (no internal user IDs)
+- Added `withdrawCollectionRequest` service function — only allows cancelling pending requests by the institution
+- Created public API `GET /api/v1/public/collection-requests/[requestId]` — no auth required
+- Created public API `POST /api/v1/public/collection-requests/[requestId]/withdraw` — requires auth (Bearer token), validates user is the request creator
+- Also created institution-side `POST /api/v1/institutions/[institutionId]/collection-requests/[requestId]/withdraw` endpoint for API consumers
+- Files changed: `server/services/collectionRequest.ts`, `server/api/v1/public/collection-requests/[requestId]/index.get.ts` (new), `server/api/v1/public/collection-requests/[requestId]/withdraw.post.ts` (new), `server/api/v1/institutions/[institutionId]/collection-requests/[requestId]/withdraw.post.ts` (new), `pages/agendar/acompanhar/[requestId]/index.vue` (new)
+- **Learnings for future iterations:**
+  - Public API routes are under `/api/v1/public/` — the auth middleware skips them automatically
+  - The BloodBank model does NOT store contact info (phone/email) — only name, slug, logo. Contact info would need to come from hemocione-id
+  - For public endpoints needing auth conditionally, manually call `useHemocioneUserAuth(event)` which reads from Authorization header directly
+  - `CollectionRequest.requestedByUserId` stores the creating user's ID — use this to verify ownership for institution-side actions
+  - Mongoose `.lean()` returns `_id` that can be null in TypeScript — use non-null assertion (`!`) when you've already verified the document exists
+  - `statusHistory[].reason` can be `null` from Mongoose — convert to `undefined` with `|| undefined` for strict TypeScript interfaces
 ---

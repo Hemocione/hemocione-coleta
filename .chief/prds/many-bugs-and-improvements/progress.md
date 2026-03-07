@@ -23,6 +23,9 @@
 - BloodBank model has no contact info (phone/email) — only name, slug, logo; contact data lives in hemocione-id
 - For public endpoints needing optional/conditional auth, call `useHemocioneUserAuth(event)` directly (reads from Authorization header)
 - `CollectionRequest.requestedByUserId` stores the creating user's ID — use for ownership verification on institution-side actions
+- Mongoose `.lean()` / `.toObject()` types don't match custom interfaces — use `as unknown as T` cast for service return types
+- Use `type InferSchemaType` (type-only import) in new models to avoid TS1484 verbatimModuleSyntax error
+- TechnicalVisit model and service are at `server/models/technicalVisit.ts` and `server/services/technicalVisit.ts`
 
 ---
 
@@ -237,4 +240,19 @@
   - The layout's `currentPageTitle` computed uses `path.includes()` — more specific paths must be checked BEFORE broader ones (e.g., `/calendario/configuracao-massa` before `/calendario`)
   - `USelect` items use `{ label, value }` format; value can be `null` for "all" options
   - The bulk API endpoint returns `{ created, deleted, skipped, errors[] }` — display in a results modal after save
+---
+
+## 2026-03-07 - US-015
+- Created `TechnicalVisit` Mongoose model with fields: bloodBanksLocationId (UUID), institutionId (UUID, optional), address (string), location (GeoJSON Point, optional), visitDate (Date), outcome (enum), notes (string, optional), visitedBy (UUID), deletedAt, timestamps
+- Added compound indexes on `(bloodBanksLocationId, institutionId)` and `(bloodBanksLocationId, address)` with partial filter on `deletedAt: null`
+- Created service layer with CRUD functions: `createTechnicalVisit`, `getTechnicalVisitsByBloodBank` (with filters/pagination), `getTechnicalVisitById`, `updateTechnicalVisit`, `deleteTechnicalVisit` (soft delete)
+- Created 5 API endpoints under `/api/v1/bloodbank/[bloodbanksLocationId]/technical-visits/`: POST (create), GET (list), GET /:visitId (detail), PUT /:visitId (update), DELETE /:visitId (soft delete)
+- Zod validation on POST and PUT endpoints for input data
+- Used `type InferSchemaType` import to avoid verbatimModuleSyntax error that other models have
+- Files changed: `server/models/technicalVisit.ts` (new), `server/models/index.ts`, `server/services/technicalVisit.ts` (new), `server/api/v1/bloodbank/[bloodbanksLocationId]/technical-visits/*.ts` (5 new files)
+- **Learnings for future iterations:**
+  - Mongoose `.lean()` and `.toObject()` return types don't match custom interfaces due to `_id: ObjectId | null` and `Binary` vs `UUID` — use `as unknown as T` cast
+  - Use `type InferSchemaType` (type-only import) to avoid TS1484 verbatimModuleSyntax error — other models have this pre-existing error
+  - Follow the same auth pattern: `event.context.auth.user` + `assertUserAccessToBloodBanksLocationId` + `getRouterParam(event, "bloodbanksLocationId")`
+  - For error re-throwing in catch blocks, check `if (error.statusCode) throw error` before creating generic 500 errors
 ---

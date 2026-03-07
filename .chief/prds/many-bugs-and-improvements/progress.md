@@ -345,3 +345,19 @@
   - `process.env.NUXT_PUBLIC_BASE_URL` is used for building absolute URLs in server-side code
   - The `availableSlotOptions` array on the updated request contains the selected slot's date/time info — find by `slotId` to get confirmed details
 ---
+
+## 2026-03-07 - US-021
+- Added `getBloodBankLastAcceptorUserId` service function to find the userId of the person who last accepted a collection request for a blood bank
+- Added fire-and-forget WhatsApp notification in the institution POST endpoint (`/api/v1/institutions/[institutionId]/collection-requests/index.post.ts`)
+- Notification sends to the last acceptor's userId via `sendWhatsAppNotification` (uses hemocione-id API to resolve phone)
+- Message includes: blood bank name, institution name, requested dates, and backoffice detail URL
+- If no responsible person is found (no accepted requests yet), notification is skipped with a log message
+- Uses IIFE async pattern `(async () => { ... })()` for fire-and-forget to avoid unhandled promise rejection
+- Files changed: `server/services/collectionRequest.ts`, `server/api/v1/institutions/[institutionId]/collection-requests/index.post.ts`
+- **Learnings for future iterations:**
+  - `sendWhatsAppNotification` (userId-based) delegates phone lookup to hemocione-id — no need to fetch user data locally
+  - The `result` from `createCollectionRequest` is a `CollectionRequestWithDetails` with `availableSlotOptions`, `institutionName`, etc. — rich data available for building notification params
+  - `availableSlotOptions` has `isRequested` boolean to filter only the slots the institution specifically requested
+  - Blood bank slug is needed to build backoffice URLs — get from `getBloodBankByBloodBanksLocationId`
+  - For "first admin" fallback (when no requests accepted yet), would need a new hemocione-id API endpoint to query blood bank admins — not currently available
+---

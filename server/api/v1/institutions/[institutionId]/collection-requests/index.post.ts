@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { createCollectionRequest } from "~/server/services/collectionRequest";
+import {
+  createCollectionRequest,
+  getBloodBankLastAcceptorUserId,
+} from "~/server/services/collectionRequest";
+import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
+import { sendWhatsAppNotification } from "~/server/services/notification";
 
 const hostSchema = z.object({
   name: z.string().min(1).max(200),
@@ -57,6 +62,47 @@ export default defineEventHandler(async (event) => {
     host,
     address,
   });
+
+  // Fire-and-forget WhatsApp notification to blood bank responsible person
+  (async () => {
+    try {
+      const responsibleUserId = await getBloodBankLastAcceptorUserId(
+        bloodBanksLocationId
+      );
+      if (!responsibleUserId) {
+        console.log(
+          "[notification] No responsible person found for blood bank, skipping notification"
+        );
+        return;
+      }
+
+      const bloodBankDoc =
+        await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
+      const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
+      const bloodBankSlug = bloodBankDoc?.slug || "";
+
+      const requestedDatesStr = result.availableSlotOptions
+        .filter((s) => s.isRequested)
+        .map((s) => s.date)
+        .filter((d, i, arr) => arr.indexOf(d) === i)
+        .join(", ");
+
+      const backofficeUrl = `${process.env.NUXT_PUBLIC_BASE_URL || ""}/${bloodBankSlug}/coletas/${result._id}`;
+
+      await sendWhatsAppNotification({
+        userId: responsibleUserId,
+        templateName: "collection_request_created",
+        params: {
+          bloodBankName,
+          institutionName: result.institutionName,
+          requestedDates: requestedDatesStr,
+          backofficeUrl,
+        },
+      });
+    } catch (err) {
+      // Notification failure should never block the response
+    }
+  })();
 
   return {
     success: true,

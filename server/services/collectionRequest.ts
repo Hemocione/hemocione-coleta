@@ -653,6 +653,29 @@ export async function validateSlotsAvailability(
   return unavailableSlots.length > 0 ? unavailableSlots : null;
 }
 
+// Get the userId of the person who last accepted a collection request for this blood bank
+export async function getBloodBankLastAcceptorUserId(
+  bloodBanksLocationId: string
+): Promise<string | null> {
+  const lastAccepted = await CollectionRequest.findOne({
+    bloodBanksLocationId,
+    status: "accepted",
+    deletedAt: null,
+    "statusHistory.status": "accepted",
+  })
+    .sort({ "statusHistory.changedAt": -1, _id: -1 })
+    .select("statusHistory")
+    .lean();
+
+  if (!lastAccepted) return null;
+
+  const acceptEntry = [...(lastAccepted.statusHistory || [])]
+    .reverse()
+    .find((h) => h.status === "accepted" && h.changedBy);
+
+  return acceptEntry?.changedBy?.toString() || null;
+}
+
 // Get collection requests by IDs
 export async function getCollectionRequestsByIds(ids: string[]) {
   const collectionRequests = await CollectionRequest.find({

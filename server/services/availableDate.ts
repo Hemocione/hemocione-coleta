@@ -540,22 +540,35 @@ export async function addTeamToFutureAvailableDates(
   bloodBanksLocationId: string,
   teamId: string
 ): Promise<void> {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const todayStr = dayjs().format("YYYY-MM-DD");
 
   // Buscar availableDates futuras com isAllTeams = true
   const futureAvailableDates = await AvailableDate.find({
     bloodBanksLocationId,
     isAllTeams: true,
-    date: { $gte: today },
+    date: { $gte: todayStr },
     deletedAt: null,
   });
 
-  // Adicionar novo team a cada availableDate
+  const teamObjectId = new Types.ObjectId(teamId);
+
+  // Adicionar novo team a cada availableDate (idempotente)
   for (const availableDate of futureAvailableDates) {
+    // Verificar se o team já tem slot nesta data
+    const alreadyHasSlot = availableDate.slots.some(
+      (slot) => slot.teamId.toString() === teamId
+    );
+    if (alreadyHasSlot) {
+      continue;
+    }
+
     const firstSlot = availableDate.slots[0];
+    if (!firstSlot) {
+      continue;
+    }
+
     const newSlot = {
-      teamId: new Types.ObjectId(teamId),
+      teamId: teamObjectId,
       startTime: firstSlot.startTime,
       endTime: firstSlot.endTime,
       locked: false,

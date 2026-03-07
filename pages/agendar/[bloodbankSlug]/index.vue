@@ -225,11 +225,48 @@
           </div>
         </div>
 
+        <!-- Ponto Focal (Host) -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Ponto Focal no Local
+          </h3>
+          <p class="text-xs text-gray-500">
+            Informe os dados da pessoa responsável por receber a equipe de coleta
+            no local.
+          </p>
+          <div class="grid md:grid-cols-2 gap-3">
+            <UFormField label="Nome" required>
+              <UInput
+                v-model="hostName"
+                placeholder="Nome completo"
+                icon="i-lucide-user"
+              />
+            </UFormField>
+            <UFormField label="Email" required>
+              <UInput
+                v-model="hostEmail"
+                placeholder="email@exemplo.com"
+                icon="i-lucide-mail"
+                type="email"
+              />
+            </UFormField>
+            <UFormField label="Telefone" required>
+              <UInput
+                v-model="hostPhone"
+                placeholder="(11) 99999-9999"
+                icon="i-lucide-phone"
+                type="tel"
+              />
+            </UFormField>
+          </div>
+        </div>
+
         <div class="mt-4 md:mt-6 flex items-center justify-end">
           <UButton
             :disabled="
               selected.length === 0 ||
-              (restrictions.length > 0 && !hasReadRestrictions)
+              (restrictions.length > 0 && !hasReadRestrictions) ||
+              !isHostValid
             "
             color="primary"
             @click="submit"
@@ -284,11 +321,38 @@ const isLoggedIn = computed(() => Boolean(user.value));
 const showConfirmationModal = ref(false);
 const loading = ref(true);
 
+// Host (Ponto Focal) fields - pre-filled with logged-in user data
+const hostName = ref("");
+const hostEmail = ref("");
+const hostPhone = ref("");
+
+const initHostFromUser = () => {
+  if (user.value) {
+    hostName.value =
+      `${user.value.givenName || ""} ${user.value.surName || ""}`.trim();
+    hostEmail.value = user.value.email || "";
+    hostPhone.value = user.value.phone || "";
+  }
+};
+
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const isHostValid = computed(
+  () =>
+    hostName.value.trim().length > 0 &&
+    isValidEmail(hostEmail.value) &&
+    hostPhone.value.trim().length > 0
+);
+
 onBeforeMount(async () => {
   loading.value = true;
   if (!selectedInstitution.value) {
     await store.selectFirstInstitution();
   }
+
+  // Pre-fill host fields with user data
+  initHostFromUser();
 
   // Load bank info for submission context (only if authenticated and has institution)
   if (isLoggedIn.value && selectedInstitution.value) {
@@ -460,6 +524,7 @@ const closeConfirmationModal = () => {
   calendarValue.value = [];
   hasReadRestrictions.value = false;
   selectedRangeByDateId.value = {};
+  initHostFromUser();
 };
 
 const submit = async () => {
@@ -497,6 +562,11 @@ const submit = async () => {
       requestedDates: selected.value.map((d) => ({
         availableDateId: d.availableDateId,
       })),
+      host: {
+        name: hostName.value.trim(),
+        email: hostEmail.value.trim(),
+        phone: hostPhone.value.trim(),
+      },
     };
     const res = await fetchWithAuth(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,

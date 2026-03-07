@@ -1,5 +1,7 @@
 import { cancelCollectionRequest } from "~/server/services/collectionRequest";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
+import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
+import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -58,6 +60,22 @@ export default defineEventHandler(async (event) => {
         statusCode: 404,
         statusMessage: "Collection request not found or cannot be cancelled",
       });
+    }
+
+    // Fire-and-forget WhatsApp notification to institution's host
+    if (updatedRequest.host?.phone) {
+      const bloodBankDoc = await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
+      const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
+
+      sendWhatsAppNotificationToPhone({
+        phone: updatedRequest.host.phone,
+        templateName: "collection_request_cancelled",
+        params: {
+          bloodBankName,
+          cancellationReason: cancellationReason.trim(),
+          hostName: updatedRequest.host.name,
+        },
+      }).catch(() => {});
     }
 
     return {

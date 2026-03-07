@@ -327,3 +327,21 @@
   - `x-secret` header is the pattern for server-to-server auth with hemocione-id (see `getInstitutionsByIds` in hemocioneId.ts)
   - The service returns `boolean` (success/failure) rather than throwing — this makes it safe to call without try/catch in consumers
 ---
+
+## 2026-03-07 - US-020
+- Added `sendWhatsAppNotificationToPhone` function to notification service for sending WhatsApp by phone number (not userId)
+- Extracted shared `getNotificationConfig` helper to avoid duplication between the two send functions
+- Added WhatsApp notification to accept endpoint: sends blood bank name, confirmed date/time, tracking URL, and host name
+- Added WhatsApp notification to reject endpoint: sends blood bank name, rejection reason, and host name
+- Added WhatsApp notification to cancel endpoint: sends blood bank name, cancellation reason, and host name
+- All notifications are fire-and-forget (`.catch(() => {})`) — failures never block the main action
+- Notifications use `host.phone` from the collection request as the recipient
+- Replaced unused `getBloodBanksLocationIdBySlug` import with `getBloodBankByBloodBanksLocationId` in accept and reject endpoints
+- Files changed: `server/services/notification.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/collection-requests/[requestId]/accept.post.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/collection-requests/[requestId]/reject.post.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/collection-requests/[requestId]/cancel.post.ts`
+- **Learnings for future iterations:**
+  - `sendWhatsAppNotificationToPhone` sends `phone` instead of `userId` in the body — hemocione-id API supports both modes
+  - For fire-and-forget notifications in API endpoints, call without `await` and chain `.catch(() => {})` to silently handle failures
+  - `updatedRequest.accessToken` is available on the returned `CollectionRequestWithDetails` — use it to build tracking URLs
+  - `process.env.NUXT_PUBLIC_BASE_URL` is used for building absolute URLs in server-side code
+  - The `availableSlotOptions` array on the updated request contains the selected slot's date/time info — find by `slotId` to get confirmed details
+---

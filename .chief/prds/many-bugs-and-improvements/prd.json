@@ -316,7 +316,7 @@
         "Typecheck passa"
       ],
       "priority": 8,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-021",

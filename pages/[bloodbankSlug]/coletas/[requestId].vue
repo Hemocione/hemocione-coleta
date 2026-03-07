@@ -456,6 +456,36 @@
           </p>
         </UCard>
 
+        <!-- Cancellation Reason (if cancelled) -->
+        <UCard
+          v-if="currentCollectionRequest.status === 'cancelled'"
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Motivo do Cancelamento
+            </h3>
+          </template>
+
+          <p class="text-gray-700">
+            {{ getCancellationReason() || 'Sem motivo informado' }}
+          </p>
+        </UCard>
+
+        <!-- Cancel Button (for accepted requests) -->
+        <div
+          v-if="currentCollectionRequest.status === 'accepted'"
+          class="pt-2"
+        >
+          <UButton
+            color="error"
+            variant="outline"
+            @click="showCancelDialog"
+            class="w-full cursor-pointer"
+          >
+            Cancelar Coleta
+          </UButton>
+        </div>
+
         <!-- Back Button -->
         <div class="flex items-center justify-start pt-6 border-t">
           <UButton
@@ -590,6 +620,60 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Cancel Confirmation Modal -->
+    <UModal v-model:open="showCancelModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Cancelar Coleta
+          </h3>
+
+          <div class="space-y-4">
+            <p class="text-gray-600">
+              Tem certeza que deseja cancelar esta coleta? O slot reservado será
+              liberado e ficará disponível novamente.
+            </p>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Motivo do cancelamento <span class="text-red-500">*</span>
+              </label>
+              <UTextarea
+                v-model="cancellationReason"
+                placeholder="Explique o motivo do cancelamento desta coleta..."
+                :rows="4"
+                :maxlength="1000"
+                class="w-full resize-y"
+                required
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                {{ cancellationReason.length }}/1000 caracteres
+              </p>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton
+              variant="ghost"
+              @click="showCancelModal = false"
+              class="cursor-pointer"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="confirmCancel"
+              :loading="isCancelling"
+              :disabled="!cancellationReason.trim()"
+              class="cursor-pointer"
+            >
+              Confirmar Cancelamento
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -626,9 +710,12 @@ const selectedTimeSlot = ref<any>(null);
 // Modal states
 const showAcceptModal = ref(false);
 const showRejectModal = ref(false);
+const showCancelModal = ref(false);
 const isAccepting = ref(false);
 const isRejecting = ref(false);
+const isCancelling = ref(false);
 const rejectionReason = ref("");
+const cancellationReason = ref("");
 
 // Map configuration
 const mapRef = ref<any>(null);
@@ -680,6 +767,18 @@ const showAcceptDialog = (timeSlot: any) => {
 
 const showRejectDialog = () => {
   showRejectModal.value = true;
+};
+
+const showCancelDialog = () => {
+  showCancelModal.value = true;
+};
+
+const getCancellationReason = () => {
+  if (!currentCollectionRequest.value?.statusHistory) return null;
+  const cancelEntry = [...currentCollectionRequest.value.statusHistory]
+    .reverse()
+    .find((sh) => sh.status === "cancelled");
+  return cancelEntry?.reason || null;
 };
 
 const formatStructuredAddress = (addr: {
@@ -867,6 +966,61 @@ const confirmReject = async () => {
     });
   } finally {
     isRejecting.value = false;
+  }
+};
+
+const confirmCancel = async () => {
+  if (!cancellationReason.value.trim()) {
+    useToast().add({
+      title: "Motivo obrigatório",
+      description: "Por favor, informe o motivo do cancelamento.",
+      color: "warning",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isCancelling.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    await bloodbankStore.cancelCollectionRequest(
+      requestId,
+      cancellationReason.value.trim(),
+      bloodBanksLocationId.value
+    );
+
+    useToast().add({
+      title: "Coleta cancelada!",
+      description: "A coleta foi cancelada com sucesso.",
+      color: "success",
+      duration: 3000,
+    });
+
+    // Close modal and clear
+    showCancelModal.value = false;
+    cancellationReason.value = "";
+
+    // Refresh collection requests list
+    if (bloodBanksLocationId.value) {
+      await bloodbankStore.refreshCollectionRequests(
+        bloodBanksLocationId.value,
+        "accepted"
+      );
+    }
+  } catch (error: any) {
+    console.error("Error cancelling request:", error);
+    useToast().add({
+      title: "Erro ao cancelar coleta",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isCancelling.value = false;
   }
 };
 

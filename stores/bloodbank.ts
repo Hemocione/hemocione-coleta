@@ -1150,6 +1150,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
 
     async cancelCollectionRequest(
       requestId: string,
+      cancellationReason: string,
       bloodBanksLocationId: string
     ) {
       this.error = null;
@@ -1158,7 +1159,10 @@ export const useBloodbankStore = defineStore("bloodbank", {
         const response = await fetchWithAuth(
           `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/cancel`,
           {
-            method: "POST" as any,
+            method: "POST",
+            body: {
+              cancellationReason,
+            },
           }
         );
 

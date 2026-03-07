@@ -489,7 +489,9 @@ export async function rejectCollectionRequest(
 
 export async function cancelCollectionRequest(
   requestId: string,
-  cancelledByUserId: string
+  cancellationReason: string,
+  cancelledByUserId: string,
+  bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
   const session = await CollectionRequest.startSession();
 
@@ -499,6 +501,7 @@ export async function cancelCollectionRequest(
         _id: requestId,
         status: { $in: ["pending", "accepted"] },
         deletedAt: null,
+        bloodBanksLocationId,
       }).session(session);
 
       if (!request) {
@@ -531,11 +534,11 @@ export async function cancelCollectionRequest(
         status: "cancelled",
         changedAt: new Date(),
         changedBy: cancelledByUserId,
-        reason: "Request cancelled",
+        reason: cancellationReason,
       };
 
       await CollectionRequest.findOneAndUpdate(
-        { _id: requestId },
+        { _id: requestId, bloodBanksLocationId },
         {
           $set: { status: "cancelled" },
           $push: { statusHistory: statusHistoryEntry },
@@ -544,7 +547,7 @@ export async function cancelCollectionRequest(
       );
     });
 
-    return await getCollectionRequestById(requestId);
+    return await getCollectionRequestById(requestId, bloodBanksLocationId);
   } finally {
     await session.endSession();
   }

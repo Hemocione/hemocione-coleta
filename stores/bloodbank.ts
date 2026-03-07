@@ -53,6 +53,7 @@ export interface Slot {
   startTime: Date;
   endTime: Date;
   locked: boolean;
+  lockedBy?: string | null;
   startTimeStr?: string;
   endTimeStr?: string;
 }

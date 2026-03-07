@@ -2,7 +2,10 @@
 - Dashboard page is at `pages/[bloodbankSlug]/index.vue`, store at `stores/bloodbank.ts`
 - Store has separate loading flags: `isLoading` (bloodbank data), `isLoadingDashboard`, `isLoadingTeams`, etc.
 - Use `storeToRefs` for reactive store state, direct store access for actions
-- Pre-existing type errors exist in: `pages/agendar/[bloodbankSlug]/index.vue`, `server/models/*.ts` (InferSchemaType import), `server/services/team.ts` (ObjectId null), `server/api/v1/bloodbank/.../available-dates/index.get.ts`
+- Pre-existing type errors exist in: `pages/agendar/[bloodbankSlug]/index.vue`, `server/models/*.ts` (InferSchemaType import), `server/services/team.ts` (ObjectId null)
+- Calendar page is at `pages/[bloodbankSlug]/calendario/index.vue`, uses `UCalendar` + `UChip` for availability indicators
+- AvailableDate model has a virtual `allSlotsLocked` but `.lean()` doesn't include virtuals — compute locked state client-side using `slot.locked || slot.lockedBy`
+- Slot locked state should check BOTH `slot.locked` and `slot.lockedBy` for consistency with the Mongoose virtual
 - Typecheck command: `npx nuxi typecheck`
 - Use `fetchWithAuth` from `~/composables/useFetchWithAuth` for API calls
 - Nuxt UI components: `UAlert`, `UCard`, `USkeleton`, `UButton`, `UIcon`, `UAvatar`
@@ -43,4 +46,19 @@
   - The store's `collectionRequests.data` is the list rendered in the current tab — when a status changes, the item must be REMOVED (not updated) so it no longer appears in the wrong tab
   - The same pattern applies to accept, reject, and cancel actions — all three should filter out the item
   - Backend pagination in `getCollectionRequestsByBloodBank` was incorrectly recalculated after institution filtering — use the original MongoDB `total` from `countDocuments`
+---
+
+## 2026-03-07 - US-004
+- Fixed calendar preview showing incorrect locked/available states
+- Fixed API endpoint `available-dates/index.get.ts` passing `year` and `month` as positional args instead of options object
+- Updated `getAvailabilityColor` to check both `slot.locked` and `slot.lockedBy` (consistent with Mongoose virtual `allSlotsLocked`)
+- Added `lockedBy` to store's `Slot` interface so the data is available on the frontend
+- Added visual legend below calendar showing the three states (green=available, yellow=partial, red=locked)
+- Updated detail modal slot badges and input disabled states to also check `lockedBy`
+- Files changed: `pages/[bloodbankSlug]/calendario/index.vue`, `stores/bloodbank.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/available-dates/index.get.ts`
+- **Learnings for future iterations:**
+  - The `getAvailableDatesByBloodBank` service uses `.lean()` which skips Mongoose virtuals — `allSlotsLocked` is not returned from the API, so it must be computed client-side
+  - Slot locked state should check BOTH `slot.locked` AND `slot.lockedBy` for consistency — there can be edge cases where only one is set
+  - The API endpoint had a parameter mismatch bug — `getAvailableDatesByBloodBank` expects `(bloodBanksLocationId, options?)` but was called with `(id, year, month)` — this was a pre-existing type error that is now fixed
+  - The `Slot` interface in `stores/bloodbank.ts` now includes `lockedBy` — needed for US-005 (click locked day to navigate to collection request)
 ---

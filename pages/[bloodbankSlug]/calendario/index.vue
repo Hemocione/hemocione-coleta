@@ -24,6 +24,22 @@
             </UChip>
           </template>
         </UCalendar>
+
+        <!-- Legenda -->
+        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-green-500" />
+            <span>Disponível</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-yellow-500" />
+            <span>Parcialmente bloqueado</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-red-500" />
+            <span>Totalmente bloqueado</span>
+          </div>
+        </div>
       </div>
     </UCard>
 
@@ -263,11 +279,11 @@
               <!-- Badge e botão posicionados no canto superior direito -->
               <div class="absolute top-2 right-2 flex items-center space-x-2">
                 <UBadge
-                  :color="slot.locked ? 'error' : 'success'"
+                  :color="slot.locked || slot.lockedBy ? 'error' : 'success'"
                   variant="subtle"
                   size="xs"
                 >
-                  {{ slot.locked ? "Bloqueado" : "Disponível" }}
+                  {{ slot.locked || slot.lockedBy ? "Bloqueado" : "Disponível" }}
                 </UBadge>
                 <UButton
                   v-if="
@@ -278,7 +294,7 @@
                   size="xs"
                   color="error"
                   icon="i-lucide-trash-2"
-                  :disabled="slot.locked || isUpdating"
+                  :disabled="slot.locked || !!slot.lockedBy || isUpdating"
                   @click="handleRemoveSlot(slot)"
                 >
                   Remover
@@ -301,7 +317,7 @@
                     type="time"
                     size="xs"
                     class="w-20"
-                    :disabled="slot.locked"
+                    :disabled="slot.locked || !!slot.lockedBy"
                     @input="markSlotAsChanged(slot._id)"
                   />
                   <span class="text-xs text-gray-400">–</span>
@@ -313,7 +329,7 @@
                     type="time"
                     size="xs"
                     class="w-20"
-                    :disabled="slot.locked"
+                    :disabled="slot.locked || !!slot.lockedBy"
                     @input="markSlotAsChanged(slot._id)"
                   />
                   <UButton
@@ -1253,7 +1269,9 @@ const isDateUnavailable = (day: DateValue) => {
 };
 
 // Get availability color for calendar day
-const getAvailabilityColor = (day: DateValue) => {
+const getAvailabilityColor = (
+  day: DateValue
+): "error" | "warning" | "success" | undefined => {
   // Don't show chips until data is loaded
   if (!isInitialized.value) {
     return undefined;
@@ -1265,26 +1283,23 @@ const getAvailabilityColor = (day: DateValue) => {
     return undefined; // No availability data
   }
 
-  const hasAvailableSlots = availableDate.slots.some((slot) => !slot.locked);
-  const allSlotsLocked = availableDate.slots.every((slot) => slot.locked);
+  const allSlotsLocked = availableDate.slots.every(
+    (slot) => slot.locked || slot.lockedBy
+  );
 
   if (allSlotsLocked) {
     return "error"; // All slots locked - red
-  } else if (hasAvailableSlots && !allSlotsLocked) {
-    // Check if there's a mix of available and locked slots
-    const availableCount = availableDate.slots.filter(
-      (slot) => !slot.locked
-    ).length;
-    const totalCount = availableDate.slots.length;
-
-    if (availableCount === totalCount) {
-      return "success"; // All available - green
-    } else {
-      return "warning"; // Some available, some locked - yellow
-    }
-  } else {
-    return "success"; // All available - green
   }
+
+  const hasLockedSlots = availableDate.slots.some(
+    (slot) => slot.locked || slot.lockedBy
+  );
+
+  if (hasLockedSlots) {
+    return "warning"; // Some available, some locked - yellow
+  }
+
+  return "success"; // All available - green
 };
 
 // Watchers

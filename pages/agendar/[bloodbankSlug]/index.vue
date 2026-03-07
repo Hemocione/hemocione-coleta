@@ -261,12 +261,73 @@
           </div>
         </div>
 
+        <!-- Endereço do Local da Coleta -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Endereço do Local da Coleta
+          </h3>
+          <p class="text-xs text-gray-500">
+            Informe o endereço onde a coleta será realizada. Pode ser diferente
+            do endereço da instituição.
+          </p>
+          <div class="grid md:grid-cols-2 gap-3">
+            <UFormField label="CEP" required>
+              <UInput
+                :model-value="addressZipCode"
+                @update:model-value="onCepInput"
+                placeholder="00000-000"
+                icon="i-lucide-map-pin"
+                maxlength="9"
+              />
+            </UFormField>
+            <UFormField label="Rua" required>
+              <UInput
+                v-model="addressStreet"
+                placeholder="Nome da rua"
+                icon="i-lucide-map"
+              />
+            </UFormField>
+            <UFormField label="Número" required>
+              <UInput
+                v-model="addressNumber"
+                placeholder="123"
+              />
+            </UFormField>
+            <UFormField label="Complemento">
+              <UInput
+                v-model="addressComplement"
+                placeholder="Sala, andar, bloco..."
+              />
+            </UFormField>
+            <UFormField label="Bairro" required>
+              <UInput
+                v-model="addressNeighborhood"
+                placeholder="Bairro"
+              />
+            </UFormField>
+            <UFormField label="Cidade" required>
+              <UInput
+                v-model="addressCity"
+                placeholder="Cidade"
+              />
+            </UFormField>
+            <UFormField label="Estado" required>
+              <USelect
+                v-model="addressState"
+                :items="brStates"
+                placeholder="UF"
+              />
+            </UFormField>
+          </div>
+        </div>
+
         <div class="mt-4 md:mt-6 flex items-center justify-end">
           <UButton
             :disabled="
               selected.length === 0 ||
               (restrictions.length > 0 && !hasReadRestrictions) ||
-              !isHostValid
+              !isHostValid ||
+              !isAddressValid
             "
             color="primary"
             @click="submit"
@@ -345,6 +406,48 @@ const isHostValid = computed(
     hostPhone.value.trim().length > 0
 );
 
+// Address fields - pre-filled from institution if available
+const addressStreet = ref("");
+const addressNumber = ref("");
+const addressComplement = ref("");
+const addressNeighborhood = ref("");
+const addressCity = ref("");
+const addressState = ref("");
+const addressZipCode = ref("");
+
+const brStates = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+].map((s) => ({ label: s, value: s }));
+
+const formatCep = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return digits;
+};
+
+const onCepInput = (value: string) => {
+  addressZipCode.value = formatCep(value);
+};
+
+const isAddressValid = computed(
+  () =>
+    addressStreet.value.trim().length > 0 &&
+    addressNumber.value.trim().length > 0 &&
+    addressNeighborhood.value.trim().length > 0 &&
+    addressCity.value.trim().length > 0 &&
+    addressState.value.length === 2 &&
+    addressZipCode.value.replace(/\D/g, "").length === 8
+);
+
+const initAddressFromInstitution = () => {
+  if (selectedInstitution.value) {
+    addressCity.value = selectedInstitution.value.city || "";
+    addressState.value = selectedInstitution.value.state || "";
+  }
+};
+
 onBeforeMount(async () => {
   loading.value = true;
   if (!selectedInstitution.value) {
@@ -353,6 +456,7 @@ onBeforeMount(async () => {
 
   // Pre-fill host fields with user data
   initHostFromUser();
+  initAddressFromInstitution();
 
   // Load bank info for submission context (only if authenticated and has institution)
   if (isLoggedIn.value && selectedInstitution.value) {
@@ -525,6 +629,12 @@ const closeConfirmationModal = () => {
   hasReadRestrictions.value = false;
   selectedRangeByDateId.value = {};
   initHostFromUser();
+  initAddressFromInstitution();
+  addressStreet.value = "";
+  addressNumber.value = "";
+  addressComplement.value = "";
+  addressNeighborhood.value = "";
+  addressZipCode.value = "";
 };
 
 const submit = async () => {
@@ -566,6 +676,15 @@ const submit = async () => {
         name: hostName.value.trim(),
         email: hostEmail.value.trim(),
         phone: hostPhone.value.trim(),
+      },
+      address: {
+        street: addressStreet.value.trim(),
+        number: addressNumber.value.trim(),
+        complement: addressComplement.value.trim() || undefined,
+        neighborhood: addressNeighborhood.value.trim(),
+        city: addressCity.value.trim(),
+        state: addressState.value,
+        zipCode: addressZipCode.value.replace(/\D/g, ""),
       },
     };
     const res = await fetchWithAuth(

@@ -7,6 +7,16 @@ const hostSchema = z.object({
   phone: z.string().min(1).max(20),
 });
 
+const addressSchema = z.object({
+  street: z.string().min(1).max(300),
+  number: z.string().min(1).max(20),
+  complement: z.string().max(200).optional(),
+  neighborhood: z.string().min(1).max(200),
+  city: z.string().min(1).max(200),
+  state: z.string().min(2).max(2),
+  zipCode: z.string().min(8).max(10),
+});
+
 const bodySchema = z.object({
   bloodBanksLocationId: z.string(),
   requestedDates: z
@@ -19,6 +29,7 @@ const bodySchema = z.object({
     .min(1)
     .max(3),
   host: hostSchema,
+  address: addressSchema.optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -37,13 +48,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { bloodBanksLocationId, requestedDates, host } = bodySchema.parse(body);
+  const { bloodBanksLocationId, requestedDates, host, address } = bodySchema.parse(body);
 
   const result = await createCollectionRequest(bloodBanksLocationId, {
     institutionId,
     requestedByUserId: userId,
     requestedDates,
     host,
+    address,
   });
 
   return {

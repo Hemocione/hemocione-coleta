@@ -61,7 +61,9 @@
                   {{ currentCollectionRequest.institutionName }}
                 </h2>
                 <p class="text-gray-600">
-                  {{ currentCollectionRequest.institutionAddress }}
+                  {{ currentCollectionRequest.address
+                    ? formatStructuredAddress(currentCollectionRequest.address)
+                    : currentCollectionRequest.institutionAddress }}
                 </p>
               </div>
             </div>
@@ -119,6 +121,24 @@
                 </a>
               </p>
             </div>
+          </div>
+        </UCard>
+
+        <!-- Endereço do Local da Coleta -->
+        <UCard v-if="currentCollectionRequest.address">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Endereço do Local da Coleta
+            </h3>
+          </template>
+
+          <div class="space-y-2">
+            <p class="font-medium text-gray-900">
+              {{ formatStructuredAddress(currentCollectionRequest.address) }}
+            </p>
+            <p class="text-sm text-gray-500">
+              CEP: {{ formatCep(currentCollectionRequest.address.zipCode) }}
+            </p>
           </div>
         </UCard>
 
@@ -660,6 +680,27 @@ const showAcceptDialog = (timeSlot: any) => {
 
 const showRejectDialog = () => {
   showRejectModal.value = true;
+};
+
+const formatStructuredAddress = (addr: {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}) => {
+  const parts = [`${addr.street}, ${addr.number}`];
+  if (addr.complement) parts[0] += `, ${addr.complement}`;
+  parts.push(`${addr.neighborhood}`);
+  parts.push(`${addr.city} - ${addr.state}`);
+  return parts.join(" - ");
+};
+
+const formatCep = (cep: string) => {
+  const digits = cep.replace(/\D/g, "");
+  if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return digits;
 };
 
 const getStatusColor = (status: string) => {

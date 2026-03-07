@@ -71,6 +71,16 @@ export interface AvailableDate {
   updatedAt: Date;
 }
 
+export interface StructuredAddress {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
 export interface CollectionRequest {
   _id: string;
   institutionId: string;
@@ -87,19 +97,20 @@ export interface CollectionRequest {
   availableSlotOptions: Array<{
     availableDateId: string;
     slotId: string;
-    date: string; // This is a string from the database
-    startTime?: Date; // These are already correct as Date objects
-    endTime?: Date; // These are already correct as Date objects
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
     teamName?: string;
     teamColor?: string;
     isLocked?: boolean;
-    isRequested?: boolean; // Indicates if this slot was specifically requested
+    isRequested?: boolean;
   }>;
   host: {
     name: string;
     email: string;
     phone: string;
   };
+  address?: StructuredAddress;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status:

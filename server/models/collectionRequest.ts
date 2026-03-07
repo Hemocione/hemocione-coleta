@@ -1,5 +1,19 @@
 import { InferSchemaType, Schema, model } from "mongoose";
 
+// Address Schema - structured address for collection location
+const AddressSchema = new Schema(
+  {
+    street: { type: String, required: true, maxlength: 300, trim: true },
+    number: { type: String, required: true, maxlength: 20, trim: true },
+    complement: { type: String, required: false, maxlength: 200, trim: true },
+    neighborhood: { type: String, required: true, maxlength: 200, trim: true },
+    city: { type: String, required: true, maxlength: 200, trim: true },
+    state: { type: String, required: true, maxlength: 2, trim: true, uppercase: true },
+    zipCode: { type: String, required: true, maxlength: 10, trim: true },
+  },
+  { _id: false }
+);
+
 // Host Schema - contact person at the institution for this collection
 const HostSchema = new Schema(
   {
@@ -114,6 +128,10 @@ export const CollectionRequestSchema = new Schema(
       type: HostSchema,
       required: true,
     },
+    address: {
+      type: AddressSchema,
+      required: false,
+    },
     statusHistory: {
       type: [StatusHistorySchema],
       default: [],
@@ -158,6 +176,7 @@ export type CollectionRequestSchema = InferSchemaType<
 export type RequestedDateSchema = InferSchemaType<typeof RequestedDateSchema>;
 export type StatusHistorySchema = InferSchemaType<typeof StatusHistorySchema>;
 export type HostSchema = InferSchemaType<typeof HostSchema>;
+export type AddressSchema = InferSchemaType<typeof AddressSchema>;
 
 export const CollectionRequest = model<CollectionRequestSchema>(
   "CollectionRequest",

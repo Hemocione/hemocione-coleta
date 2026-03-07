@@ -32,6 +32,16 @@ export interface PaginatedResult<T> {
   };
 }
 
+export interface StructuredAddress {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
 export interface CollectionRequestWithDetails {
   _id: string;
   institutionId: string;
@@ -61,6 +71,7 @@ export interface CollectionRequestWithDetails {
     email: string;
     phone: string;
   };
+  address?: StructuredAddress;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status: "pending" | "accepted" | "rejected" | "cancelled";
@@ -661,6 +672,7 @@ export interface CreateCollectionRequestData {
     email: string;
     phone: string;
   };
+  address?: StructuredAddress;
 }
 
 export async function createCollectionRequest(
@@ -715,6 +727,7 @@ export async function createCollectionRequest(
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
     })),
     host: data.host,
+    address: data.address,
     status: "pending",
     statusHistory: [
       {

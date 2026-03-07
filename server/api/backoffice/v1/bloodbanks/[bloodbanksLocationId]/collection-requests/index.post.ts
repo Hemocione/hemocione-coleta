@@ -2,6 +2,12 @@ import { z } from "zod";
 import { createCollectionRequest } from "~/server/services/collectionRequest";
 import { assertSecretAuth } from "~/server/services/auth";
 
+const hostSchema = z.object({
+  name: z.string().min(1, "Nome do ponto focal é obrigatório").max(200),
+  email: z.string().email("Email do ponto focal deve ser válido"),
+  phone: z.string().min(1, "Telefone do ponto focal é obrigatório").max(20),
+});
+
 const bodySchema = z.object({
   institutionId: z.uuid("institutionId deve ser um UUID válido"),
   requestedByUserId: z.uuid("requestedByUserId deve ser um UUID válido"),
@@ -25,6 +31,7 @@ const bodySchema = z.object({
     )
     .min(1, "Pelo menos uma data deve ser solicitada")
     .max(3, "Máximo de 3 datas podem ser solicitadas"),
+  host: hostSchema,
 });
 
 export default defineEventHandler(async (event) => {
@@ -59,6 +66,7 @@ export default defineEventHandler(async (event) => {
         institutionId: validatedData.institutionId,
         requestedByUserId: validatedData.requestedByUserId,
         requestedDates: validatedData.requestedDates,
+        host: validatedData.host,
       }
     );
 

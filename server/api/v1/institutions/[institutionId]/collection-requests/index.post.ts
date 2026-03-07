@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { createCollectionRequest } from "~/server/services/collectionRequest";
 
+const hostSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email(),
+  phone: z.string().min(1).max(20),
+});
+
 const bodySchema = z.object({
   bloodBanksLocationId: z.string(),
   requestedDates: z
@@ -12,6 +18,7 @@ const bodySchema = z.object({
     )
     .min(1)
     .max(3),
+  host: hostSchema,
 });
 
 export default defineEventHandler(async (event) => {
@@ -30,12 +37,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { bloodBanksLocationId, requestedDates } = bodySchema.parse(body);
+  const { bloodBanksLocationId, requestedDates, host } = bodySchema.parse(body);
 
   const result = await createCollectionRequest(bloodBanksLocationId, {
     institutionId,
     requestedByUserId: userId,
     requestedDates,
+    host,
   });
 
   return {

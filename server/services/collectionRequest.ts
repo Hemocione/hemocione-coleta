@@ -56,6 +56,11 @@ export interface CollectionRequestWithDetails {
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status: "pending" | "accepted" | "rejected" | "cancelled";
@@ -651,6 +656,11 @@ export interface CreateCollectionRequestData {
     availableDateId: string;
     slotIds?: string[];
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
 }
 
 export async function createCollectionRequest(
@@ -704,13 +714,14 @@ export async function createCollectionRequest(
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
     })),
+    host: data.host,
     status: "pending",
     statusHistory: [
       {
         status: "pending",
         changedAt: new Date(),
         changedBy: data.requestedByUserId,
-        reason: "Request created by backoffice",
+        reason: "Request created",
       },
     ],
   });

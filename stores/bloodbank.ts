@@ -95,6 +95,11 @@ export interface CollectionRequest {
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status:

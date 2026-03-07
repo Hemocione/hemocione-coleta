@@ -1,5 +1,30 @@
 import { InferSchemaType, Schema, model } from "mongoose";
 
+// Host Schema - contact person at the institution for this collection
+const HostSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      maxlength: 200,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+      maxlength: 20,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 // Requested Date Schema - only references, no data duplication. Each requested date can have multiple slots or not. if not, it means any slot in that date is fine for this request.
 const RequestedDateSchema = new Schema(
   {
@@ -85,6 +110,10 @@ export const CollectionRequestSchema = new Schema(
       maxlength: 1000,
       trim: true,
     },
+    host: {
+      type: HostSchema,
+      required: true,
+    },
     statusHistory: {
       type: [StatusHistorySchema],
       default: [],
@@ -128,6 +157,7 @@ export type CollectionRequestSchema = InferSchemaType<
 >;
 export type RequestedDateSchema = InferSchemaType<typeof RequestedDateSchema>;
 export type StatusHistorySchema = InferSchemaType<typeof StatusHistorySchema>;
+export type HostSchema = InferSchemaType<typeof HostSchema>;
 
 export const CollectionRequest = model<CollectionRequestSchema>(
   "CollectionRequest",

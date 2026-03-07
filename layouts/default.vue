@@ -311,6 +311,7 @@ const isActiveRoute = (routePath: string) => {
 // Page title and description based on current route
 const currentPageTitle = computed(() => {
   const path = route.path;
+  if (path.includes("/calendario/configuracao-massa")) return "Configuração em Massa";
   if (path.includes("/calendario")) return "Calendário";
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/equipes")) return "Equipes";
@@ -321,6 +322,7 @@ const currentPageTitle = computed(() => {
 
 const currentPageDescription = computed(() => {
   const path = route.path;
+  if (path.includes("/calendario/configuracao-massa")) return "Configure a disponibilidade do ano inteiro";
   if (path.includes("/calendario")) return "Gerencie o calendário de coletas";
   if (path.includes("/cobertura"))
     return "Área de cobertura para coleta externa";

@@ -43,8 +43,8 @@
       </div>
     </UCard>
 
-    <!-- Botão Adicionar Data -->
-    <div class="flex justify-center">
+    <!-- Botões de ação -->
+    <div class="flex justify-center gap-3">
       <UButton
         color="primary"
         icon="i-lucide-plus"
@@ -52,6 +52,14 @@
         size="lg"
       >
         Adicionar data de disponibilidade
+      </UButton>
+      <UButton
+        variant="outline"
+        icon="i-lucide-grid-3x3"
+        @click="navigateTo(`/${route.params.bloodbankSlug}/calendario/configuracao-massa`)"
+        size="lg"
+      >
+        Configuração em Massa
       </UButton>
     </div>
 

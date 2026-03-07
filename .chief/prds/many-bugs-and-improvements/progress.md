@@ -16,6 +16,8 @@
 - The store's `CollectionRequest` interface in `stores/bloodbank.ts` mirrors the server's `CollectionRequestWithDetails` — keep them in sync
 - Institution data from hemocione-id has `address` (single string), `city`, `state` — structured address on CollectionRequest is separate (for the collection location)
 - Scheduling store (`stores/scheduling.ts`) has address state for institution creation flow — separate from collection request address
+- Cancellation reason is stored in `statusHistory[].reason` (not a top-level field) — retrieve from statusHistory for display
+- Use `method: "POST"` (not `"POST" as any`) in `fetchWithAuth` options to preserve proper response typing
 
 ---
 
@@ -143,4 +145,21 @@
   - CEP mask is implemented manually with `formatCep` — no external library needed
   - Brazilian states list is hardcoded as a simple array of 2-letter codes mapped to `{ label, value }` for USelect
   - The `institutionAddress` field (from hemocione-id) remains unchanged — it's still the fallback when no structured address is on the request
+---
+
+## 2026-03-07 - US-010
+- Implemented blood bank cancellation flow for accepted collection requests
+- Updated `cancelCollectionRequest` service to accept `cancellationReason` and `bloodBanksLocationId` parameters
+- Created new API endpoint `POST /api/v1/bloodbank/[bloodbanksLocationId]/collection-requests/[requestId]/cancel.post.ts` with reason validation (required, max 1000 chars)
+- Updated store action to send `cancellationReason` in the request body; fixed `method: "POST" as any` → `method: "POST"` to resolve type errors
+- Added "Cancelar Coleta" button on the detail page (visible only for `status === 'accepted'`)
+- Added cancel confirmation modal with textarea for reason (required, max 1000 chars, character counter)
+- Added "Motivo do Cancelamento" card that displays when request is cancelled (reads reason from statusHistory)
+- The service already had slot unlocking logic (sets `locked: false`, `lockedBy: null`) for accepted requests — no changes needed there
+- Files changed: `server/services/collectionRequest.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/collection-requests/[requestId]/cancel.post.ts` (new), `stores/bloodbank.ts`, `pages/[bloodbankSlug]/coletas/[requestId].vue`
+- **Learnings for future iterations:**
+  - The `cancelCollectionRequest` service already existed with slot unlocking logic but lacked `cancellationReason` and `bloodBanksLocationId` params
+  - The store's `cancelCollectionRequest` already existed but didn't send a reason body — it also had `method: "POST" as any` which caused the response to be typed as `unknown`; using `method: "POST"` (without `as any`) fixes this
+  - Cancellation reason is stored in `statusHistory[].reason`, not as a top-level field like `rejectionReason` — use `statusHistory` to retrieve it for display
+  - Pre-existing type errors in `server/services/team.ts` (ObjectId null) are the only remaining errors — they don't affect this work
 ---

@@ -581,6 +581,152 @@ export async function addTeamToFutureAvailableDates(
   }
 }
 
+export interface BulkAvailableDateEntry {
+  date: string;
+  isAvailable: boolean;
+  teamId?: string | null;
+}
+
+export interface BulkAvailableDateResult {
+  created: number;
+  deleted: number;
+  skipped: number;
+  errors: string[];
+}
+
+export async function bulkSetAvailableDates(
+  bloodBanksLocationId: string,
+  entries: BulkAvailableDateEntry[]
+): Promise<BulkAvailableDateResult> {
+  const bloodBank = await getBloodBankByBloodBanksLocationId(
+    bloodBanksLocationId
+  );
+  const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
+
+  const result: BulkAvailableDateResult = {
+    created: 0,
+    deleted: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  const todayStr = dayjs().format("YYYY-MM-DD");
+
+  // Fetch all existing dates for this location to avoid N+1 queries
+  const allDates = entries.map((e) => e.date);
+  const existingDates = await AvailableDate.find({
+    bloodBanksLocationId,
+    date: { $in: allDates },
+    deletedAt: null,
+  });
+  const existingDateMap = new Map(
+    existingDates.map((d) => [d.date, d])
+  );
+
+  // Fetch all teams for this location
+  const teams = await Team.find({
+    bloodBanksLocationId,
+    deletedAt: null,
+  }).lean();
+  const teamIds = teams.map((t) => t._id!.toString());
+
+  for (const entry of entries) {
+    try {
+      if (entry.date < todayStr) {
+        result.skipped++;
+        continue;
+      }
+
+      const existing = existingDateMap.get(entry.date);
+
+      if (entry.isAvailable) {
+        // Create date if it doesn't exist
+        if (existing) {
+          result.skipped++;
+          continue;
+        }
+
+        const year = parseInt(entry.date.split("-")[0]);
+        const isAllTeams = !entry.teamId;
+        const slotsTeamIds = isAllTeams
+          ? teamIds
+          : [entry.teamId!];
+
+        // Validate teamId if specific
+        if (entry.teamId && !teamIds.includes(entry.teamId)) {
+          result.errors.push(
+            `${entry.date}: time ${entry.teamId} não pertence a este banco de sangue`
+          );
+          continue;
+        }
+
+        // Default times: 08:00-17:00 in blood bank timezone
+        const startTimeLocal = dayjs.tz(
+          `${entry.date}T08:00`,
+          bloodBankTimezone
+        );
+        const endTimeLocal = dayjs.tz(
+          `${entry.date}T17:00`,
+          bloodBankTimezone
+        );
+        const startTime = startTimeLocal.utc().toDate();
+        const endTime = endTimeLocal.utc().toDate();
+
+        const slots = slotsTeamIds.map((tId) => ({
+          teamId: new Types.ObjectId(tId),
+          startTime,
+          endTime,
+          locked: false,
+        }));
+
+        try {
+          const newDate = new AvailableDate({
+            bloodBanksLocationId,
+            date: entry.date,
+            year,
+            isAllTeams,
+            slots,
+          });
+          await newDate.save();
+          result.created++;
+        } catch (error: any) {
+          if (error.code === 11000) {
+            result.skipped++;
+          } else {
+            result.errors.push(`${entry.date}: ${error.message}`);
+          }
+        }
+      } else {
+        // Delete date if it exists and has no locked slots
+        if (!existing) {
+          result.skipped++;
+          continue;
+        }
+
+        const hasLockedSlots = existing.slots.some(
+          (slot) => slot.locked || slot.lockedBy
+        );
+        if (hasLockedSlots) {
+          result.errors.push(
+            `${entry.date}: não é possível remover, possui slots travados por coletas`
+          );
+          continue;
+        }
+
+        await AvailableDate.findOneAndUpdate(
+          { _id: existing._id, deletedAt: null },
+          { deletedAt: new Date() }
+        );
+        result.deleted++;
+      }
+    } catch (error: any) {
+      result.errors.push(`${entry.date}: ${error.message}`);
+    }
+  }
+
+  return result;
+}
+
 export async function removeSlotsFromFutureAvailableDates(
   bloodBanksLocationId: string,
   teamId: string

@@ -256,3 +256,23 @@
   - Follow the same auth pattern: `event.context.auth.user` + `assertUserAccessToBloodBanksLocationId` + `getRouterParam(event, "bloodbanksLocationId")`
   - For error re-throwing in catch blocks, check `if (error.statusCode) throw error` before creating generic 500 errors
 ---
+
+## 2026-03-07 - US-016
+- Created technical visits listing page at `pages/[bloodbankSlug]/visitas-tecnicas/index.vue` with filter tabs (all, approved, rejected, pending)
+- Each visit card shows: address, date, outcome badge (color-coded), truncated notes
+- "Registrar Visita" button opens modal with fields: address, date, outcome (select), notes
+- Same modal used for editing visits (click on card to edit), with delete button
+- Added "Visitas Tecnicas" entry to sidebar navigation in `layouts/default.vue` with clipboard-check icon
+- Added page title/description for the new route in the layout's computed properties
+- Added "Historico de Visitas Tecnicas" section on collection request detail page (`pages/[bloodbankSlug]/coletas/[requestId].vue`)
+- Section queries visits by `institutionId` and shows up to 10 recent visits with outcome badges
+- If no visits exist, shows "Nenhuma visita tecnica registrada para este local"
+- Used `fetchWithAuth` directly in page components (not store) for technical visit API calls
+- Files changed: `pages/[bloodbankSlug]/visitas-tecnicas/index.vue` (new), `pages/[bloodbankSlug]/coletas/[requestId].vue`, `layouts/default.vue`
+- **Learnings for future iterations:**
+  - The technical visits API supports `institutionId` and `outcome` query filters — use these to filter visits by institution on the detail page
+  - `fetchWithAuth` can be used directly in page components for one-off API calls that don't need store state management
+  - The layout's `currentPageTitle` uses `path.includes()` — more specific paths (e.g., `/visitas-tecnicas`) must come BEFORE broader ones (e.g., `/coletas`)
+  - New sidebar nav items follow the pattern `{ label, icon, to }` — use `i-lucide-*` icons from Lucide icon set
+  - `line-clamp-2` Tailwind utility truncates multi-line text — useful for notes display
+---

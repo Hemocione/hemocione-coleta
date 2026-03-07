@@ -142,6 +142,54 @@
           </div>
         </UCard>
 
+        <!-- Technical Visit History -->
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Historico de Visitas Tecnicas
+            </h3>
+          </template>
+
+          <div v-if="isLoadingVisits" class="flex items-center justify-center py-4">
+            <div
+              class="w-6 h-6 rounded-full border-2 border-red-500 border-t-transparent animate-spin"
+            />
+          </div>
+          <div v-else-if="technicalVisits.length === 0" class="text-center py-4">
+            <p class="text-sm text-gray-500">
+              Nenhuma visita tecnica registrada para este local
+            </p>
+          </div>
+          <div v-else class="space-y-3">
+            <div
+              v-for="visit in technicalVisits"
+              :key="visit._id"
+              class="border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+              @click="navigateToVisit(visit._id)"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <UBadge
+                  :color="getVisitOutcomeColor(visit.outcome)"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ getVisitOutcomeLabel(visit.outcome) }}
+                </UBadge>
+                <span class="text-xs text-gray-500">
+                  {{ formatDate(visit.visitDate) }}
+                </span>
+              </div>
+              <p class="text-sm text-gray-700 truncate">{{ visit.address }}</p>
+              <p
+                v-if="visit.notes"
+                class="text-xs text-gray-500 mt-1 line-clamp-2"
+              >
+                {{ visit.notes }}
+              </p>
+            </div>
+          </div>
+        </UCard>
+
         <!-- Map Card -->
         <UCard v-if="currentCollectionRequest.institutionLocation">
           <template #header>
@@ -682,6 +730,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
+import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -706,6 +755,17 @@ const bloodBanksLocationId = computed(
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const selectedTimeSlot = ref<any>(null);
+
+// Technical visits
+interface TechnicalVisitSummary {
+  _id: string;
+  address: string;
+  visitDate: string;
+  outcome: "approved" | "rejected" | "pending";
+  notes?: string | null;
+}
+const technicalVisits = ref<TechnicalVisitSummary[]>([]);
+const isLoadingVisits = ref(false);
 
 // Modal states
 const showAcceptModal = ref(false);
@@ -1024,6 +1084,51 @@ const confirmCancel = async () => {
   }
 };
 
+const loadTechnicalVisits = async () => {
+  if (!bloodBanksLocationId.value || !currentCollectionRequest.value) return;
+  isLoadingVisits.value = true;
+  try {
+    const institutionId = currentCollectionRequest.value.institutionId;
+    const params = new URLSearchParams();
+    if (institutionId) {
+      params.append("institutionId", institutionId);
+    }
+    params.append("limit", "10");
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/technical-visits?${params.toString()}`
+    ) as any;
+    if (response.success) {
+      technicalVisits.value = response.data;
+    }
+  } catch (err) {
+    console.error("Error loading technical visits:", err);
+  } finally {
+    isLoadingVisits.value = false;
+  }
+};
+
+const getVisitOutcomeColor = (outcome: string) => {
+  switch (outcome) {
+    case "approved": return "success";
+    case "rejected": return "error";
+    case "pending": return "warning";
+    default: return "neutral";
+  }
+};
+
+const getVisitOutcomeLabel = (outcome: string) => {
+  switch (outcome) {
+    case "approved": return "Aprovada";
+    case "rejected": return "Reprovada";
+    case "pending": return "Pendente";
+    default: return outcome;
+  }
+};
+
+const navigateToVisit = (visitId: string) => {
+  navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
+};
+
 onMounted(async () => {
   if (!bloodBanksLocationId.value) {
     return;
@@ -1033,5 +1138,6 @@ onMounted(async () => {
     true
   );
   await loadRequestDetails();
+  await loadTechnicalVisits();
 });
 </script>

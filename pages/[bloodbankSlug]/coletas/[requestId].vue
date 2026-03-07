@@ -86,6 +86,25 @@
           </div>
         </UCard>
 
+        <!-- Technical Visit Status Badge -->
+        <div
+          class="flex items-center gap-3 p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow"
+          :class="technicalVisitBadgeClasses"
+          @click="handleVisitBadgeClick"
+        >
+          <UIcon :name="technicalVisitBadgeIcon" class="w-5 h-5 shrink-0" />
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm">{{ technicalVisitBadgeLabel }}</p>
+            <p v-if="latestTechnicalVisit" class="text-xs opacity-75">
+              {{ formatDate(latestTechnicalVisit.visitDate) }}
+              <template v-if="latestTechnicalVisit.outcome === 'rejected' && latestTechnicalVisit.notes">
+                — {{ latestTechnicalVisit.notes }}
+              </template>
+            </p>
+          </div>
+          <UIcon name="i-lucide-chevron-right" class="w-4 h-4 shrink-0 opacity-50" />
+        </div>
+
         <!-- Ponto Focal (Host) Card -->
         <UCard v-if="currentCollectionRequest.host">
           <template #header>
@@ -1122,6 +1141,59 @@ const getVisitOutcomeLabel = (outcome: string) => {
     case "rejected": return "Reprovada";
     case "pending": return "Pendente";
     default: return outcome;
+  }
+};
+
+const latestTechnicalVisit = computed(() => {
+  if (technicalVisits.value.length === 0) return null;
+  // Prioritize: approved > rejected > pending, then most recent
+  const sorted = [...technicalVisits.value].sort((a, b) => {
+    const priority: Record<string, number> = { approved: 0, rejected: 1, pending: 2 };
+    const pDiff = (priority[a.outcome] ?? 3) - (priority[b.outcome] ?? 3);
+    if (pDiff !== 0) return pDiff;
+    return new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime();
+  });
+  return sorted[0];
+});
+
+const technicalVisitBadgeLabel = computed(() => {
+  if (isLoadingVisits.value) return "Carregando visitas...";
+  if (!latestTechnicalVisit.value) return "Sem Visita Tecnica";
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "Visita Tecnica Aprovada";
+    case "rejected": return "Visita Tecnica Reprovada";
+    case "pending": return "Visita Tecnica Pendente";
+    default: return "Visita Tecnica";
+  }
+});
+
+const technicalVisitBadgeIcon = computed(() => {
+  if (!latestTechnicalVisit.value) return "i-lucide-clipboard-x";
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "i-lucide-clipboard-check";
+    case "rejected": return "i-lucide-clipboard-x";
+    case "pending": return "i-lucide-clipboard-list";
+    default: return "i-lucide-clipboard";
+  }
+});
+
+const technicalVisitBadgeClasses = computed(() => {
+  if (!latestTechnicalVisit.value) {
+    return "bg-gray-50 border-gray-200 text-gray-600";
+  }
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "bg-green-50 border-green-200 text-green-700";
+    case "rejected": return "bg-red-50 border-red-200 text-red-700";
+    case "pending": return "bg-yellow-50 border-yellow-200 text-yellow-700";
+    default: return "bg-gray-50 border-gray-200 text-gray-600";
+  }
+});
+
+const handleVisitBadgeClick = () => {
+  if (latestTechnicalVisit.value) {
+    navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
+  } else {
+    navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
   }
 };
 

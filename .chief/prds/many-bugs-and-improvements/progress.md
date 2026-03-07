@@ -276,3 +276,17 @@
   - New sidebar nav items follow the pattern `{ label, icon, to }` — use `i-lucide-*` icons from Lucide icon set
   - `line-clamp-2` Tailwind utility truncates multi-line text — useful for notes display
 ---
+
+## 2026-03-07 - US-017
+- Added prominent technical visit status badge on collection request detail page, positioned between institution card and host card
+- Badge is color-coded: green (approved), red (rejected), yellow (pending), gray (no visits)
+- Shows visit date; for rejected visits, also shows notes inline
+- Clickable — navigates to the technical visits page
+- Uses `latestTechnicalVisit` computed that prioritizes approved > rejected > pending, then most recent
+- Reuses existing `technicalVisits` ref and `loadTechnicalVisits` function from US-016
+- Files changed: `pages/[bloodbankSlug]/coletas/[requestId].vue`
+- **Learnings for future iterations:**
+  - The technical visits data is already loaded by `loadTechnicalVisits()` in `onMounted` — no additional API calls needed for the badge
+  - Computed properties derived from `ref<Array>` are reactive — changing `technicalVisits.value` updates the badge automatically
+  - For status indicators, a simple styled div with icon + text is more prominent than a UBadge component
+---

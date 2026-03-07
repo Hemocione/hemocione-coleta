@@ -218,3 +218,23 @@
   - Blood bank timezone is fetched via `getBloodBankByBloodBanksLocationId` — defaults to `America/Sao_Paulo`
   - The `z.string().nullish()` Zod type allows both `null` and `undefined` — useful for optional fields that can be explicitly null
 ---
+
+## 2026-03-07 - US-014
+- Created bulk setup page at `pages/[bloodbankSlug]/calendario/configuracao-massa.vue` — year-view calendar grid for configuring availability in bulk
+- Page shows 12 month cards in a responsive grid (1/2/3 columns), each with a mini calendar view
+- Each day is clickable to toggle availability; color-coded: green (existing+selected), blue (new), yellow (to remove), red (locked), gray (past)
+- Quick actions: "Marcar dias úteis" (select weekdays), "Desmarcar todos", per-month "Marcar/Desmarcar mês" toggles
+- Year selector (current + next year), team selector (all teams or specific team)
+- Loads existing available dates from API, marks locked slots as non-editable
+- On save, computes diff (only sends changes — creates and deletes), calls bulk API (US-013), shows results modal
+- Added "Configuração em Massa" button on the calendar page linking to the new page
+- Added page title/description in `layouts/default.vue` for the new route
+- Files changed: `pages/[bloodbankSlug]/calendario/configuracao-massa.vue` (new), `pages/[bloodbankSlug]/calendario/index.vue`, `layouts/default.vue`
+- **Learnings for future iterations:**
+  - The existing available dates API (`GET /available-dates?year=X`) returns all dates for the year starting from 3 days in the future — past dates won't be in the response but that's fine since they're not editable anyway
+  - `fetchWithAuth` can be used directly in page components (not just store actions) for one-off API calls
+  - Nuxt file-based routing: `pages/[bloodbankSlug]/calendario/configuracao-massa.vue` becomes `/[bloodbankSlug]/calendario/configuracao-massa`
+  - The layout's `currentPageTitle` computed uses `path.includes()` — more specific paths must be checked BEFORE broader ones (e.g., `/calendario/configuracao-massa` before `/calendario`)
+  - `USelect` items use `{ label, value }` format; value can be `null` for "all" options
+  - The bulk API endpoint returns `{ created, deleted, skipped, errors[] }` — display in a results modal after save
+---

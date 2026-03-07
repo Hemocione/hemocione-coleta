@@ -1050,6 +1050,11 @@ export const useBloodbankStore = defineStore("bloodbank", {
             };
           }
 
+          // Decrement pending requests count in dashboard
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
+          }
+
           return response.data;
         } else {
           throw new Error("Failed to accept collection request");
@@ -1123,6 +1128,11 @@ export const useBloodbankStore = defineStore("bloodbank", {
                 changedAt: new Date(sh.changedAt),
               })),
             };
+          }
+
+          // Decrement pending requests count in dashboard
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
           }
 
           return response.data;

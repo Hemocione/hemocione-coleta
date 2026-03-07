@@ -62,3 +62,18 @@
   - The API endpoint had a parameter mismatch bug — `getAvailableDatesByBloodBank` expects `(bloodBanksLocationId, options?)` but was called with `(id, year, month)` — this was a pre-existing type error that is now fixed
   - The `Slot` interface in `stores/bloodbank.ts` now includes `lockedBy` — needed for US-005 (click locked day to navigate to collection request)
 ---
+
+## 2026-03-07 - US-005
+- Modified `handleDateSelect` in the calendar page to check for locked slots before opening the detail modal
+- If a day has slots locked by a single collection request (`lockedBy`), navigates directly to `/[bloodbankSlug]/coletas/[requestId]`
+- If a day has slots locked by multiple collection requests, shows a navigation modal listing each collection request with a click-to-navigate action
+- Days without locked slots keep the original behavior (open detail/edit modal)
+- Added `showLockedNavigationModal` and `lockedCollectionRequestIds` state vars
+- Added `navigateToCollectionRequest` helper using `navigateTo()` (Nuxt built-in)
+- Files changed: `pages/[bloodbankSlug]/calendario/index.vue`
+- **Learnings for future iterations:**
+  - `lockedBy` on a slot contains the CollectionRequest `_id` — use `new Set()` to deduplicate across multiple slots
+  - `navigateTo()` is a Nuxt composable available in setup context — no need to import `useRouter`
+  - The route param for the bloodbank slug is accessed via `route.params.bloodbankSlug`
+  - For the multiple-locked case, a simple UModal with clickable items is sufficient — no need for complex popover logic
+---

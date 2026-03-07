@@ -72,7 +72,7 @@
         "Typecheck passa"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",

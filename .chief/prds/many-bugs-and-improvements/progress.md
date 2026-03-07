@@ -12,8 +12,10 @@
 - When store actions change entity status (accept/reject/cancel), also update `dashboardData` counts manually since it's a separate cached snapshot
 - When store actions change an entity's status, REMOVE the item from `collectionRequests.data` (filter it out) instead of updating in-place, so it disappears from the current tab
 - CollectionRequest model uses subdocument schemas with `{ _id: false }` — follow this pattern for new embedded objects
-- Both institution and backoffice POST endpoints have their own Zod schemas — both must be updated when adding new required fields
+- Both institution and backoffice POST endpoints have their own Zod schemas — both must be updated when adding new fields
 - The store's `CollectionRequest` interface in `stores/bloodbank.ts` mirrors the server's `CollectionRequestWithDetails` — keep them in sync
+- Institution data from hemocione-id has `address` (single string), `city`, `state` — structured address on CollectionRequest is separate (for the collection location)
+- Scheduling store (`stores/scheduling.ts`) has address state for institution creation flow — separate from collection request address
 
 ---
 
@@ -121,4 +123,24 @@
   - The `host` field on `CollectionRequest` is available via `currentCollectionRequest.host` in the detail page (loaded by `loadCollectionRequestById`)
   - Use `v-if="currentCollectionRequest.host"` to conditionally render the host section for backward compatibility
   - The listing page's `collectionRequests.data` items also have the `host` field available from the API
+---
+
+## 2026-03-07 - US-009
+- Added structured address schema (`AddressSchema`) to CollectionRequest model with fields: street, number, complement (optional), neighborhood, city, state, zipCode
+- Added Zod validation for `address` (optional) in both institution and backoffice POST endpoints
+- Updated `CreateCollectionRequestData` and `CollectionRequestWithDetails` interfaces in the service layer
+- Updated `CollectionRequest` interface in `stores/bloodbank.ts` with `StructuredAddress` type
+- Added address form section in the scheduling page (`pages/agendar/[bloodbankSlug]/index.vue`) with all structured fields, UF dropdown, and CEP mask (XXXXX-XXX)
+- City and state are pre-filled from the selected institution's data
+- Address is validated before submission (all required fields + 8-digit CEP)
+- Added "Endereço do Local da Coleta" card in the backoffice detail page showing formatted address
+- Institution header in detail page shows structured address when available, falls back to old `institutionAddress` string for backward compatibility
+- Files changed: `server/models/collectionRequest.ts`, `server/services/collectionRequest.ts`, `server/api/v1/institutions/[institutionId]/collection-requests/index.post.ts`, `server/api/backoffice/v1/bloodbanks/[bloodbanksLocationId]/collection-requests/index.post.ts`, `stores/bloodbank.ts`, `pages/agendar/[bloodbankSlug]/index.vue`, `pages/[bloodbankSlug]/coletas/[requestId].vue`
+- **Learnings for future iterations:**
+  - The `address` field on CollectionRequest is optional for backward compatibility — old requests without it still work
+  - The scheduling store (`stores/scheduling.ts`) already has address-related state (`cep`, `address`, `city`, `stateUF`) for the institution creation flow — these are separate from the collection request address
+  - Institution data from hemocione-id has `address` (single string), `city`, `state` — the structured address on CollectionRequest is for the collection location specifically
+  - CEP mask is implemented manually with `formatCep` — no external library needed
+  - Brazilian states list is hardcoded as a simple array of 2-letter codes mapped to `{ label, value }` for USelect
+  - The `institutionAddress` field (from hemocione-id) remains unchanged — it's still the fallback when no structured address is on the request
 ---

@@ -18,6 +18,7 @@
 - Scheduling store (`stores/scheduling.ts`) has address state for institution creation flow — separate from collection request address
 - Cancellation reason is stored in `statusHistory[].reason` (not a top-level field) — retrieve from statusHistory for display
 - Use `method: "POST"` (not `"POST" as any`) in `fetchWithAuth` options to preserve proper response typing
+- AvailableDate `date` field is a string (`YYYY-MM-DD`), NOT a Date object — always compare with formatted strings in MongoDB queries
 - Public API routes go under `/api/v1/public/` — auth middleware skips them automatically
 - BloodBank model has no contact info (phone/email) — only name, slug, logo; contact data lives in hemocione-id
 - For public endpoints needing optional/conditional auth, call `useHemocioneUserAuth(event)` directly (reads from Authorization header)
@@ -185,4 +186,17 @@
   - `CollectionRequest.requestedByUserId` stores the creating user's ID — use this to verify ownership for institution-side actions
   - Mongoose `.lean()` returns `_id` that can be null in TypeScript — use non-null assertion (`!`) when you've already verified the document exists
   - `statusHistory[].reason` can be `null` from Mongoose — convert to `undefined` with `|| undefined` for strict TypeScript interfaces
+---
+
+## 2026-03-07 - US-012
+- Implemented async (fire-and-forget) job that adds a new team to all future available dates with `isAllTeams === true`
+- Fixed bug in `addTeamToFutureAvailableDates`: was comparing string `date` field with `Date` object — now uses `dayjs().format("YYYY-MM-DD")` string comparison
+- Made the job idempotent: checks if team already has a slot in each date before adding
+- Added guard for dates with no existing slots (`firstSlot` check)
+- Replaced commented-out TODO in team POST route with fire-and-forget `.catch()` pattern
+- Files changed: `server/services/availableDate.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/teams/index.post.ts`
+- **Learnings for future iterations:**
+  - The `date` field on AvailableDate is a string (`YYYY-MM-DD`), NOT a Date — always compare with formatted strings, not Date objects
+  - Fire-and-forget pattern: call the async function without `await` and chain `.catch()` to log errors — this returns the response immediately while the job runs in background
+  - `team._id` from Mongoose can be `ObjectId | null` — use `!.toString()` when you know the team was just created
 ---

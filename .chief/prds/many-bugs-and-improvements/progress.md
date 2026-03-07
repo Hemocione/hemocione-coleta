@@ -111,3 +111,14 @@
   - `UFormField` with `required` prop shows the asterisk indicator; `UInput` handles type="email" and type="tel" natively
   - Phone mask was not added (just a tel input) — could be enhanced later with a mask library if needed
 ---
+
+## 2026-03-07 - US-008
+- Added "Ponto Focal" card to the collection request detail page (`pages/[bloodbankSlug]/coletas/[requestId].vue`) showing name, email (mailto: link), and phone (tel: link)
+- Added host name display on the collection request listing cards (`pages/[bloodbankSlug]/coletas/index.vue`) below the institution name with "Ponto focal:" prefix
+- Uses optional chaining (`request.host?.name`) for backward compatibility with requests created before host field existed
+- Files changed: `pages/[bloodbankSlug]/coletas/[requestId].vue`, `pages/[bloodbankSlug]/coletas/index.vue`
+- **Learnings for future iterations:**
+  - The `host` field on `CollectionRequest` is available via `currentCollectionRequest.host` in the detail page (loaded by `loadCollectionRequestById`)
+  - Use `v-if="currentCollectionRequest.host"` to conditionally render the host section for backward compatibility
+  - The listing page's `collectionRequests.data` items also have the `host` field available from the API
+---

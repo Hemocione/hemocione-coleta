@@ -144,6 +144,12 @@
                   >
                     {{ request.institutionName }}
                   </span>
+                  <span
+                    v-if="request.host?.name"
+                    class="text-sm text-gray-500 truncate"
+                  >
+                    Ponto focal: {{ request.host.name }}
+                  </span>
                 </div>
               </template>
 

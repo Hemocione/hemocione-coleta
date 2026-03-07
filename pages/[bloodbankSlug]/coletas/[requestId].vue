@@ -84,6 +84,44 @@
           </div>
         </UCard>
 
+        <!-- Ponto Focal (Host) Card -->
+        <UCard v-if="currentCollectionRequest.host">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">Ponto Focal</h3>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <span class="text-sm text-gray-600">Nome</span>
+              <p class="font-medium text-gray-900">
+                {{ currentCollectionRequest.host.name }}
+              </p>
+            </div>
+            <div>
+              <span class="text-sm text-gray-600">Email</span>
+              <p class="font-medium text-gray-900">
+                <a
+                  :href="`mailto:${currentCollectionRequest.host.email}`"
+                  class="text-blue-600 hover:underline"
+                >
+                  {{ currentCollectionRequest.host.email }}
+                </a>
+              </p>
+            </div>
+            <div>
+              <span class="text-sm text-gray-600">Telefone</span>
+              <p class="font-medium text-gray-900">
+                <a
+                  :href="`tel:${currentCollectionRequest.host.phone}`"
+                  class="text-blue-600 hover:underline"
+                >
+                  {{ currentCollectionRequest.host.phone }}
+                </a>
+              </p>
+            </div>
+          </div>
+        </UCard>
+
         <!-- Map Card -->
         <UCard v-if="currentCollectionRequest.institutionLocation">
           <template #header>

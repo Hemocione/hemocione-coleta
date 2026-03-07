@@ -221,6 +221,31 @@
       </template>
     </UModal>
 
+    <!-- Locked Slots Navigation Modal (multiple collection requests) -->
+    <UModal
+      v-model:open="showLockedNavigationModal"
+      title="Coletas vinculadas a esta data"
+    >
+      <template #body>
+        <div class="space-y-3">
+          <p class="text-sm text-gray-600">
+            Esta data possui slots bloqueados por múltiplas coletas. Selecione uma para visualizar:
+          </p>
+          <div
+            v-for="requestId in lockedCollectionRequestIds"
+            :key="requestId"
+            class="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+            @click="navigateToCollectionRequest(requestId)"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">Coleta {{ requestId.slice(-6) }}</span>
+              <UIcon name="i-lucide-arrow-right" class="text-gray-400" />
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
     <!-- Day Detail Modal -->
     <UModal
       v-model:open="showDetailModal"
@@ -530,6 +555,8 @@ const selectedAvailableDate = ref<AvailableDate | null>(null);
 const isSubmitting = ref(false);
 const isUpdating = ref(false);
 const isInitialized = ref(false);
+const showLockedNavigationModal = ref(false);
+const lockedCollectionRequestIds = ref<string[]>([]);
 
 // Edição de horários
 const editingTimes = ref<
@@ -677,7 +704,6 @@ const loadCalendarData = async () => {
 };
 
 const handleDateSelect = (date: CalendarDate | null) => {
-  console.log("date selected", date);
   if (!date || !isInitialized.value) return;
 
   // Converter CalendarDate para Date
@@ -686,14 +712,38 @@ const handleDateSelect = (date: CalendarDate | null) => {
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
 
   if (availableDate) {
-    // Abrir modal de detalhes - não modificar selectedDate aqui
-    selectedAvailableDate.value = availableDate;
-    showDetailModal.value = true;
+    // Check if any slots are locked by collection requests
+    const lockedByIds = [
+      ...new Set(
+        availableDate.slots
+          .filter((slot) => slot.lockedBy)
+          .map((slot) => slot.lockedBy as string)
+      ),
+    ];
+
+    if (lockedByIds.length === 1) {
+      // Single collection request locking slots - navigate directly
+      navigateToCollectionRequest(lockedByIds[0]);
+    } else if (lockedByIds.length > 1) {
+      // Multiple collection requests - show navigation modal
+      lockedCollectionRequestIds.value = lockedByIds;
+      showLockedNavigationModal.value = true;
+    } else {
+      // No locked slots - open detail/edit modal
+      selectedAvailableDate.value = availableDate;
+      showDetailModal.value = true;
+    }
   } else {
     // Abrir modal de criação - selectedDate já está definido pelo v-model
     formState.value.date = date;
     showCreateModal.value = true;
   }
+};
+
+const navigateToCollectionRequest = (requestId: string) => {
+  const bloodbankSlug = route.params.bloodbankSlug as string;
+  showLockedNavigationModal.value = false;
+  navigateTo(`/${bloodbankSlug}/coletas/${requestId}`);
 };
 
 const handleCreateDate = () => {

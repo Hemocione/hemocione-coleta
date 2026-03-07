@@ -302,7 +302,7 @@ import { useUserStore } from "~/stores/user";
 definePageMeta({ layout: false });
 
 const route = useRoute();
-const requestId = route.params.requestId as string;
+const accessToken = route.params.token as string;
 const toast = useToast();
 
 const userStore = useUserStore();
@@ -469,7 +469,7 @@ async function loadRequest() {
   error.value = false;
   try {
     const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
-      `/api/v1/public/collection-requests/${requestId}`
+      `/api/v1/public/collection-requests/track/${accessToken}`
     );
     request.value = response.data;
   } catch {
@@ -483,11 +483,8 @@ async function handleWithdraw() {
   if (!request.value) return;
   withdrawing.value = true;
   try {
-    // We need the institutionId — we can get it from the auth context
-    // The withdraw endpoint needs institutionId, which we don't have on the public page
-    // We'll use a dedicated endpoint that finds the request by ID and validates user access
     const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
-      `/api/v1/public/collection-requests/${requestId}/withdraw`,
+      `/api/v1/public/collection-requests/track/${accessToken}/withdraw`,
       {
         method: "POST",
         body: { reason: withdrawReason.value.trim() || undefined },

@@ -1,4 +1,5 @@
 import { InferSchemaType, Schema, model } from "mongoose";
+import { randomBytes } from "crypto";
 
 // Address Schema - structured address for collection location
 const AddressSchema = new Schema(
@@ -132,6 +133,12 @@ export const CollectionRequestSchema = new Schema(
       type: AddressSchema,
       required: false,
     },
+    accessToken: {
+      type: String,
+      required: true,
+      unique: true,
+      default: () => randomBytes(32).toString("hex"),
+    },
     statusHistory: {
       type: [StatusHistorySchema],
       default: [],
@@ -168,6 +175,11 @@ CollectionRequestSchema.index(
 CollectionRequestSchema.index(
   { requestedByUserId: 1 },
   { partialFilterExpression: { deletedAt: null } }
+);
+
+CollectionRequestSchema.index(
+  { accessToken: 1 },
+  { unique: true }
 );
 
 export type CollectionRequestSchema = InferSchemaType<

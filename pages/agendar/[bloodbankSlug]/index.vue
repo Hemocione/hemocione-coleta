@@ -352,8 +352,36 @@
               notificado quando o pedido for aceito ou recusado pelo banco de
               sangue.
             </p>
+            <div v-if="trackingUrl" class="bg-gray-50 rounded-lg p-3 text-sm">
+              <p class="text-gray-600 mb-2">
+                Acompanhe o status da sua solicitação pelo link abaixo:
+              </p>
+              <div class="flex items-center gap-2">
+                <UInput
+                  :model-value="trackingUrl"
+                  readonly
+                  class="flex-1"
+                  size="sm"
+                />
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  icon="i-lucide-copy"
+                  @click="copyTrackingUrl"
+                >
+                  Copiar
+                </UButton>
+              </div>
+            </div>
           </div>
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-2">
+            <UButton
+              v-if="trackingUrl"
+              variant="soft"
+              @click="navigateTo(trackingUrl, { external: true })"
+            >
+              Acompanhar Pedido
+            </UButton>
             <UButton color="primary" @click="closeConfirmationModal">
               Fechar
             </UButton>
@@ -380,6 +408,7 @@ const { user } = storeToRefs(userStore);
 
 const isLoggedIn = computed(() => Boolean(user.value));
 const showConfirmationModal = ref(false);
+const trackingUrl = ref("");
 const loading = ref(true);
 
 // Host (Ponto Focal) fields - pre-filled with logged-in user data
@@ -621,8 +650,18 @@ const onLogin = () => {
   redirectToID(route.fullPath);
 };
 
+const copyTrackingUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(trackingUrl.value);
+    useToast().add({ title: "Link copiado!", color: "success" });
+  } catch {
+    useToast().add({ title: "Erro ao copiar link", color: "error" });
+  }
+};
+
 const closeConfirmationModal = () => {
   showConfirmationModal.value = false;
+  trackingUrl.value = "";
   // Reset form state
   store.selectedDates = [];
   calendarValue.value = [];
@@ -687,13 +726,18 @@ const submit = async () => {
         zipCode: addressZipCode.value.replace(/\D/g, ""),
       },
     };
-    const res = await fetchWithAuth(
+    const res = await fetchWithAuth<{ success: boolean; data: { accessToken?: string } }>(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,
       {
         method: "POST",
         body: payload as any,
       }
     );
+    const token = res?.data?.accessToken;
+    if (token) {
+      const baseUrl = window.location.origin;
+      trackingUrl.value = `${baseUrl}/agendar/acompanhar/${token}`;
+    }
     showConfirmationModal.value = true;
   } catch (e: any) {
     // Verificar se é o erro de solicitação duplicada

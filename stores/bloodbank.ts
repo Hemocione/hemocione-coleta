@@ -111,6 +111,7 @@ export interface CollectionRequest {
     phone: string;
   };
   address?: StructuredAddress;
+  accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status:

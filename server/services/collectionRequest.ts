@@ -72,6 +72,7 @@ export interface CollectionRequestWithDetails {
     phone: string;
   };
   address?: StructuredAddress;
+  accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status: "pending" | "accepted" | "rejected" | "cancelled";
@@ -791,14 +792,15 @@ export interface CollectionRequestPublicDetails {
     changedAt: Date;
     reason?: string;
   }>;
+  accessToken?: string;
   createdAt: Date;
 }
 
-export async function getCollectionRequestPublic(
-  requestId: string
+export async function getCollectionRequestPublicByToken(
+  accessToken: string
 ): Promise<CollectionRequestPublicDetails | null> {
   const request = await CollectionRequest.findOne({
-    _id: requestId,
+    accessToken,
     deletedAt: null,
   }).lean();
 
@@ -806,11 +808,17 @@ export async function getCollectionRequestPublic(
     return null;
   }
 
+  return buildCollectionRequestPublicDetails(request);
+}
+
+async function buildCollectionRequestPublicDetails(
+  request: any
+): Promise<CollectionRequestPublicDetails> {
   const [institutions, bloodBankDoc, availableDates] = await Promise.all([
     getInstitutionsByIds([request.institutionId.toString()]),
     BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
     AvailableDate.find({
-      _id: { $in: request.requestedDates.map((rd) => rd.availableDateId) },
+      _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
       deletedAt: null,
     })
       .populate({ path: "slots.teamId", select: "name", model: Team })
@@ -823,11 +831,11 @@ export async function getCollectionRequestPublic(
   );
 
   const requestedDatesInfo: CollectionRequestPublicDetails["requestedDates"] = [];
-  request.requestedDates.forEach((rd) => {
+  request.requestedDates.forEach((rd: any) => {
     const ad = availableDateMap.get(rd.availableDateId.toString());
     if (!ad) return;
     if (rd.slotIds && rd.slotIds.length > 0) {
-      rd.slotIds.forEach((slotId) => {
+      rd.slotIds.forEach((slotId: any) => {
         const slot = ad.slots.find((s) => s._id.toString() === slotId.toString());
         if (slot) {
           requestedDatesInfo.push({
@@ -872,12 +880,45 @@ export async function getCollectionRequestPublic(
     requestedDates: requestedDatesInfo,
     selectedDate,
     rejectionReason: request.rejectionReason || undefined,
-    statusHistory: (request.statusHistory || []).map((h) => ({
+    statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,
       changedAt: h.changedAt as Date,
       reason: h.reason || undefined,
     })),
     createdAt: request.createdAt as Date,
+  };
+}
+
+export async function getCollectionRequestPublic(
+  requestId: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    deletedAt: null,
+  }).lean();
+
+  if (!request) {
+    return null;
+  }
+
+  return buildCollectionRequestPublicDetails(request);
+}
+
+export async function getCollectionRequestIdByToken(
+  accessToken: string
+): Promise<{ requestId: string; requestedByUserId: string } | null> {
+  const request = await CollectionRequest.findOne({
+    accessToken,
+    deletedAt: null,
+  })
+    .select("_id requestedByUserId")
+    .lean();
+
+  if (!request) return null;
+
+  return {
+    requestId: request._id!.toString(),
+    requestedByUserId: request.requestedByUserId.toString(),
   };
 }
 

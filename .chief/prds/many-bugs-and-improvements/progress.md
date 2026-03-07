@@ -95,3 +95,19 @@
   - Default host values (from authenticated user) are a frontend concern (US-007) — the API just requires the fields to be present
   - The store's `CollectionRequest` interface in `stores/bloodbank.ts` mirrors the server's `CollectionRequestWithDetails` — keep them in sync
 ---
+
+## 2026-03-07 - US-007
+- Added host (Ponto Focal) form fields to the scheduling page (`pages/agendar/[bloodbankSlug]/index.vue`)
+- Fields (Name, Email, Phone) are pre-filled with logged-in user data from `useUserStore` (givenName + surName, email, phone)
+- Fields are editable so the host can be a different person
+- Frontend validation: name required, email format check via regex, phone required
+- Submit button disabled when host fields are invalid (`isHostValid` computed)
+- Host data included in POST payload to institution collection request endpoint
+- Host fields reset to user defaults when confirmation modal is closed
+- Files changed: `pages/agendar/[bloodbankSlug]/index.vue`
+- **Learnings for future iterations:**
+  - User data is available via `useUserStore` → `user.value` with fields `givenName`, `surName`, `email`, `phone`
+  - The institution POST endpoint already has `host` as a required Zod field (added in US-006) — frontend just needs to send it
+  - `UFormField` with `required` prop shows the asterisk indicator; `UInput` handles type="email" and type="tel" natively
+  - Phone mask was not added (just a tel input) — could be enhanced later with a mask library if needed
+---

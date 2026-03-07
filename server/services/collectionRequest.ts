@@ -96,11 +96,6 @@ export async function getCollectionRequestsByBloodBank(
     // For now, we'll skip date filtering
   }
 
-  console.log("=== DEBUG getCollectionRequestsByBloodBank ===");
-  console.log("bloodBanksLocationId:", bloodBanksLocationId);
-  console.log("typeof bloodBanksLocationId:", typeof bloodBanksLocationId);
-  console.log("query:", JSON.stringify(query, null, 2));
-
   // Get total count
   const [total, requests] = await Promise.all([
     CollectionRequest.countDocuments(query),
@@ -110,7 +105,6 @@ export async function getCollectionRequestsByBloodBank(
       .limit(limit)
       .lean(),
   ]);
-  console.log("total:", total);
 
   // Get unique institution IDs
   const institutionIds = Array.from(
@@ -232,12 +226,12 @@ export async function getCollectionRequestsByBloodBank(
       return request !== null;
     });
 
-  const pages = Math.ceil(requestsWithDetails.length / limit);
+  const pages = Math.ceil(total / limit);
 
   return {
     data: requestsWithDetails as unknown as CollectionRequestWithDetails[],
     pagination: {
-      total: requestsWithDetails.length,
+      total,
       page,
       limit,
       pages,

@@ -7,6 +7,7 @@
 - Use `fetchWithAuth` from `~/composables/useFetchWithAuth` for API calls
 - Nuxt UI components: `UAlert`, `UCard`, `USkeleton`, `UButton`, `UIcon`, `UAvatar`
 - When store actions change entity status (accept/reject/cancel), also update `dashboardData` counts manually since it's a separate cached snapshot
+- When store actions change an entity's status, REMOVE the item from `collectionRequests.data` (filter it out) instead of updating in-place, so it disappears from the current tab
 
 ---
 
@@ -30,4 +31,16 @@
   - `dashboardData` is loaded once from the dashboard API and cached in the store — any action that changes the underlying data must also update `dashboardData` manually
   - The pending alert visibility is controlled by `(dashboardData?.pendingRequestsCount || 0) > 0` in the template — direct mutation of the count is sufficient for reactivity
   - Accept and reject actions already update `collectionRequests.data` locally but were missing the dashboard count update
+---
+
+## 2026-03-07 - US-003
+- Fixed accepted requests appearing in the "Pendentes" tab by changing store actions (accept/reject/cancel) to remove the item from the list instead of updating in-place
+- Fixed backend pagination using `requestsWithDetails.length` instead of original MongoDB `total` count
+- Removed debug console.log statements from `getCollectionRequestsByBloodBank`
+- Files changed: `stores/bloodbank.ts`, `server/services/collectionRequest.ts`
+- **Learnings for future iterations:**
+  - The collection requests listing page (`pages/[bloodbankSlug]/coletas/index.vue`) uses tabs with status filters — each tab shows only requests with that status
+  - The store's `collectionRequests.data` is the list rendered in the current tab — when a status changes, the item must be REMOVED (not updated) so it no longer appears in the wrong tab
+  - The same pattern applies to accept, reject, and cancel actions — all three should filter out the item
+  - Backend pagination in `getCollectionRequestsByBloodBank` was incorrectly recalculated after institution filtering — use the original MongoDB `total` from `countDocuments`
 ---

@@ -2,7 +2,9 @@
 - Dashboard page is at `pages/[bloodbankSlug]/index.vue`, store at `stores/bloodbank.ts`
 - Store has separate loading flags: `isLoading` (bloodbank data), `isLoadingDashboard`, `isLoadingTeams`, etc.
 - Use `storeToRefs` for reactive store state, direct store access for actions
-- Pre-existing type errors exist in: `pages/agendar/[bloodbankSlug]/index.vue`, `server/models/*.ts` (InferSchemaType import), `server/services/team.ts` (ObjectId null)
+- Pre-existing type errors exist in: `pages/agendar/[bloodbankSlug]/index.vue`, `server/models/*.ts` (InferSchemaType import), `server/services/team.ts` (ObjectId null), `stores/bloodbank.ts:888` (DELETE response unknown)
+- CollectionRequest has `accessToken` field (crypto random hex, 64 chars) generated on creation — used for public tracking URL
+- Public tracking page route: `/agendar/acompanhar/[token]`, API: `/api/v1/public/collection-requests/track/[token]`
 - Calendar page is at `pages/[bloodbankSlug]/calendario/index.vue`, uses `UCalendar` + `UChip` for availability indicators
 - AvailableDate model has a virtual `allSlotsLocked` but `.lean()` doesn't include virtuals — compute locked state client-side using `slot.locked || slot.lockedBy`
 - Slot locked state should check BOTH `slot.locked` and `slot.lockedBy` for consistency with the Mongoose virtual
@@ -289,4 +291,39 @@
   - The technical visits data is already loaded by `loadTechnicalVisits()` in `onMounted` — no additional API calls needed for the badge
   - Computed properties derived from `ref<Array>` are reactive — changing `technicalVisits.value` updates the badge automatically
   - For status indicators, a simple styled div with icon + text is more prominent than a UBadge component
+---
+
+## 2026-03-07 - US-018
+- Added `accessToken` field to CollectionRequest model — auto-generated 64-char hex string via `randomBytes(32).toString("hex")` on creation
+- Added unique index on `accessToken` for fast lookups
+- Created token-based public API routes: `GET /api/v1/public/collection-requests/track/[token]` and `POST .../withdraw`
+- Added `getCollectionRequestPublicByToken` and `getCollectionRequestIdByToken` service functions
+- Extracted shared `buildCollectionRequestPublicDetails` helper to avoid code duplication between requestId and token lookups
+- Renamed page route from `/agendar/acompanhar/[requestId]` to `/agendar/acompanhar/[token]` — page now uses token-based API
+- Updated institution creation endpoint to return `accessToken` in response
+- Added tracking URL display in scheduling confirmation modal with copy-to-clipboard and "Acompanhar Pedido" button
+- Added `accessToken` to `CollectionRequestWithDetails` and `CollectionRequestPublicDetails` interfaces, and store's `CollectionRequest` interface
+- Files changed: `server/models/collectionRequest.ts`, `server/services/collectionRequest.ts`, `stores/bloodbank.ts`, `pages/agendar/[bloodbankSlug]/index.vue`, `pages/agendar/acompanhar/[token]/index.vue` (renamed), `server/api/v1/institutions/[institutionId]/collection-requests/index.post.ts`, `server/api/v1/public/collection-requests/track/[token]/index.get.ts` (new), `server/api/v1/public/collection-requests/track/[token]/withdraw.post.ts` (new)
+- **Learnings for future iterations:**
+  - Mongoose `default` can be a function: `default: () => randomBytes(32).toString("hex")` — runs on each document creation
+  - When refactoring a function to support multiple lookup methods (by ID vs by token), extract the shared logic into a private helper
+  - The old requestId-based public API routes still exist for backward compatibility — could be removed later
+  - `navigator.clipboard.writeText()` is the modern way to copy text — needs try/catch as it can fail in non-secure contexts
+  - `fetchWithAuth` can be typed with a generic parameter: `fetchWithAuth<{ success: boolean; data: T }>()`
+---
+
+## 2026-03-07 - US-019
+- Created `server/services/notification.ts` with `sendWhatsAppNotification` function
+- Function accepts `userId`, `templateName`, and `params` (Record<string, string>)
+- Authenticates with hemocione-id via `x-secret` header using `HEMOCIONE_ID_INTEGRATION_SECRET` (already in runtimeConfig)
+- Calls `POST {baseUrl}/notifications/whatsapp` on the hemocione-id notification API
+- Falls back to `hemocioneIdApiUrl` if dedicated notification URL not configured
+- Error handling: logs failures but returns `false` instead of throwing — never blocks the main flow
+- Added `hemocioneIdNotificationApiUrl` env var to `nuxt.config.ts` runtimeConfig
+- Files changed: `server/services/notification.ts` (new), `nuxt.config.ts`
+- **Learnings for future iterations:**
+  - The notification service follows fire-and-forget pattern — callers should `await` but not depend on success
+  - `$fetch` is Nitro's built-in HTTP client — no need for axios or node-fetch
+  - `x-secret` header is the pattern for server-to-server auth with hemocione-id (see `getInstitutionsByIds` in hemocioneId.ts)
+  - The service returns `boolean` (success/failure) rather than throwing — this makes it safe to call without try/catch in consumers
 ---

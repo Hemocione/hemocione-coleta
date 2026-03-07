@@ -200,3 +200,21 @@
   - Fire-and-forget pattern: call the async function without `await` and chain `.catch()` to log errors — this returns the response immediately while the job runs in background
   - `team._id` from Mongoose can be `ObjectId | null` — use `!.toString()` when you know the team was just created
 ---
+
+## 2026-03-07 - US-013
+- Implemented bulk available dates API endpoint `PUT /api/v1/bloodbank/[bloodbanksLocationId]/available-dates/bulk`
+- Added `bulkSetAvailableDates` service function that processes up to 366 entries per call
+- Creates dates with default 08:00-17:00 times (in blood bank timezone) when `isAvailable === true` and date doesn't exist
+- Soft deletes dates when `isAvailable === false` and no locked slots exist
+- Skips past dates, already-existing dates (for creation), and non-existing dates (for deletion)
+- Returns summary: `{ created, deleted, skipped, errors[] }`
+- Zod validation for the entire payload with date format, boolean, and optional teamId
+- Idempotent: duplicate creation attempts are caught via unique index (11000) and counted as skipped
+- Files changed: `server/services/availableDate.ts`, `server/api/v1/bloodbank/[bloodbanksLocationId]/available-dates/bulk.put.ts` (new)
+- **Learnings for future iterations:**
+  - Bulk operations should pre-fetch all needed data (existing dates, teams) to avoid N+1 queries
+  - Use `Map` for O(1) lookups when matching entries against existing records
+  - Mongoose duplicate key error code is `11000` — catch it for idempotent creates
+  - Blood bank timezone is fetched via `getBloodBankByBloodBanksLocationId` — defaults to `America/Sao_Paulo`
+  - The `z.string().nullish()` Zod type allows both `null` and `undefined` — useful for optional fields that can be explicitly null
+---

@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
+import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import {
   createCommitmentTerm,
   getTemplateForBloodBank,
   renderTemplate,
 } from "~/server/services/commitmentTerm";
+import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
 
 const createCommitmentTermSchema = z.object({
   collectionRequestId: z.string().nullish(),
@@ -64,6 +66,34 @@ export default defineEventHandler(async (event) => {
       sentTo: parsed.data.sentTo,
       status: parsed.data.status,
     });
+
+    // Fire-and-forget: send WhatsApp notification with term link
+    if (parsed.data.status === "sent" && parsed.data.sentTo) {
+      (async () => {
+        try {
+          const bloodBank =
+            await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
+          const baseUrl = process.env.NUXT_PUBLIC_BASE_URL || "";
+          const termUrl = `${baseUrl}/termo/${term.accessToken}`;
+
+          sendWhatsAppNotificationToPhone({
+            phone: parsed.data.sentTo,
+            templateName: "commitment_term_generated",
+            params: {
+              bloodBankName: bloodBank?.name || "",
+              termUrl,
+              hostName:
+                parsed.data.templateParams?.hostName || "",
+            },
+          }).catch(() => {});
+        } catch (err) {
+          console.error(
+            "[commitment-term] Failed to send WhatsApp notification:",
+            err
+          );
+        }
+      })();
+    }
 
     return {
       success: true,

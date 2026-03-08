@@ -105,6 +105,18 @@
                   >
                     {{ getOutcomeLabel(visit.outcome) }}
                   </UBadge>
+                  <UButton
+                    v-if="visit.outcome === 'approved'"
+                    variant="soft"
+                    color="primary"
+                    size="xs"
+                    icon="i-lucide-file-signature"
+                    :loading="generatingTermForVisit === visit._id"
+                    @click.stop="generateTermForVisit(visit)"
+                    class="cursor-pointer"
+                  >
+                    Gerar Termo
+                  </UButton>
                 </div>
 
                 <!-- Notes (truncated) -->
@@ -223,6 +235,7 @@
 
 <script setup lang="ts">
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
+import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -237,6 +250,8 @@ definePageMeta({
 
 const route = useRoute();
 const userStore = useUserStore();
+const bloodbankStore = useBloodbankStore();
+const { bloodbankData } = storeToRefs(bloodbankStore);
 
 const currentBloodBankRole = computed(() => userStore.currentBloodBankRole);
 const bloodBanksLocationId = computed(
@@ -438,6 +453,56 @@ const getOutcomeLabel = (outcome: string) => {
 
 const formatDate = (date: string | Date) => {
   return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY");
+};
+
+// Commitment term generation
+const generatingTermForVisit = ref<string | null>(null);
+
+const generateTermForVisit = async (visit: TechnicalVisit) => {
+  if (!bloodBanksLocationId.value) return;
+  generatingTermForVisit.value = visit._id;
+
+  try {
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/commitment-terms`,
+      {
+        method: "POST",
+        body: {
+          technicalVisitId: visit._id,
+          sentTo: visit.address,
+          templateParams: {
+            bloodBankName: bloodbankData.value?.name || "",
+            address: visit.address,
+            date: new Date().toLocaleDateString("pt-BR"),
+            institutionName: "",
+            hostName: "",
+          },
+          status: "draft",
+        },
+      }
+    ) as any;
+
+    if (response.success && response.data?.accessToken) {
+      const termUrl = `${window.location.origin}/termo/${response.data.accessToken}`;
+      window.open(termUrl, "_blank");
+      useToast().add({
+        title: "Termo gerado!",
+        description: "O termo de compromisso foi gerado com sucesso.",
+        color: "success",
+        duration: 5000,
+      });
+    }
+  } catch (err: any) {
+    console.error("Error generating commitment term:", err);
+    useToast().add({
+      title: "Erro ao gerar termo",
+      description: err.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    generatingTermForVisit.value = null;
+  }
 };
 
 // Watchers

@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { type InferSchemaType, Schema, model } from "mongoose";
 
 export const CommitmentTermSchema = new Schema(
@@ -24,12 +25,19 @@ export const CommitmentTermSchema = new Schema(
       default: "draft",
     },
     acknowledgedAt: { type: Date, required: false, default: null },
+    accessToken: {
+      type: String,
+      required: true,
+      unique: true,
+      default: () => randomBytes(32).toString("hex"),
+    },
   },
   { timestamps: true }
 );
 
 CommitmentTermSchema.index({ bloodBanksLocationId: 1, collectionRequestId: 1 });
 CommitmentTermSchema.index({ bloodBanksLocationId: 1, technicalVisitId: 1 });
+CommitmentTermSchema.index({ accessToken: 1 }, { unique: true });
 
 export type CommitmentTermSchema = InferSchemaType<typeof CommitmentTermSchema>;
 

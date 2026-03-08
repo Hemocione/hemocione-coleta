@@ -34,6 +34,7 @@ export interface CommitmentTermData {
   sentAt?: Date | null;
   status: "draft" | "sent" | "acknowledged";
   acknowledgedAt?: Date | null;
+  accessToken: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -127,4 +128,35 @@ export async function getCommitmentTermById(
     _id: termId,
     bloodBanksLocationId,
   }).lean()) as CommitmentTermData | null;
+}
+
+export async function getCommitmentTermByToken(
+  token: string
+): Promise<CommitmentTermData | null> {
+  return (await CommitmentTerm.findOne({
+    accessToken: token,
+  }).lean()) as CommitmentTermData | null;
+}
+
+export async function acknowledgeCommitmentTerm(
+  token: string
+): Promise<CommitmentTermData | null> {
+  const term = await CommitmentTerm.findOneAndUpdate(
+    { accessToken: token, status: { $in: ["draft", "sent"] } },
+    { status: "acknowledged", acknowledgedAt: new Date() },
+    { new: true }
+  ).lean();
+  return term as CommitmentTermData | null;
+}
+
+export async function markCommitmentTermSent(
+  termId: string | Types.ObjectId,
+  sentAt?: Date
+): Promise<CommitmentTermData | null> {
+  const term = await CommitmentTerm.findOneAndUpdate(
+    { _id: termId, status: "draft" },
+    { status: "sent", sentAt: sentAt || new Date() },
+    { new: true }
+  ).lean();
+  return term as CommitmentTermData | null;
 }

@@ -13,6 +13,7 @@ import { getInstitutionsByIds } from "./hemocioneId";
 
 export interface CollectionRequestFilters {
   status?: string;
+  institutionId?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -106,6 +107,10 @@ export async function getCollectionRequestsByBloodBank(
 
   if (filters.status) {
     query.status = filters.status;
+  }
+
+  if (filters.institutionId) {
+    query.institutionId = filters.institutionId;
   }
 
   if (filters.dateFrom || filters.dateTo) {

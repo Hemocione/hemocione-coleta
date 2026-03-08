@@ -553,6 +553,44 @@
           </UButton>
         </div>
 
+        <!-- Generate Commitment Term Button -->
+        <div class="pt-2">
+          <UButton
+            variant="outline"
+            color="primary"
+            icon="i-lucide-file-signature"
+            :loading="isGeneratingTerm"
+            class="w-full cursor-pointer"
+            @click="generateCommitmentTerm"
+          >
+            Gerar Termo de Compromisso
+          </UButton>
+        </div>
+
+        <!-- Commitment Term Link (after generation) -->
+        <UCard v-if="generatedTermUrl">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Termo de Compromisso
+            </h3>
+          </template>
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-file-check" class="w-5 h-5 text-green-600 shrink-0" />
+            <p class="text-sm text-gray-700 flex-1">
+              Termo gerado com sucesso e enviado ao ponto focal.
+            </p>
+            <UButton
+              variant="soft"
+              size="sm"
+              icon="i-lucide-external-link"
+              @click="openTermUrl"
+              class="cursor-pointer"
+            >
+              Visualizar
+            </UButton>
+          </div>
+        </UCard>
+
         <!-- Back Button -->
         <div class="flex items-center justify-start pt-6 border-t">
           <UButton
@@ -1100,6 +1138,67 @@ const confirmCancel = async () => {
     });
   } finally {
     isCancelling.value = false;
+  }
+};
+
+// Commitment term generation
+const isGeneratingTerm = ref(false);
+const generatedTermUrl = ref<string | null>(null);
+
+const generateCommitmentTerm = async () => {
+  if (!bloodBanksLocationId.value || !currentCollectionRequest.value) return;
+  isGeneratingTerm.value = true;
+  try {
+    const req = currentCollectionRequest.value;
+    const addr = req.address
+      ? formatStructuredAddress(req.address)
+      : req.institutionAddress;
+
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/commitment-terms`,
+      {
+        method: "POST",
+        body: {
+          collectionRequestId: req._id,
+          sentTo: req.host?.phone || req.host?.email || "",
+          templateParams: {
+            institutionName: req.institutionName || "",
+            address: addr || "",
+            bloodBankName: bloodbankData.value?.name || "",
+            hostName: req.host?.name || "",
+            date: new Date().toLocaleDateString("pt-BR"),
+          },
+          status: "sent",
+        },
+      }
+    ) as any;
+
+    if (response.success && response.data?.accessToken) {
+      const baseUrl = window.location.origin;
+      generatedTermUrl.value = `${baseUrl}/termo/${response.data.accessToken}`;
+      useToast().add({
+        title: "Termo gerado!",
+        description: "O termo de compromisso foi gerado e enviado ao ponto focal.",
+        color: "success",
+        duration: 5000,
+      });
+    }
+  } catch (err: any) {
+    console.error("Error generating commitment term:", err);
+    useToast().add({
+      title: "Erro ao gerar termo",
+      description: err.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isGeneratingTerm.value = false;
+  }
+};
+
+const openTermUrl = () => {
+  if (generatedTermUrl.value) {
+    window.open(generatedTermUrl.value, "_blank");
   }
 };
 

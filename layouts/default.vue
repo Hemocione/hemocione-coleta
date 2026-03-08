@@ -316,6 +316,7 @@ const currentPageTitle = computed(() => {
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/equipes")) return "Equipes";
   if (path.includes("/restricoes")) return "Restrições";
+  if (path.includes("/termo-compromisso")) return "Termo de Compromisso";
   if (path.includes("/visitas-tecnicas")) return "Visitas Técnicas";
   if (path.includes("/coletas")) return "Coletas";
   return "Painel";
@@ -331,6 +332,8 @@ const currentPageDescription = computed(() => {
     return "Organize as equipes disponíveis para coleta";
   if (path.includes("/restricoes"))
     return "Defina restrições e regras para coleta externa";
+  if (path.includes("/termo-compromisso"))
+    return "Configure o template e geração automática do termo";
   if (path.includes("/visitas-tecnicas"))
     return "Gerencie as visitas técnicas realizadas";
   if (path.includes("/coletas"))
@@ -374,6 +377,11 @@ const navigationItems = [
     label: "Visitas Técnicas",
     icon: "i-lucide-clipboard-check",
     to: `/${bloodbankSlug.value}/visitas-tecnicas`,
+  },
+  {
+    label: "Termo de Compromisso",
+    icon: "i-lucide-file-signature",
+    to: `/${bloodbankSlug.value}/termo-compromisso`,
   },
 ];
 

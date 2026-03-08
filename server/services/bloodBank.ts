@@ -181,6 +181,49 @@ export async function deleteRestrictionItem(
   return updatedBloodBank?.restrictionChecklist || [];
 }
 
+// Commitment Term Settings
+
+export async function getCommitmentTermSettings(bloodBanksLocationId: string) {
+  const bloodBank = await BloodBank.findOne(
+    { bloodBanksLocationId },
+    { commitmentTermTemplate: 1, autoGenerateCommitmentTerm: 1 }
+  ).lean();
+
+  return {
+    commitmentTermTemplate: bloodBank?.commitmentTermTemplate || null,
+    autoGenerateCommitmentTerm: bloodBank?.autoGenerateCommitmentTerm || false,
+  };
+}
+
+export async function updateCommitmentTermSettings(
+  bloodBanksLocationId: string,
+  settings: {
+    commitmentTermTemplate?: string | null;
+    autoGenerateCommitmentTerm?: boolean;
+  }
+) {
+  const updateFields: Record<string, any> = {};
+
+  if (settings.commitmentTermTemplate !== undefined) {
+    updateFields.commitmentTermTemplate = settings.commitmentTermTemplate;
+  }
+  if (settings.autoGenerateCommitmentTerm !== undefined) {
+    updateFields.autoGenerateCommitmentTerm =
+      settings.autoGenerateCommitmentTerm;
+  }
+
+  const updated = await BloodBank.findOneAndUpdate(
+    { bloodBanksLocationId },
+    { $set: updateFields },
+    { new: true, lean: true }
+  );
+
+  return {
+    commitmentTermTemplate: updated?.commitmentTermTemplate || null,
+    autoGenerateCommitmentTerm: updated?.autoGenerateCommitmentTerm || false,
+  };
+}
+
 // Blood Bank Creation
 export interface CreateBloodBankData {
   name: string;

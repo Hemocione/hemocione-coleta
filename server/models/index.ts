@@ -3,5 +3,13 @@ import * as team from "./team";
 import * as availableDate from "./availableDate";
 import * as collectionRequest from "./collectionRequest";
 import * as technicalVisit from "./technicalVisit";
+import * as commitmentTerm from "./commitmentTerm";
 
-export { bloodBank, availableDate, collectionRequest, team, technicalVisit };
+export {
+  bloodBank,
+  availableDate,
+  collectionRequest,
+  team,
+  technicalVisit,
+  commitmentTerm,
+};

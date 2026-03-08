@@ -140,6 +140,17 @@ export const BloodBankSchema = new Schema(
       default: "America/Sao_Paulo",
       required: true,
     },
+    commitmentTermTemplate: {
+      type: String,
+      required: false,
+      maxlength: 10000,
+      default: null,
+    },
+    autoGenerateCommitmentTerm: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   { timestamps: true }
 );

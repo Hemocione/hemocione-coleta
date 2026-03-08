@@ -97,3 +97,4 @@ sw.*
 test-results/
 playwright-report/
 bruno
+.chief/

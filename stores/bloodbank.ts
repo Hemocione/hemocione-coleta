@@ -53,6 +53,7 @@ export interface Slot {
   startTime: Date;
   endTime: Date;
   locked: boolean;
+  lockedBy?: string | null;
   startTimeStr?: string;
   endTimeStr?: string;
 }
@@ -68,6 +69,16 @@ export interface AvailableDate {
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface StructuredAddress {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
 }
 
 export interface CollectionRequest {
@@ -86,14 +97,21 @@ export interface CollectionRequest {
   availableSlotOptions: Array<{
     availableDateId: string;
     slotId: string;
-    date: string; // This is a string from the database
-    startTime?: Date; // These are already correct as Date objects
-    endTime?: Date; // These are already correct as Date objects
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
     teamName?: string;
     teamColor?: string;
     isLocked?: boolean;
-    isRequested?: boolean; // Indicates if this slot was specifically requested
+    isRequested?: boolean;
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  address?: StructuredAddress;
+  accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status:
@@ -1005,19 +1023,24 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          // Update local state
-          const requestIndex = this.collectionRequests.data.findIndex(
-            (req) => req._id === requestId
+          // Remove the request from the current list since its status changed
+          this.collectionRequests.data = this.collectionRequests.data.filter(
+            (req) => req._id !== requestId
           );
-          if (requestIndex !== -1) {
-            this.collectionRequests.data[requestIndex] = {
+          this.collectionRequests.pagination.total = Math.max(
+            0,
+            this.collectionRequests.pagination.total - 1
+          );
+
+          // Update current collection request if it's the same
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
               availableSlotOptions: response.data.availableSlotOptions.map(
                 (slot: any) => ({
                   ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
                   startTime: slot.startTime,
                   endTime: slot.endTime,
                 })
@@ -1029,25 +1052,9 @@ export const useBloodbankStore = defineStore("bloodbank", {
             };
           }
 
-          // Update current collection request if it's the same
-          if (this.currentCollectionRequest?._id === requestId) {
-            this.currentCollectionRequest = {
-              ...response.data,
-              createdAt: new Date(response.data.createdAt),
-              updatedAt: new Date(response.data.updatedAt),
-              availableSlotOptions: response.data.availableSlotOptions.map(
-                (slot: any) => ({
-                  ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
-                  startTime: slot.startTime,
-                  endTime: slot.endTime,
-                })
-              ),
-              statusHistory: response.data.statusHistory.map((sh: any) => ({
-                ...sh,
-                changedAt: new Date(sh.changedAt),
-              })),
-            };
+          // Decrement pending requests count in dashboard
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
           }
 
           return response.data;
@@ -1080,19 +1087,24 @@ export const useBloodbankStore = defineStore("bloodbank", {
         );
 
         if (response.success) {
-          // Update local state
-          const requestIndex = this.collectionRequests.data.findIndex(
-            (req) => req._id === requestId
+          // Remove the request from the current list since its status changed
+          this.collectionRequests.data = this.collectionRequests.data.filter(
+            (req) => req._id !== requestId
           );
-          if (requestIndex !== -1) {
-            this.collectionRequests.data[requestIndex] = {
+          this.collectionRequests.pagination.total = Math.max(
+            0,
+            this.collectionRequests.pagination.total - 1
+          );
+
+          // Update current collection request if it's the same
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
               availableSlotOptions: response.data.availableSlotOptions.map(
                 (slot: any) => ({
                   ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
                   startTime: slot.startTime,
                   endTime: slot.endTime,
                 })
@@ -1104,25 +1116,9 @@ export const useBloodbankStore = defineStore("bloodbank", {
             };
           }
 
-          // Update current collection request if it's the same
-          if (this.currentCollectionRequest?._id === requestId) {
-            this.currentCollectionRequest = {
-              ...response.data,
-              createdAt: new Date(response.data.createdAt),
-              updatedAt: new Date(response.data.updatedAt),
-              availableSlotOptions: response.data.availableSlotOptions.map(
-                (slot: any) => ({
-                  ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
-                  startTime: slot.startTime,
-                  endTime: slot.endTime,
-                })
-              ),
-              statusHistory: response.data.statusHistory.map((sh: any) => ({
-                ...sh,
-                changedAt: new Date(sh.changedAt),
-              })),
-            };
+          // Decrement pending requests count in dashboard
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
           }
 
           return response.data;
@@ -1155,6 +1151,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
 
     async cancelCollectionRequest(
       requestId: string,
+      cancellationReason: string,
       bloodBanksLocationId: string
     ) {
       this.error = null;
@@ -1163,34 +1160,23 @@ export const useBloodbankStore = defineStore("bloodbank", {
         const response = await fetchWithAuth(
           `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/cancel`,
           {
-            method: "POST" as any,
+            method: "POST",
+            body: {
+              cancellationReason,
+            },
           }
         );
 
         if (response.success) {
           // Update local state
-          const requestIndex = this.collectionRequests.data.findIndex(
-            (req) => req._id === requestId
+          // Remove the request from the current list since its status changed
+          this.collectionRequests.data = this.collectionRequests.data.filter(
+            (req) => req._id !== requestId
           );
-          if (requestIndex !== -1) {
-            this.collectionRequests.data[requestIndex] = {
-              ...response.data,
-              createdAt: new Date(response.data.createdAt),
-              updatedAt: new Date(response.data.updatedAt),
-              availableSlotOptions: response.data.availableSlotOptions.map(
-                (slot: any) => ({
-                  ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
-                  startTime: slot.startTime,
-                  endTime: slot.endTime,
-                })
-              ),
-              statusHistory: response.data.statusHistory.map((sh: any) => ({
-                ...sh,
-                changedAt: new Date(sh.changedAt),
-              })),
-            };
-          }
+          this.collectionRequests.pagination.total = Math.max(
+            0,
+            this.collectionRequests.pagination.total - 1
+          );
 
           // Update current collection request if it's the same
           if (this.currentCollectionRequest?._id === requestId) {
@@ -1201,7 +1187,6 @@ export const useBloodbankStore = defineStore("bloodbank", {
               availableSlotOptions: response.data.availableSlotOptions.map(
                 (slot: any) => ({
                   ...slot,
-                  // Keep dates as strings - they are stored as strings in the database
                   startTime: slot.startTime,
                   endTime: slot.endTime,
                 })

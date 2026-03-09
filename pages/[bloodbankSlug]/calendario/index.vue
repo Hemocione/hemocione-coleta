@@ -24,11 +24,27 @@
             </UChip>
           </template>
         </UCalendar>
+
+        <!-- Legenda -->
+        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-green-500" />
+            <span>Disponível</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-yellow-500" />
+            <span>Parcialmente bloqueado</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-red-500" />
+            <span>Totalmente bloqueado</span>
+          </div>
+        </div>
       </div>
     </UCard>
 
-    <!-- Botão Adicionar Data -->
-    <div class="flex justify-center">
+    <!-- Botões de ação -->
+    <div class="flex justify-center gap-3">
       <UButton
         color="primary"
         icon="i-lucide-plus"
@@ -36,6 +52,14 @@
         size="lg"
       >
         Adicionar data de disponibilidade
+      </UButton>
+      <UButton
+        variant="outline"
+        icon="i-lucide-grid-3x3"
+        @click="navigateTo(`/${route.params.bloodbankSlug}/calendario/configuracao-massa`)"
+        size="lg"
+      >
+        Configuração em Massa
       </UButton>
     </div>
 
@@ -205,6 +229,31 @@
       </template>
     </UModal>
 
+    <!-- Locked Slots Navigation Modal (multiple collection requests) -->
+    <UModal
+      v-model:open="showLockedNavigationModal"
+      title="Coletas vinculadas a esta data"
+    >
+      <template #body>
+        <div class="space-y-3">
+          <p class="text-sm text-gray-600">
+            Esta data possui slots bloqueados por múltiplas coletas. Selecione uma para visualizar:
+          </p>
+          <div
+            v-for="requestId in lockedCollectionRequestIds"
+            :key="requestId"
+            class="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+            @click="navigateToCollectionRequest(requestId)"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">Coleta {{ requestId.slice(-6) }}</span>
+              <UIcon name="i-lucide-arrow-right" class="text-gray-400" />
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
     <!-- Day Detail Modal -->
     <UModal
       v-model:open="showDetailModal"
@@ -263,11 +312,11 @@
               <!-- Badge e botão posicionados no canto superior direito -->
               <div class="absolute top-2 right-2 flex items-center space-x-2">
                 <UBadge
-                  :color="slot.locked ? 'error' : 'success'"
+                  :color="slot.locked || slot.lockedBy ? 'error' : 'success'"
                   variant="subtle"
                   size="xs"
                 >
-                  {{ slot.locked ? "Bloqueado" : "Disponível" }}
+                  {{ slot.locked || slot.lockedBy ? "Bloqueado" : "Disponível" }}
                 </UBadge>
                 <UButton
                   v-if="
@@ -278,7 +327,7 @@
                   size="xs"
                   color="error"
                   icon="i-lucide-trash-2"
-                  :disabled="slot.locked || isUpdating"
+                  :disabled="slot.locked || !!slot.lockedBy || isUpdating"
                   @click="handleRemoveSlot(slot)"
                 >
                   Remover
@@ -301,7 +350,7 @@
                     type="time"
                     size="xs"
                     class="w-20"
-                    :disabled="slot.locked"
+                    :disabled="slot.locked || !!slot.lockedBy"
                     @input="markSlotAsChanged(slot._id)"
                   />
                   <span class="text-xs text-gray-400">–</span>
@@ -313,7 +362,7 @@
                     type="time"
                     size="xs"
                     class="w-20"
-                    :disabled="slot.locked"
+                    :disabled="slot.locked || !!slot.lockedBy"
                     @input="markSlotAsChanged(slot._id)"
                   />
                   <UButton
@@ -514,6 +563,8 @@ const selectedAvailableDate = ref<AvailableDate | null>(null);
 const isSubmitting = ref(false);
 const isUpdating = ref(false);
 const isInitialized = ref(false);
+const showLockedNavigationModal = ref(false);
+const lockedCollectionRequestIds = ref<string[]>([]);
 
 // Edição de horários
 const editingTimes = ref<
@@ -661,7 +712,6 @@ const loadCalendarData = async () => {
 };
 
 const handleDateSelect = (date: CalendarDate | null) => {
-  console.log("date selected", date);
   if (!date || !isInitialized.value) return;
 
   // Converter CalendarDate para Date
@@ -670,14 +720,38 @@ const handleDateSelect = (date: CalendarDate | null) => {
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
 
   if (availableDate) {
-    // Abrir modal de detalhes - não modificar selectedDate aqui
-    selectedAvailableDate.value = availableDate;
-    showDetailModal.value = true;
+    // Check if any slots are locked by collection requests
+    const lockedByIds = [
+      ...new Set(
+        availableDate.slots
+          .filter((slot) => slot.lockedBy)
+          .map((slot) => slot.lockedBy as string)
+      ),
+    ];
+
+    if (lockedByIds.length === 1) {
+      // Single collection request locking slots - navigate directly
+      navigateToCollectionRequest(lockedByIds[0]);
+    } else if (lockedByIds.length > 1) {
+      // Multiple collection requests - show navigation modal
+      lockedCollectionRequestIds.value = lockedByIds;
+      showLockedNavigationModal.value = true;
+    } else {
+      // No locked slots - open detail/edit modal
+      selectedAvailableDate.value = availableDate;
+      showDetailModal.value = true;
+    }
   } else {
     // Abrir modal de criação - selectedDate já está definido pelo v-model
     formState.value.date = date;
     showCreateModal.value = true;
   }
+};
+
+const navigateToCollectionRequest = (requestId: string) => {
+  const bloodbankSlug = route.params.bloodbankSlug as string;
+  showLockedNavigationModal.value = false;
+  navigateTo(`/${bloodbankSlug}/coletas/${requestId}`);
 };
 
 const handleCreateDate = () => {
@@ -1253,7 +1327,9 @@ const isDateUnavailable = (day: DateValue) => {
 };
 
 // Get availability color for calendar day
-const getAvailabilityColor = (day: DateValue) => {
+const getAvailabilityColor = (
+  day: DateValue
+): "error" | "warning" | "success" | undefined => {
   // Don't show chips until data is loaded
   if (!isInitialized.value) {
     return undefined;
@@ -1265,26 +1341,23 @@ const getAvailabilityColor = (day: DateValue) => {
     return undefined; // No availability data
   }
 
-  const hasAvailableSlots = availableDate.slots.some((slot) => !slot.locked);
-  const allSlotsLocked = availableDate.slots.every((slot) => slot.locked);
+  const allSlotsLocked = availableDate.slots.every(
+    (slot) => slot.locked || slot.lockedBy
+  );
 
   if (allSlotsLocked) {
     return "error"; // All slots locked - red
-  } else if (hasAvailableSlots && !allSlotsLocked) {
-    // Check if there's a mix of available and locked slots
-    const availableCount = availableDate.slots.filter(
-      (slot) => !slot.locked
-    ).length;
-    const totalCount = availableDate.slots.length;
-
-    if (availableCount === totalCount) {
-      return "success"; // All available - green
-    } else {
-      return "warning"; // Some available, some locked - yellow
-    }
-  } else {
-    return "success"; // All available - green
   }
+
+  const hasLockedSlots = availableDate.slots.some(
+    (slot) => slot.locked || slot.lockedBy
+  );
+
+  if (hasLockedSlots) {
+    return "warning"; // Some available, some locked - yellow
+  }
+
+  return "success"; // All available - green
 };
 
 // Watchers

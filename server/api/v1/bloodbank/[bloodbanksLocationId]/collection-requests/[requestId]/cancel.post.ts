@@ -1,6 +1,6 @@
-import { rejectCollectionRequest } from "~/server/services/collectionRequest";
-import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
+import { cancelCollectionRequest } from "~/server/services/collectionRequest";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
+import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
 
 export default defineEventHandler(async (event) => {
@@ -29,29 +29,36 @@ export default defineEventHandler(async (event) => {
 
     // Get request body
     const body = await readBody(event);
-    const { rejectionReason } = body;
+    const { cancellationReason } = body;
 
-    if (!rejectionReason || rejectionReason.trim().length === 0) {
+    if (!cancellationReason || cancellationReason.trim().length === 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: "Rejection reason is required",
+        statusMessage: "Cancellation reason is required",
       });
     }
 
-    const rejectedByUserId = event.context.auth.user.id;
+    if (cancellationReason.trim().length > 1000) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Cancellation reason must be at most 1000 characters",
+      });
+    }
 
-    // Reject collection request
-    const updatedRequest = await rejectCollectionRequest(
+    const cancelledByUserId = event.context.auth.user.id;
+
+    // Cancel collection request
+    const updatedRequest = await cancelCollectionRequest(
       requestId,
-      rejectionReason.trim(),
-      rejectedByUserId,
+      cancellationReason.trim(),
+      cancelledByUserId,
       bloodBanksLocationId
     );
 
     if (!updatedRequest) {
       throw createError({
         statusCode: 404,
-        statusMessage: "Collection request not found or cannot be rejected",
+        statusMessage: "Collection request not found or cannot be cancelled",
       });
     }
 
@@ -62,10 +69,10 @@ export default defineEventHandler(async (event) => {
 
       sendWhatsAppNotificationToPhone({
         phone: updatedRequest.host.phone,
-        templateName: "collection_request_rejected",
+        templateName: "collection_request_cancelled",
         params: {
           bloodBankName,
-          rejectionReason: rejectionReason.trim(),
+          cancellationReason: cancellationReason.trim(),
           hostName: updatedRequest.host.name,
         },
       }).catch(() => {});
@@ -74,10 +81,10 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       data: updatedRequest,
-      message: "Collection request rejected successfully",
+      message: "Collection request cancelled successfully",
     };
   } catch (error: any) {
-    console.error("Error rejecting collection request:", error);
+    console.error("Error cancelling collection request:", error);
 
     throw createError({
       statusCode: error.statusCode || 500,

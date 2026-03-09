@@ -225,11 +225,109 @@
           </div>
         </div>
 
+        <!-- Ponto Focal (Host) -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Ponto Focal no Local
+          </h3>
+          <p class="text-xs text-gray-500">
+            Informe os dados da pessoa responsável por receber a equipe de coleta
+            no local.
+          </p>
+          <div class="grid md:grid-cols-2 gap-3">
+            <UFormField label="Nome" required>
+              <UInput
+                v-model="hostName"
+                placeholder="Nome completo"
+                icon="i-lucide-user"
+              />
+            </UFormField>
+            <UFormField label="Email" required>
+              <UInput
+                v-model="hostEmail"
+                placeholder="email@exemplo.com"
+                icon="i-lucide-mail"
+                type="email"
+              />
+            </UFormField>
+            <UFormField label="Telefone" required>
+              <UInput
+                v-model="hostPhone"
+                placeholder="(11) 99999-9999"
+                icon="i-lucide-phone"
+                type="tel"
+              />
+            </UFormField>
+          </div>
+        </div>
+
+        <!-- Endereço do Local da Coleta -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Endereço do Local da Coleta
+          </h3>
+          <p class="text-xs text-gray-500">
+            Informe o endereço onde a coleta será realizada. Pode ser diferente
+            do endereço da instituição.
+          </p>
+          <div class="grid md:grid-cols-2 gap-3">
+            <UFormField label="CEP" required>
+              <UInput
+                :model-value="addressZipCode"
+                @update:model-value="onCepInput"
+                placeholder="00000-000"
+                icon="i-lucide-map-pin"
+                maxlength="9"
+              />
+            </UFormField>
+            <UFormField label="Rua" required>
+              <UInput
+                v-model="addressStreet"
+                placeholder="Nome da rua"
+                icon="i-lucide-map"
+              />
+            </UFormField>
+            <UFormField label="Número" required>
+              <UInput
+                v-model="addressNumber"
+                placeholder="123"
+              />
+            </UFormField>
+            <UFormField label="Complemento">
+              <UInput
+                v-model="addressComplement"
+                placeholder="Sala, andar, bloco..."
+              />
+            </UFormField>
+            <UFormField label="Bairro" required>
+              <UInput
+                v-model="addressNeighborhood"
+                placeholder="Bairro"
+              />
+            </UFormField>
+            <UFormField label="Cidade" required>
+              <UInput
+                v-model="addressCity"
+                placeholder="Cidade"
+              />
+            </UFormField>
+            <UFormField label="Estado" required>
+              <USelect
+                v-model="addressState"
+                :items="brStates"
+                placeholder="UF"
+              />
+            </UFormField>
+          </div>
+        </div>
+
         <div class="mt-4 md:mt-6 flex items-center justify-end">
           <UButton
             :disabled="
               selected.length === 0 ||
-              (restrictions.length > 0 && !hasReadRestrictions)
+              (restrictions.length > 0 && !hasReadRestrictions) ||
+              !isHostValid ||
+              !isAddressValid
             "
             color="primary"
             @click="submit"
@@ -254,8 +352,36 @@
               notificado quando o pedido for aceito ou recusado pelo banco de
               sangue.
             </p>
+            <div v-if="trackingUrl" class="bg-gray-50 rounded-lg p-3 text-sm">
+              <p class="text-gray-600 mb-2">
+                Acompanhe o status da sua solicitação pelo link abaixo:
+              </p>
+              <div class="flex items-center gap-2">
+                <UInput
+                  :model-value="trackingUrl"
+                  readonly
+                  class="flex-1"
+                  size="sm"
+                />
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  icon="i-lucide-copy"
+                  @click="copyTrackingUrl"
+                >
+                  Copiar
+                </UButton>
+              </div>
+            </div>
           </div>
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-2">
+            <UButton
+              v-if="trackingUrl"
+              variant="soft"
+              @click="navigateTo(trackingUrl, { external: true })"
+            >
+              Acompanhar Pedido
+            </UButton>
             <UButton color="primary" @click="closeConfirmationModal">
               Fechar
             </UButton>
@@ -282,13 +408,84 @@ const { user } = storeToRefs(userStore);
 
 const isLoggedIn = computed(() => Boolean(user.value));
 const showConfirmationModal = ref(false);
+const trackingUrl = ref("");
 const loading = ref(true);
+
+// Host (Ponto Focal) fields - pre-filled with logged-in user data
+const hostName = ref("");
+const hostEmail = ref("");
+const hostPhone = ref("");
+
+const initHostFromUser = () => {
+  if (user.value) {
+    hostName.value =
+      `${user.value.givenName || ""} ${user.value.surName || ""}`.trim();
+    hostEmail.value = user.value.email || "";
+    hostPhone.value = user.value.phone || "";
+  }
+};
+
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const isHostValid = computed(
+  () =>
+    hostName.value.trim().length > 0 &&
+    isValidEmail(hostEmail.value) &&
+    hostPhone.value.trim().length > 0
+);
+
+// Address fields - pre-filled from institution if available
+const addressStreet = ref("");
+const addressNumber = ref("");
+const addressComplement = ref("");
+const addressNeighborhood = ref("");
+const addressCity = ref("");
+const addressState = ref("");
+const addressZipCode = ref("");
+
+const brStates = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+].map((s) => ({ label: s, value: s }));
+
+const formatCep = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return digits;
+};
+
+const onCepInput = (value: string) => {
+  addressZipCode.value = formatCep(value);
+};
+
+const isAddressValid = computed(
+  () =>
+    addressStreet.value.trim().length > 0 &&
+    addressNumber.value.trim().length > 0 &&
+    addressNeighborhood.value.trim().length > 0 &&
+    addressCity.value.trim().length > 0 &&
+    addressState.value.length === 2 &&
+    addressZipCode.value.replace(/\D/g, "").length === 8
+);
+
+const initAddressFromInstitution = () => {
+  if (selectedInstitution.value) {
+    addressCity.value = selectedInstitution.value.city || "";
+    addressState.value = selectedInstitution.value.state || "";
+  }
+};
 
 onBeforeMount(async () => {
   loading.value = true;
   if (!selectedInstitution.value) {
     await store.selectFirstInstitution();
   }
+
+  // Pre-fill host fields with user data
+  initHostFromUser();
+  initAddressFromInstitution();
 
   // Load bank info for submission context (only if authenticated and has institution)
   if (isLoggedIn.value && selectedInstitution.value) {
@@ -453,13 +650,30 @@ const onLogin = () => {
   redirectToID(route.fullPath);
 };
 
+const copyTrackingUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(trackingUrl.value);
+    useToast().add({ title: "Link copiado!", color: "success" });
+  } catch {
+    useToast().add({ title: "Erro ao copiar link", color: "error" });
+  }
+};
+
 const closeConfirmationModal = () => {
   showConfirmationModal.value = false;
+  trackingUrl.value = "";
   // Reset form state
   store.selectedDates = [];
   calendarValue.value = [];
   hasReadRestrictions.value = false;
   selectedRangeByDateId.value = {};
+  initHostFromUser();
+  initAddressFromInstitution();
+  addressStreet.value = "";
+  addressNumber.value = "";
+  addressComplement.value = "";
+  addressNeighborhood.value = "";
+  addressZipCode.value = "";
 };
 
 const submit = async () => {
@@ -497,14 +711,33 @@ const submit = async () => {
       requestedDates: selected.value.map((d) => ({
         availableDateId: d.availableDateId,
       })),
+      host: {
+        name: hostName.value.trim(),
+        email: hostEmail.value.trim(),
+        phone: hostPhone.value.trim(),
+      },
+      address: {
+        street: addressStreet.value.trim(),
+        number: addressNumber.value.trim(),
+        complement: addressComplement.value.trim() || undefined,
+        neighborhood: addressNeighborhood.value.trim(),
+        city: addressCity.value.trim(),
+        state: addressState.value,
+        zipCode: addressZipCode.value.replace(/\D/g, ""),
+      },
     };
-    const res = await fetchWithAuth(
+    const res = await fetchWithAuth<{ success: boolean; data: { accessToken?: string } }>(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,
       {
         method: "POST",
         body: payload as any,
       }
     );
+    const token = res?.data?.accessToken;
+    if (token) {
+      const baseUrl = window.location.origin;
+      trackingUrl.value = `${baseUrl}/agendar/acompanhar/${token}`;
+    }
     showConfirmationModal.value = true;
   } catch (e: any) {
     // Verificar se é o erro de solicitação duplicada

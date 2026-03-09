@@ -311,16 +311,20 @@ const isActiveRoute = (routePath: string) => {
 // Page title and description based on current route
 const currentPageTitle = computed(() => {
   const path = route.path;
+  if (path.includes("/calendario/configuracao-massa")) return "Configuração em Massa";
   if (path.includes("/calendario")) return "Calendário";
   if (path.includes("/cobertura")) return "Área de Cobertura";
   if (path.includes("/equipes")) return "Equipes";
   if (path.includes("/restricoes")) return "Restrições";
+  if (path.includes("/termo-compromisso")) return "Termo de Compromisso";
+  if (path.includes("/visitas-tecnicas")) return "Visitas Técnicas";
   if (path.includes("/coletas")) return "Coletas";
   return "Painel";
 });
 
 const currentPageDescription = computed(() => {
   const path = route.path;
+  if (path.includes("/calendario/configuracao-massa")) return "Configure a disponibilidade do ano inteiro";
   if (path.includes("/calendario")) return "Gerencie o calendário de coletas";
   if (path.includes("/cobertura"))
     return "Área de cobertura para coleta externa";
@@ -328,6 +332,10 @@ const currentPageDescription = computed(() => {
     return "Organize as equipes disponíveis para coleta";
   if (path.includes("/restricoes"))
     return "Defina restrições e regras para coleta externa";
+  if (path.includes("/termo-compromisso"))
+    return "Configure o template e geração automática do termo";
+  if (path.includes("/visitas-tecnicas"))
+    return "Gerencie as visitas técnicas realizadas";
   if (path.includes("/coletas"))
     return "Gerencie as coletas externas e solicitações";
   return "Painel de controle";
@@ -364,6 +372,16 @@ const navigationItems = [
     label: "Restrições",
     icon: "i-lucide-shield-alert",
     to: `/${bloodbankSlug.value}/restricoes`,
+  },
+  {
+    label: "Visitas Técnicas",
+    icon: "i-lucide-clipboard-check",
+    to: `/${bloodbankSlug.value}/visitas-tecnicas`,
+  },
+  {
+    label: "Termo de Compromisso",
+    icon: "i-lucide-file-signature",
+    to: `/${bloodbankSlug.value}/termo-compromisso`,
   },
 ];
 

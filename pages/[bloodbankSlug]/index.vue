@@ -1,10 +1,27 @@
 <template>
-  <div class="space-y-6" v-auto-animate>
+  <div class="space-y-6">
     <!-- Loading State -->
     <Transition name="fade" mode="out-in">
       <div v-if="isLoading" class="space-y-6">
         <USkeleton class="h-16 w-full rounded-lg" />
         <USkeleton class="h-64 w-full rounded-lg" />
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="hasError" class="text-center py-12">
+        <UIcon
+          name="i-lucide-alert-circle"
+          class="w-16 h-16 text-red-400 mx-auto mb-4"
+        />
+        <h3 class="text-lg font-medium text-gray-900 mb-2">
+          Erro ao carregar dados
+        </h3>
+        <p class="text-gray-600 mb-4">
+          Não foi possível carregar os dados do painel.
+        </p>
+        <UButton color="primary" @click="loadDashboardData">
+          Tentar novamente
+        </UButton>
       </div>
 
       <!-- Dashboard Content -->
@@ -450,7 +467,11 @@ const bloodBanksLocationId = computed(
 const { dashboardData, isLoadingDashboard, bloodbankData } =
   storeToRefs(bloodbankStore);
 
-const isLoading = computed(() => isLoadingDashboard.value);
+const isLoadingBloodbank = computed(() => bloodbankStore.isLoading);
+const isLoading = computed(
+  () => isLoadingDashboard.value || isLoadingBloodbank.value
+);
+const hasError = ref(false);
 
 // Modal state
 const showLocationModal = ref(false);
@@ -463,8 +484,10 @@ const mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 const loadDashboardData = async () => {
   if (!bloodBanksLocationId.value) return;
 
+  hasError.value = false;
+
   try {
-    // Load both dashboard data and bloodbank data
+    // Load both dashboard data and bloodbank data in parallel
     await Promise.all([
       bloodbankStore.loadDashboardData(bloodBanksLocationId.value),
       bloodbankStore.loadBloodbankData(bloodBanksLocationId.value, false),
@@ -479,11 +502,7 @@ const loadDashboardData = async () => {
     }
   } catch (error) {
     console.error("Error loading dashboard data:", error);
-    useToast().add({
-      title: "Erro ao carregar dados",
-      description: "Tente novamente mais tarde.",
-      color: "error",
-    });
+    hasError.value = true;
   }
 };
 

@@ -2,6 +2,22 @@ import { z } from "zod";
 import { createCollectionRequest } from "~/server/services/collectionRequest";
 import { assertSecretAuth } from "~/server/services/auth";
 
+const hostSchema = z.object({
+  name: z.string().min(1, "Nome do ponto focal é obrigatório").max(200),
+  email: z.string().email("Email do ponto focal deve ser válido"),
+  phone: z.string().min(1, "Telefone do ponto focal é obrigatório").max(20),
+});
+
+const addressSchema = z.object({
+  street: z.string().min(1, "Rua é obrigatória").max(300),
+  number: z.string().min(1, "Número é obrigatório").max(20),
+  complement: z.string().max(200).optional(),
+  neighborhood: z.string().min(1, "Bairro é obrigatório").max(200),
+  city: z.string().min(1, "Cidade é obrigatória").max(200),
+  state: z.string().min(2, "Estado é obrigatório").max(2),
+  zipCode: z.string().min(8, "CEP é obrigatório").max(10),
+});
+
 const bodySchema = z.object({
   institutionId: z.uuid("institutionId deve ser um UUID válido"),
   requestedByUserId: z.uuid("requestedByUserId deve ser um UUID válido"),
@@ -25,6 +41,8 @@ const bodySchema = z.object({
     )
     .min(1, "Pelo menos uma data deve ser solicitada")
     .max(3, "Máximo de 3 datas podem ser solicitadas"),
+  host: hostSchema,
+  address: addressSchema.optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -59,6 +77,8 @@ export default defineEventHandler(async (event) => {
         institutionId: validatedData.institutionId,
         requestedByUserId: validatedData.requestedByUserId,
         requestedDates: validatedData.requestedDates,
+        host: validatedData.host,
+        address: validatedData.address,
       }
     );
 

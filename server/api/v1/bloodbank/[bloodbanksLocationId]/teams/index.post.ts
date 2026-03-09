@@ -40,20 +40,16 @@ export default defineEventHandler(async (event) => {
   try {
     const team = await createTeam(selectedBloodBanksLocationId, name, color);
 
-    // Adicionar team a availableDates futuras com isAllTeams = true
-    // TODO: improve this implementation to run it in the background
-    // try {
-    //   await addTeamToFutureAvailableDates(
-    //     selectedBloodBanksLocationId,
-    //     team._id
-    //   );
-    // } catch (availableDateError) {
-    //   console.warn(
-    //     "Error adding team to future available dates:",
-    //     availableDateError
-    //   );
-    //   // Não falhar a criação do team se houver erro ao adicionar às availableDates
-    // }
+    // Adicionar team a availableDates futuras com isAllTeams = true (fire-and-forget)
+    addTeamToFutureAvailableDates(
+      selectedBloodBanksLocationId,
+      team._id!.toString()
+    ).catch((availableDateError) => {
+      console.warn(
+        "Error adding team to future available dates:",
+        availableDateError
+      );
+    });
 
     return {
       success: true,

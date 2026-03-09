@@ -33,8 +33,7 @@ export default defineEventHandler(async (event) => {
   try {
     const availableDates = await getAvailableDatesByBloodBank(
       bloodBanksLocationId,
-      year,
-      month
+      { year }
     );
 
     return {

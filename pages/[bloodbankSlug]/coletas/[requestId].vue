@@ -61,7 +61,9 @@
                   {{ currentCollectionRequest.institutionName }}
                 </h2>
                 <p class="text-gray-600">
-                  {{ currentCollectionRequest.institutionAddress }}
+                  {{ currentCollectionRequest.address
+                    ? formatStructuredAddress(currentCollectionRequest.address)
+                    : currentCollectionRequest.institutionAddress }}
                 </p>
               </div>
             </div>
@@ -80,6 +82,129 @@
               <span class="text-sm text-gray-500">
                 Criado em {{ formatDate(currentCollectionRequest.createdAt) }}
               </span>
+            </div>
+          </div>
+        </UCard>
+
+        <!-- Technical Visit Status Badge -->
+        <div
+          class="flex items-center gap-3 p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow"
+          :class="technicalVisitBadgeClasses"
+          @click="handleVisitBadgeClick"
+        >
+          <UIcon :name="technicalVisitBadgeIcon" class="w-5 h-5 shrink-0" />
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm">{{ technicalVisitBadgeLabel }}</p>
+            <p v-if="latestTechnicalVisit" class="text-xs opacity-75">
+              {{ formatDate(latestTechnicalVisit.visitDate) }}
+              <template v-if="latestTechnicalVisit.outcome === 'rejected' && latestTechnicalVisit.notes">
+                — {{ latestTechnicalVisit.notes }}
+              </template>
+            </p>
+          </div>
+          <UIcon name="i-lucide-chevron-right" class="w-4 h-4 shrink-0 opacity-50" />
+        </div>
+
+        <!-- Ponto Focal (Host) Card -->
+        <UCard v-if="currentCollectionRequest.host">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">Ponto Focal</h3>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <span class="text-sm text-gray-600">Nome</span>
+              <p class="font-medium text-gray-900">
+                {{ currentCollectionRequest.host.name }}
+              </p>
+            </div>
+            <div>
+              <span class="text-sm text-gray-600">Email</span>
+              <p class="font-medium text-gray-900">
+                <a
+                  :href="`mailto:${currentCollectionRequest.host.email}`"
+                  class="text-blue-600 hover:underline"
+                >
+                  {{ currentCollectionRequest.host.email }}
+                </a>
+              </p>
+            </div>
+            <div>
+              <span class="text-sm text-gray-600">Telefone</span>
+              <p class="font-medium text-gray-900">
+                <a
+                  :href="`tel:${currentCollectionRequest.host.phone}`"
+                  class="text-blue-600 hover:underline"
+                >
+                  {{ currentCollectionRequest.host.phone }}
+                </a>
+              </p>
+            </div>
+          </div>
+        </UCard>
+
+        <!-- Endereço do Local da Coleta -->
+        <UCard v-if="currentCollectionRequest.address">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Endereço do Local da Coleta
+            </h3>
+          </template>
+
+          <div class="space-y-2">
+            <p class="font-medium text-gray-900">
+              {{ formatStructuredAddress(currentCollectionRequest.address) }}
+            </p>
+            <p class="text-sm text-gray-500">
+              CEP: {{ formatCep(currentCollectionRequest.address.zipCode) }}
+            </p>
+          </div>
+        </UCard>
+
+        <!-- Technical Visit History -->
+        <UCard>
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Historico de Visitas Tecnicas
+            </h3>
+          </template>
+
+          <div v-if="isLoadingVisits" class="flex items-center justify-center py-4">
+            <div
+              class="w-6 h-6 rounded-full border-2 border-red-500 border-t-transparent animate-spin"
+            />
+          </div>
+          <div v-else-if="technicalVisits.length === 0" class="text-center py-4">
+            <p class="text-sm text-gray-500">
+              Nenhuma visita tecnica registrada para este local
+            </p>
+          </div>
+          <div v-else class="space-y-3">
+            <div
+              v-for="visit in technicalVisits"
+              :key="visit._id"
+              class="border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+              @click="navigateToVisit(visit._id)"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <UBadge
+                  :color="getVisitOutcomeColor(visit.outcome)"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ getVisitOutcomeLabel(visit.outcome) }}
+                </UBadge>
+                <span class="text-xs text-gray-500">
+                  {{ formatDate(visit.visitDate) }}
+                </span>
+              </div>
+              <p class="text-sm text-gray-700 truncate">{{ visit.address }}</p>
+              <p
+                v-if="visit.notes"
+                class="text-xs text-gray-500 mt-1 line-clamp-2"
+              >
+                {{ visit.notes }}
+              </p>
             </div>
           </div>
         </UCard>
@@ -398,6 +523,74 @@
           </p>
         </UCard>
 
+        <!-- Cancellation Reason (if cancelled) -->
+        <UCard
+          v-if="currentCollectionRequest.status === 'cancelled'"
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Motivo do Cancelamento
+            </h3>
+          </template>
+
+          <p class="text-gray-700">
+            {{ getCancellationReason() || 'Sem motivo informado' }}
+          </p>
+        </UCard>
+
+        <!-- Cancel Button (for accepted requests) -->
+        <div
+          v-if="currentCollectionRequest.status === 'accepted'"
+          class="pt-2"
+        >
+          <UButton
+            color="error"
+            variant="outline"
+            @click="showCancelDialog"
+            class="w-full cursor-pointer"
+          >
+            Cancelar Coleta
+          </UButton>
+        </div>
+
+        <!-- Generate Commitment Term Button -->
+        <div class="pt-2">
+          <UButton
+            variant="outline"
+            color="primary"
+            icon="i-lucide-file-signature"
+            :loading="isGeneratingTerm"
+            class="w-full cursor-pointer"
+            @click="generateCommitmentTerm"
+          >
+            Gerar Termo de Compromisso
+          </UButton>
+        </div>
+
+        <!-- Commitment Term Link (after generation) -->
+        <UCard v-if="generatedTermUrl">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Termo de Compromisso
+            </h3>
+          </template>
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-file-check" class="w-5 h-5 text-green-600 shrink-0" />
+            <p class="text-sm text-gray-700 flex-1">
+              Termo gerado com sucesso e enviado ao ponto focal.
+            </p>
+            <UButton
+              variant="soft"
+              size="sm"
+              icon="i-lucide-external-link"
+              @click="openTermUrl"
+              class="cursor-pointer"
+            >
+              Visualizar
+            </UButton>
+          </div>
+        </UCard>
+
         <!-- Back Button -->
         <div class="flex items-center justify-start pt-6 border-t">
           <UButton
@@ -532,6 +725,60 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Cancel Confirmation Modal -->
+    <UModal v-model:open="showCancelModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Cancelar Coleta
+          </h3>
+
+          <div class="space-y-4">
+            <p class="text-gray-600">
+              Tem certeza que deseja cancelar esta coleta? O slot reservado será
+              liberado e ficará disponível novamente.
+            </p>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Motivo do cancelamento <span class="text-red-500">*</span>
+              </label>
+              <UTextarea
+                v-model="cancellationReason"
+                placeholder="Explique o motivo do cancelamento desta coleta..."
+                :rows="4"
+                :maxlength="1000"
+                class="w-full resize-y"
+                required
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                {{ cancellationReason.length }}/1000 caracteres
+              </p>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton
+              variant="ghost"
+              @click="showCancelModal = false"
+              class="cursor-pointer"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="confirmCancel"
+              :loading="isCancelling"
+              :disabled="!cancellationReason.trim()"
+              class="cursor-pointer"
+            >
+              Confirmar Cancelamento
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -540,6 +787,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
+import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -565,12 +813,26 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 const selectedTimeSlot = ref<any>(null);
 
+// Technical visits
+interface TechnicalVisitSummary {
+  _id: string;
+  address: string;
+  visitDate: string;
+  outcome: "approved" | "rejected" | "pending";
+  notes?: string | null;
+}
+const technicalVisits = ref<TechnicalVisitSummary[]>([]);
+const isLoadingVisits = ref(false);
+
 // Modal states
 const showAcceptModal = ref(false);
 const showRejectModal = ref(false);
+const showCancelModal = ref(false);
 const isAccepting = ref(false);
 const isRejecting = ref(false);
+const isCancelling = ref(false);
 const rejectionReason = ref("");
+const cancellationReason = ref("");
 
 // Map configuration
 const mapRef = ref<any>(null);
@@ -622,6 +884,39 @@ const showAcceptDialog = (timeSlot: any) => {
 
 const showRejectDialog = () => {
   showRejectModal.value = true;
+};
+
+const showCancelDialog = () => {
+  showCancelModal.value = true;
+};
+
+const getCancellationReason = () => {
+  if (!currentCollectionRequest.value?.statusHistory) return null;
+  const cancelEntry = [...currentCollectionRequest.value.statusHistory]
+    .reverse()
+    .find((sh) => sh.status === "cancelled");
+  return cancelEntry?.reason || null;
+};
+
+const formatStructuredAddress = (addr: {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}) => {
+  const parts = [`${addr.street}, ${addr.number}`];
+  if (addr.complement) parts[0] += `, ${addr.complement}`;
+  parts.push(`${addr.neighborhood}`);
+  parts.push(`${addr.city} - ${addr.state}`);
+  return parts.join(" - ");
+};
+
+const formatCep = (cep: string) => {
+  const digits = cep.replace(/\D/g, "");
+  if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return digits;
 };
 
 const getStatusColor = (status: string) => {
@@ -791,6 +1086,220 @@ const confirmReject = async () => {
   }
 };
 
+const confirmCancel = async () => {
+  if (!cancellationReason.value.trim()) {
+    useToast().add({
+      title: "Motivo obrigatório",
+      description: "Por favor, informe o motivo do cancelamento.",
+      color: "warning",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isCancelling.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    await bloodbankStore.cancelCollectionRequest(
+      requestId,
+      cancellationReason.value.trim(),
+      bloodBanksLocationId.value
+    );
+
+    useToast().add({
+      title: "Coleta cancelada!",
+      description: "A coleta foi cancelada com sucesso.",
+      color: "success",
+      duration: 3000,
+    });
+
+    // Close modal and clear
+    showCancelModal.value = false;
+    cancellationReason.value = "";
+
+    // Refresh collection requests list
+    if (bloodBanksLocationId.value) {
+      await bloodbankStore.refreshCollectionRequests(
+        bloodBanksLocationId.value,
+        "accepted"
+      );
+    }
+  } catch (error: any) {
+    console.error("Error cancelling request:", error);
+    useToast().add({
+      title: "Erro ao cancelar coleta",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isCancelling.value = false;
+  }
+};
+
+// Commitment term generation
+const isGeneratingTerm = ref(false);
+const generatedTermUrl = ref<string | null>(null);
+
+const generateCommitmentTerm = async () => {
+  if (!bloodBanksLocationId.value || !currentCollectionRequest.value) return;
+  isGeneratingTerm.value = true;
+  try {
+    const req = currentCollectionRequest.value;
+    const addr = req.address
+      ? formatStructuredAddress(req.address)
+      : req.institutionAddress;
+
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/commitment-terms`,
+      {
+        method: "POST",
+        body: {
+          collectionRequestId: req._id,
+          sentTo: req.host?.phone || req.host?.email || "",
+          templateParams: {
+            institutionName: req.institutionName || "",
+            address: addr || "",
+            bloodBankName: bloodbankData.value?.name || "",
+            hostName: req.host?.name || "",
+            date: new Date().toLocaleDateString("pt-BR"),
+          },
+          status: "sent",
+        },
+      }
+    ) as any;
+
+    if (response.success && response.data?.accessToken) {
+      const baseUrl = window.location.origin;
+      generatedTermUrl.value = `${baseUrl}/termo/${response.data.accessToken}`;
+      useToast().add({
+        title: "Termo gerado!",
+        description: "O termo de compromisso foi gerado e enviado ao ponto focal.",
+        color: "success",
+        duration: 5000,
+      });
+    }
+  } catch (err: any) {
+    console.error("Error generating commitment term:", err);
+    useToast().add({
+      title: "Erro ao gerar termo",
+      description: err.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isGeneratingTerm.value = false;
+  }
+};
+
+const openTermUrl = () => {
+  if (generatedTermUrl.value) {
+    window.open(generatedTermUrl.value, "_blank");
+  }
+};
+
+const loadTechnicalVisits = async () => {
+  if (!bloodBanksLocationId.value || !currentCollectionRequest.value) return;
+  isLoadingVisits.value = true;
+  try {
+    const institutionId = currentCollectionRequest.value.institutionId;
+    const params = new URLSearchParams();
+    if (institutionId) {
+      params.append("institutionId", institutionId);
+    }
+    params.append("limit", "10");
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/technical-visits?${params.toString()}`
+    ) as any;
+    if (response.success) {
+      technicalVisits.value = response.data;
+    }
+  } catch (err) {
+    console.error("Error loading technical visits:", err);
+  } finally {
+    isLoadingVisits.value = false;
+  }
+};
+
+const getVisitOutcomeColor = (outcome: string) => {
+  switch (outcome) {
+    case "approved": return "success";
+    case "rejected": return "error";
+    case "pending": return "warning";
+    default: return "neutral";
+  }
+};
+
+const getVisitOutcomeLabel = (outcome: string) => {
+  switch (outcome) {
+    case "approved": return "Aprovada";
+    case "rejected": return "Reprovada";
+    case "pending": return "Pendente";
+    default: return outcome;
+  }
+};
+
+const latestTechnicalVisit = computed(() => {
+  if (technicalVisits.value.length === 0) return null;
+  // Prioritize: approved > rejected > pending, then most recent
+  const sorted = [...technicalVisits.value].sort((a, b) => {
+    const priority: Record<string, number> = { approved: 0, rejected: 1, pending: 2 };
+    const pDiff = (priority[a.outcome] ?? 3) - (priority[b.outcome] ?? 3);
+    if (pDiff !== 0) return pDiff;
+    return new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime();
+  });
+  return sorted[0];
+});
+
+const technicalVisitBadgeLabel = computed(() => {
+  if (isLoadingVisits.value) return "Carregando visitas...";
+  if (!latestTechnicalVisit.value) return "Sem Visita Tecnica";
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "Visita Tecnica Aprovada";
+    case "rejected": return "Visita Tecnica Reprovada";
+    case "pending": return "Visita Tecnica Pendente";
+    default: return "Visita Tecnica";
+  }
+});
+
+const technicalVisitBadgeIcon = computed(() => {
+  if (!latestTechnicalVisit.value) return "i-lucide-clipboard-x";
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "i-lucide-clipboard-check";
+    case "rejected": return "i-lucide-clipboard-x";
+    case "pending": return "i-lucide-clipboard-list";
+    default: return "i-lucide-clipboard";
+  }
+});
+
+const technicalVisitBadgeClasses = computed(() => {
+  if (!latestTechnicalVisit.value) {
+    return "bg-gray-50 border-gray-200 text-gray-600";
+  }
+  switch (latestTechnicalVisit.value.outcome) {
+    case "approved": return "bg-green-50 border-green-200 text-green-700";
+    case "rejected": return "bg-red-50 border-red-200 text-red-700";
+    case "pending": return "bg-yellow-50 border-yellow-200 text-yellow-700";
+    default: return "bg-gray-50 border-gray-200 text-gray-600";
+  }
+});
+
+const handleVisitBadgeClick = () => {
+  if (latestTechnicalVisit.value) {
+    navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
+  } else {
+    navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
+  }
+};
+
+const navigateToVisit = (visitId: string) => {
+  navigateTo(`/${bloodbankSlug}/visitas-tecnicas`);
+};
+
 onMounted(async () => {
   if (!bloodBanksLocationId.value) {
     return;
@@ -800,5 +1309,6 @@ onMounted(async () => {
     true
   );
   await loadRequestDetails();
+  await loadTechnicalVisits();
 });
 </script>

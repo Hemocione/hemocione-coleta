@@ -13,6 +13,7 @@ import { getInstitutionsByIds } from "./hemocioneId";
 
 export interface CollectionRequestFilters {
   status?: string;
+  institutionId?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -30,6 +31,16 @@ export interface PaginatedResult<T> {
     limit: number;
     pages: number;
   };
+}
+
+export interface StructuredAddress {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
 }
 
 export interface CollectionRequestWithDetails {
@@ -56,6 +67,13 @@ export interface CollectionRequestWithDetails {
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  address?: StructuredAddress;
+  accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   status: "pending" | "accepted" | "rejected" | "cancelled";
@@ -91,15 +109,14 @@ export async function getCollectionRequestsByBloodBank(
     query.status = filters.status;
   }
 
+  if (filters.institutionId) {
+    query.institutionId = filters.institutionId;
+  }
+
   if (filters.dateFrom || filters.dateTo) {
     // This would need to be implemented with a lookup to availableDates
     // For now, we'll skip date filtering
   }
-
-  console.log("=== DEBUG getCollectionRequestsByBloodBank ===");
-  console.log("bloodBanksLocationId:", bloodBanksLocationId);
-  console.log("typeof bloodBanksLocationId:", typeof bloodBanksLocationId);
-  console.log("query:", JSON.stringify(query, null, 2));
 
   // Get total count
   const [total, requests] = await Promise.all([
@@ -110,7 +127,6 @@ export async function getCollectionRequestsByBloodBank(
       .limit(limit)
       .lean(),
   ]);
-  console.log("total:", total);
 
   // Get unique institution IDs
   const institutionIds = Array.from(
@@ -232,12 +248,12 @@ export async function getCollectionRequestsByBloodBank(
       return request !== null;
     });
 
-  const pages = Math.ceil(requestsWithDetails.length / limit);
+  const pages = Math.ceil(total / limit);
 
   return {
     data: requestsWithDetails as unknown as CollectionRequestWithDetails[],
     pagination: {
-      total: requestsWithDetails.length,
+      total,
       page,
       limit,
       pages,
@@ -479,7 +495,9 @@ export async function rejectCollectionRequest(
 
 export async function cancelCollectionRequest(
   requestId: string,
-  cancelledByUserId: string
+  cancellationReason: string,
+  cancelledByUserId: string,
+  bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
   const session = await CollectionRequest.startSession();
 
@@ -489,6 +507,7 @@ export async function cancelCollectionRequest(
         _id: requestId,
         status: { $in: ["pending", "accepted"] },
         deletedAt: null,
+        bloodBanksLocationId,
       }).session(session);
 
       if (!request) {
@@ -521,11 +540,11 @@ export async function cancelCollectionRequest(
         status: "cancelled",
         changedAt: new Date(),
         changedBy: cancelledByUserId,
-        reason: "Request cancelled",
+        reason: cancellationReason,
       };
 
       await CollectionRequest.findOneAndUpdate(
-        { _id: requestId },
+        { _id: requestId, bloodBanksLocationId },
         {
           $set: { status: "cancelled" },
           $push: { statusHistory: statusHistoryEntry },
@@ -534,7 +553,7 @@ export async function cancelCollectionRequest(
       );
     });
 
-    return await getCollectionRequestById(requestId);
+    return await getCollectionRequestById(requestId, bloodBanksLocationId);
   } finally {
     await session.endSession();
   }
@@ -639,6 +658,29 @@ export async function validateSlotsAvailability(
   return unavailableSlots.length > 0 ? unavailableSlots : null;
 }
 
+// Get the userId of the person who last accepted a collection request for this blood bank
+export async function getBloodBankLastAcceptorUserId(
+  bloodBanksLocationId: string
+): Promise<string | null> {
+  const lastAccepted = await CollectionRequest.findOne({
+    bloodBanksLocationId,
+    status: "accepted",
+    deletedAt: null,
+    "statusHistory.status": "accepted",
+  })
+    .sort({ "statusHistory.changedAt": -1, _id: -1 })
+    .select("statusHistory")
+    .lean();
+
+  if (!lastAccepted) return null;
+
+  const acceptEntry = [...(lastAccepted.statusHistory || [])]
+    .reverse()
+    .find((h) => h.status === "accepted" && h.changedBy);
+
+  return acceptEntry?.changedBy?.toString() || null;
+}
+
 // Get collection requests by IDs
 export async function getCollectionRequestsByIds(ids: string[]) {
   const collectionRequests = await CollectionRequest.find({
@@ -657,6 +699,12 @@ export interface CreateCollectionRequestData {
     availableDateId: string;
     slotIds?: string[];
   }>;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  address?: StructuredAddress;
 }
 
 export async function createCollectionRequest(
@@ -710,13 +758,15 @@ export async function createCollectionRequest(
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
     })),
+    host: data.host,
+    address: data.address,
     status: "pending",
     statusHistory: [
       {
         status: "pending",
         changedAt: new Date(),
         changedBy: data.requestedByUserId,
-        reason: "Request created by backoffice",
+        reason: "Request created",
       },
     ],
   });
@@ -738,4 +788,197 @@ export async function createCollectionRequest(
   }
 
   return requestWithDetails;
+}
+
+export interface CollectionRequestPublicDetails {
+  _id: string;
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+  bloodBankName: string;
+  bloodBankLogo?: string | null;
+  institutionName: string;
+  host: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  address?: StructuredAddress;
+  requestedDates: Array<{
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+  }>;
+  selectedDate?: {
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+  };
+  rejectionReason?: string;
+  statusHistory: Array<{
+    status: string;
+    changedAt: Date;
+    reason?: string;
+  }>;
+  accessToken?: string;
+  createdAt: Date;
+}
+
+export async function getCollectionRequestPublicByToken(
+  accessToken: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    accessToken,
+    deletedAt: null,
+  }).lean();
+
+  if (!request) {
+    return null;
+  }
+
+  return buildCollectionRequestPublicDetails(request);
+}
+
+async function buildCollectionRequestPublicDetails(
+  request: any
+): Promise<CollectionRequestPublicDetails> {
+  const [institutions, bloodBankDoc, availableDates] = await Promise.all([
+    getInstitutionsByIds([request.institutionId.toString()]),
+    BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
+    AvailableDate.find({
+      _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
+      deletedAt: null,
+    })
+      .populate({ path: "slots.teamId", select: "name", model: Team })
+      .lean(),
+  ]);
+
+  const institution = institutions[0];
+  const availableDateMap = new Map(
+    availableDates.map((ad) => [ad._id.toString(), ad])
+  );
+
+  const requestedDatesInfo: CollectionRequestPublicDetails["requestedDates"] = [];
+  request.requestedDates.forEach((rd: any) => {
+    const ad = availableDateMap.get(rd.availableDateId.toString());
+    if (!ad) return;
+    if (rd.slotIds && rd.slotIds.length > 0) {
+      rd.slotIds.forEach((slotId: any) => {
+        const slot = ad.slots.find((s) => s._id.toString() === slotId.toString());
+        if (slot) {
+          requestedDatesInfo.push({
+            date: ad.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            teamName: (slot.teamId as any)?.name,
+          });
+        }
+      });
+    } else {
+      requestedDatesInfo.push({ date: ad.date });
+    }
+  });
+
+  let selectedDate: CollectionRequestPublicDetails["selectedDate"];
+  if (request.selectedAvailableDateId && request.selectedSlotId) {
+    const ad = availableDateMap.get(request.selectedAvailableDateId.toString());
+    if (ad) {
+      const slot = ad.slots.find(
+        (s) => s._id.toString() === request.selectedSlotId!.toString()
+      );
+      if (slot) {
+        selectedDate = {
+          date: ad.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          teamName: (slot.teamId as any)?.name,
+        };
+      }
+    }
+  }
+
+  return {
+    _id: request._id!.toString(),
+    status: request.status as CollectionRequestPublicDetails["status"],
+    bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
+    bloodBankLogo: bloodBankDoc?.logo,
+    institutionName: institution?.name || "Instituição",
+    host: request.host as CollectionRequestPublicDetails["host"],
+    address: request.address as StructuredAddress | undefined,
+    requestedDates: requestedDatesInfo,
+    selectedDate,
+    rejectionReason: request.rejectionReason || undefined,
+    statusHistory: (request.statusHistory || []).map((h: any) => ({
+      status: h.status as string,
+      changedAt: h.changedAt as Date,
+      reason: h.reason || undefined,
+    })),
+    createdAt: request.createdAt as Date,
+  };
+}
+
+export async function getCollectionRequestPublic(
+  requestId: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    deletedAt: null,
+  }).lean();
+
+  if (!request) {
+    return null;
+  }
+
+  return buildCollectionRequestPublicDetails(request);
+}
+
+export async function getCollectionRequestIdByToken(
+  accessToken: string
+): Promise<{ requestId: string; requestedByUserId: string } | null> {
+  const request = await CollectionRequest.findOne({
+    accessToken,
+    deletedAt: null,
+  })
+    .select("_id requestedByUserId")
+    .lean();
+
+  if (!request) return null;
+
+  return {
+    requestId: request._id!.toString(),
+    requestedByUserId: request.requestedByUserId.toString(),
+  };
+}
+
+export async function withdrawCollectionRequest(
+  requestId: string,
+  withdrawnByUserId: string,
+  reason?: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "pending",
+    deletedAt: null,
+  });
+
+  if (!request) {
+    throw new Error("Request not found or not in pending status");
+  }
+
+  const statusHistoryEntry = {
+    status: "cancelled",
+    changedAt: new Date(),
+    changedBy: withdrawnByUserId,
+    reason: reason || "Retirado pela instituição",
+  };
+
+  await CollectionRequest.findOneAndUpdate(
+    { _id: requestId, status: "pending", deletedAt: null },
+    {
+      $set: { status: "cancelled" },
+      $push: { statusHistory: statusHistoryEntry },
+    }
+  );
+
+  return await getCollectionRequestPublic(requestId);
 }

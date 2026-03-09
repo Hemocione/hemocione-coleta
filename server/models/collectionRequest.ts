@@ -1,4 +1,44 @@
 import { InferSchemaType, Schema, model } from "mongoose";
+import { randomBytes } from "crypto";
+
+// Address Schema - structured address for collection location
+const AddressSchema = new Schema(
+  {
+    street: { type: String, required: true, maxlength: 300, trim: true },
+    number: { type: String, required: true, maxlength: 20, trim: true },
+    complement: { type: String, required: false, maxlength: 200, trim: true },
+    neighborhood: { type: String, required: true, maxlength: 200, trim: true },
+    city: { type: String, required: true, maxlength: 200, trim: true },
+    state: { type: String, required: true, maxlength: 2, trim: true, uppercase: true },
+    zipCode: { type: String, required: true, maxlength: 10, trim: true },
+  },
+  { _id: false }
+);
+
+// Host Schema - contact person at the institution for this collection
+const HostSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      maxlength: 200,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+      maxlength: 20,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
 
 // Requested Date Schema - only references, no data duplication. Each requested date can have multiple slots or not. if not, it means any slot in that date is fine for this request.
 const RequestedDateSchema = new Schema(
@@ -85,6 +125,20 @@ export const CollectionRequestSchema = new Schema(
       maxlength: 1000,
       trim: true,
     },
+    host: {
+      type: HostSchema,
+      required: true,
+    },
+    address: {
+      type: AddressSchema,
+      required: false,
+    },
+    accessToken: {
+      type: String,
+      required: true,
+      unique: true,
+      default: () => randomBytes(32).toString("hex"),
+    },
     statusHistory: {
       type: [StatusHistorySchema],
       default: [],
@@ -123,11 +177,18 @@ CollectionRequestSchema.index(
   { partialFilterExpression: { deletedAt: null } }
 );
 
+CollectionRequestSchema.index(
+  { accessToken: 1 },
+  { unique: true }
+);
+
 export type CollectionRequestSchema = InferSchemaType<
   typeof CollectionRequestSchema
 >;
 export type RequestedDateSchema = InferSchemaType<typeof RequestedDateSchema>;
 export type StatusHistorySchema = InferSchemaType<typeof StatusHistorySchema>;
+export type HostSchema = InferSchemaType<typeof HostSchema>;
+export type AddressSchema = InferSchemaType<typeof AddressSchema>;
 
 export const CollectionRequest = model<CollectionRequestSchema>(
   "CollectionRequest",

@@ -76,7 +76,7 @@
               :title="placeholder.description"
               @click="insertPlaceholder(placeholder.key)"
             >
-              {{ `{{${placeholder.key}}}` }}
+              {{ placeholder.display }}
               <span class="text-blue-400 font-sans">{{
                 placeholder.label
               }}</span>
@@ -181,7 +181,7 @@ const placeholders = [
     description: "Nome do responsável na instituição",
   },
   { key: "date", label: "Data", description: "Data do termo" },
-];
+].map((p) => ({ ...p, display: `{{${p.key}}}` }));
 
 const sampleData: Record<string, string> = {
   institutionName: "Universidade Federal de São Paulo",

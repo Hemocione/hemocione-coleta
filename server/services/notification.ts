@@ -24,9 +24,7 @@ function paramsToTemplateComponents(params: Record<string, string>) {
 
 function getNotificationConfig() {
   const config = useRuntimeConfig();
-  const baseUrl =
-    config.hemocioneIdNotificationApiUrl ||
-    config.public.hemocioneIdApiUrl;
+  const baseUrl = config.public.hemocioneIdApiUrl;
 
   return { baseUrl, secret: config.hemocioneIdIntegrationSecret };
 }

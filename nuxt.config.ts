@@ -50,8 +50,6 @@ export default defineNuxtConfig({
       process.env.HEMOCIONE_ID_JWT_SECRET_KEY ?? "secret",
     hemocioneIdIntegrationSecret:
       process.env.HEMOCIONE_ID_INTEGRATION_SECRET ?? "secret",
-    hemocioneIdNotificationApiUrl:
-      process.env.HEMOCIONE_ID_NOTIFICATION_API_URL ?? "",
   },
   nitro: {
     preset: "vercel", // Deploy no Vercel

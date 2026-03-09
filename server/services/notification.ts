@@ -10,6 +10,18 @@ interface SendWhatsAppNotificationToPhoneParams {
   params: Record<string, string>;
 }
 
+/**
+ * Converts a flat params object into WhatsApp Business API templateComponents format.
+ * Values are mapped as positional body parameters in insertion order.
+ */
+function paramsToTemplateComponents(params: Record<string, string>) {
+  const parameters = Object.values(params).map((value) => ({
+    type: "text" as const,
+    text: value,
+  }));
+  return [{ type: "body", parameters }];
+}
+
 function getNotificationConfig() {
   const config = useRuntimeConfig();
   const baseUrl =
@@ -19,6 +31,10 @@ function getNotificationConfig() {
   return { baseUrl, secret: config.hemocioneIdIntegrationSecret };
 }
 
+/**
+ * Send WhatsApp notification to a user by their hemocione-id userId.
+ * Uses hemocione-id's POST /send-wpp-msg endpoint.
+ */
 export async function sendWhatsAppNotification({
   userId,
   templateName,
@@ -34,16 +50,16 @@ export async function sendWhatsAppNotification({
   }
 
   try {
-    await $fetch(`${baseUrl}/notifications/whatsapp`, {
+    await $fetch(`${baseUrl}/send-wpp-msg`, {
       method: "POST",
       headers: {
         "x-secret": secret,
         "Content-Type": "application/json",
       },
       body: {
-        userId,
+        hemocioneId: userId,
         templateName,
-        params,
+        templateComponents: paramsToTemplateComponents(params),
       },
     });
 
@@ -61,6 +77,10 @@ export async function sendWhatsAppNotification({
   }
 }
 
+/**
+ * Send WhatsApp notification directly to a phone number.
+ * Uses hemocione-id's POST /send-wpp-msg endpoint with the phone parameter.
+ */
 export async function sendWhatsAppNotificationToPhone({
   phone,
   templateName,
@@ -76,7 +96,7 @@ export async function sendWhatsAppNotificationToPhone({
   }
 
   try {
-    await $fetch(`${baseUrl}/notifications/whatsapp`, {
+    await $fetch(`${baseUrl}/send-wpp-msg`, {
       method: "POST",
       headers: {
         "x-secret": secret,
@@ -85,7 +105,7 @@ export async function sendWhatsAppNotificationToPhone({
       body: {
         phone,
         templateName,
-        params,
+        templateComponents: paramsToTemplateComponents(params),
       },
     });
 

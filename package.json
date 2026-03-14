@@ -6,7 +6,8 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test:unit": "vitest"
   },
   "devDependencies": {
     "@formkit/auto-animate": "^0.9.0",
@@ -17,6 +18,9 @@
     "@pinia/nuxt": "^0.11.2",
     "@playwright/test": "^1.56.1",
     "@types/jsonwebtoken": "^9.0.10",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^28.1.0",
     "jsonwebtoken": "^9.0.2",
     "maska": "^3.2.0",
     "mongoose": "^8.19.1",
@@ -25,6 +29,7 @@
     "pinia": "^3.0.3",
     "tailwindcss": "^4.1.15",
     "uuid": "^13.0.0",
+    "vitest": "^4.1.0",
     "vue": "^3.3.8",
     "vue-router": "^4.2.5",
     "zod": "^4.1.12"

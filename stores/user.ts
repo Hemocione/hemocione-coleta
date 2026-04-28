@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { redirectToID } from "~/middleware/auth";
+import { redirectToID } from "~/utils/redirectToID";
 import type { EnrichedMe } from "~/server/services/hemocioneId";
 
 export const useUserStore = defineStore("user", {
@@ -17,10 +17,11 @@ export const useUserStore = defineStore("user", {
       const firstRole = state.user?.bloodBankRoles?.[0];
       return firstRole?.slug || null;
     },
-    allBloodBankSlugs: (state) => {
+    allBloodBankSlugs: (state): string[] => {
       return (
-        state.user?.bloodBankRoles?.map((role) => role?.slug).filter(Boolean) ||
-        []
+        state.user?.bloodBankRoles
+          ?.map((role) => role?.slug)
+          .filter((slug): slug is string => Boolean(slug)) ?? []
       );
     },
     currentBloodBankRole: (state) => {

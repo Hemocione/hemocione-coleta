@@ -1,8 +1,8 @@
 import type { LocationQuery } from "#vue-router";
 import { useUserStore } from "~/stores/user";
-import { getHemocioneIdUrl } from "~/utils/getHemocioneIdUrl";
 import type { EnrichedMe } from "~/server/services/hemocioneId";
 import { decideBloodbankSlugAccess } from "~/utils/decideBloodbankSlugAccess";
+import { redirectToID } from "~/utils/redirectToID";
 
 const routeBypassBloodBankRolesPrefixes = ["/agendar", "/sem-acesso"];
 export const routeBypassesBloodbankRoles = (route: string) => {
@@ -27,15 +27,13 @@ const getMeWithAuth = (token: string) => {
 export default defineNuxtRouteMiddleware(async (to, from) => {
   if (import.meta.server) return;
 
-  const isLoggedIn = await evaluateCurrentLogin(from.query);
-  const fromQueryHasToken = from.query.token;
+  const isLoggedIn = await evaluateCurrentLogin(to.query);
   if (isPublicRoute(to.path)) {
     return;
   }
 
   if (!isLoggedIn) {
-    const redirectPath = fromQueryHasToken ? "/" : to.fullPath;
-    redirectToID(redirectPath);
+    await redirectToID(to.fullPath);
     return;
   }
   const userStore = useUserStore();
@@ -44,7 +42,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     !userStore.userHasBloodBankRole
   ) {
     // user doesn't have any blood bank role, redirect to ID as he's trying to access a route that requires a blood bank role
-    redirectToID(to.fullPath);
+    await redirectToID(to.fullPath);
     return;
   }
 
@@ -56,12 +54,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     fullPath: to.fullPath,
     retried: retriedRaw === "1",
     isBypassRoute: routeBypassesBloodbankRoles(to.fullPath),
-    allBloodBankSlugs: userStore.allBloodBankSlugs as string[],
+    allBloodBankSlugs: userStore.allBloodBankSlugs,
     firstBloodBankSlug: userStore.firstBloodBankSlug,
   });
 
   if (decision.kind === "redirectToId") {
-    redirectToID(decision.redirectPath);
+    await redirectToID(decision.redirectPath);
     return;
   }
   if (decision.kind === "navigateTo") {
@@ -131,8 +129,3 @@ export function getCurrentToken(query?: LocationQuery): string | null {
   return cookieToken;
 }
 
-export async function redirectToID(fullPath: string) {
-  const config = useRuntimeConfig();
-  const redirectUrl = `${config.public.siteUrl}${fullPath}`;
-  await navigateTo(getHemocioneIdUrl(redirectUrl), { external: true });
-}

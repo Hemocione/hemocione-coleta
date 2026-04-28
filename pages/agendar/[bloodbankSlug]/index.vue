@@ -396,7 +396,7 @@
 definePageMeta({ layout: "agendamento" });
 import { useSchedulingStore } from "~/stores/scheduling";
 import { useUserStore } from "~/stores/user";
-import { redirectToID } from "~/middleware/auth";
+import { redirectToID } from "~/utils/redirectToID";
 import { CalendarDate, type DateValue } from "@internationalized/date";
 
 const route = useRoute();

@@ -237,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { redirectToID } from "~/middleware/auth";
+import { redirectToID } from "~/utils/redirectToID";
 import { useUserStore } from "~/stores/user";
 import { useSchedulingStore } from "~/stores/scheduling";
 import { geocodeCep } from "~/utils/geocode";

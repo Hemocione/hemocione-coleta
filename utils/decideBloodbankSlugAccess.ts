@@ -15,7 +15,8 @@ export interface BloodbankSlugAccessInput {
 export function decideBloodbankSlugAccess(
   input: BloodbankSlugAccessInput
 ): BloodbankSlugAccessDecision {
-  const { bloodbankSlug, isBypassRoute, allBloodBankSlugs } = input;
+  const { bloodbankSlug, fullPath, retried, isBypassRoute, allBloodBankSlugs } =
+    input;
 
   if (!bloodbankSlug || isBypassRoute) {
     return { kind: 'pass' };
@@ -23,5 +24,12 @@ export function decideBloodbankSlugAccess(
   if (allBloodBankSlugs.includes(bloodbankSlug)) {
     return { kind: 'pass' };
   }
-  return { kind: 'pass' }; // placeholder — fixed in Task 2
+  if (!retried) {
+    const separator = fullPath.includes('?') ? '&' : '?';
+    return {
+      kind: 'redirectToId',
+      redirectPath: `${fullPath}${separator}retried=1`,
+    };
+  }
+  return { kind: 'pass' }; // placeholder — fixed in Task 3
 }

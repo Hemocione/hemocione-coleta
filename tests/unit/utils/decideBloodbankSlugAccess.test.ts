@@ -38,4 +38,34 @@ describe('decideBloodbankSlugAccess', () => {
       expect(result).toEqual({ kind: 'pass' });
     });
   });
+
+  describe('redirectToId', () => {
+    it('redirects to ID with ?retried=1 when slug is not in roles and not retried, no existing query', () => {
+      const result = decideBloodbankSlugAccess({
+        ...baseInput,
+        bloodbankSlug: 'banco-x',
+        fullPath: '/banco-x/coletas',
+        retried: false,
+        allBloodBankSlugs: ['banco-a'],
+      });
+      expect(result).toEqual({
+        kind: 'redirectToId',
+        redirectPath: '/banco-x/coletas?retried=1',
+      });
+    });
+
+    it('redirects to ID with &retried=1 when fullPath already has a query string', () => {
+      const result = decideBloodbankSlugAccess({
+        ...baseInput,
+        bloodbankSlug: 'banco-x',
+        fullPath: '/banco-x/coletas?foo=bar',
+        retried: false,
+        allBloodBankSlugs: ['banco-a'],
+      });
+      expect(result).toEqual({
+        kind: 'redirectToId',
+        redirectPath: '/banco-x/coletas?foo=bar&retried=1',
+      });
+    });
+  });
 });

@@ -259,7 +259,7 @@ Use o padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/)
 
 ## 📄 Licença
 
-Este projeto é mantido pelo time do [Hemocione](https://hemocione.com.br). Consulte o repositório para informações sobre licenciamento.
+Este projeto é mantido pelo time do [Hemocione](https://hemocione.com.br). Consulte o repositório para informações sobre licenciamento :)
 
 ---
 

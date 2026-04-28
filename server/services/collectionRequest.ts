@@ -711,14 +711,16 @@ export async function createCollectionRequest(
   bloodBanksLocationId: string,
   data: CreateCollectionRequestData
 ): Promise<CollectionRequestWithDetails> {
-  // Validate that the blood bank exists
+  // Validate that the blood bank exists and is active
   const bloodBank = await BloodBank.findOne({
     bloodBanksLocationId,
-    deletedAt: null,
+    active: true,
   });
 
   if (!bloodBank) {
-    throw new Error("Blood bank not found");
+    throw new Error(
+      "Banco de sangue não encontrado ou indisponível para agendamento"
+    );
   }
 
   // Check if institution already has an open request for this blood bank

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getBloodBanksLocationIdBySlug } from "~/server/services/bloodBank";
+import { getActiveBloodBanksLocationIdBySlug } from "~/server/services/bloodBank";
 import { getAvailableDatesByBloodBank } from "~/server/services/availableDate";
 
 const querySchema = z.object({
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const query = await getQuery(event);
   const { start, end, monthsAhead } = querySchema.parse(query);
 
-  const bloodBanksLocationId = await getBloodBanksLocationIdBySlug(slug);
+  const bloodBanksLocationId = await getActiveBloodBanksLocationIdBySlug(slug);
   if (!bloodBanksLocationId) {
     throw createError({
       statusCode: 404,

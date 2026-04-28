@@ -10,9 +10,25 @@ export async function getBloodBankByBloodBanksLocationId(
   }).lean();
 }
 
+export async function getActiveBloodBankByBloodBanksLocationId(
+  bloodBanksLocationId: string
+) {
+  return await BloodBank.findOne({
+    bloodBanksLocationId,
+    active: true,
+  }).lean();
+}
+
 export async function getBloodBankBySlug(slug: string) {
   return await BloodBank.findOne({
     slug,
+  }).lean();
+}
+
+export async function getActiveBloodBankBySlug(slug: string) {
+  return await BloodBank.findOne({
+    slug,
+    active: true,
   }).lean();
 }
 
@@ -20,6 +36,13 @@ export async function getBloodBanksLocationIdBySlug(
   slug: string
 ): Promise<string | null> {
   const bloodBank = await getBloodBankBySlug(slug);
+  return bloodBank?.bloodBanksLocationId?.toString() || null;
+}
+
+export async function getActiveBloodBanksLocationIdBySlug(
+  slug: string
+): Promise<string | null> {
+  const bloodBank = await getActiveBloodBankBySlug(slug);
   return bloodBank?.bloodBanksLocationId?.toString() || null;
 }
 

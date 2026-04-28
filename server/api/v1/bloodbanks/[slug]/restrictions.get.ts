@@ -1,4 +1,4 @@
-import { getBloodBanksLocationIdBySlug } from "~/server/services/bloodBank";
+import { getActiveBloodBanksLocationIdBySlug } from "~/server/services/bloodBank";
 import { getRestrictionChecklist } from "~/server/services/bloodBank";
 
 export default defineEventHandler(async (event) => {
@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "slug é obrigatório" });
   }
 
-  const bloodBanksLocationId = await getBloodBanksLocationIdBySlug(slug);
+  const bloodBanksLocationId = await getActiveBloodBanksLocationIdBySlug(slug);
   if (!bloodBanksLocationId) {
     throw createError({
       statusCode: 404,

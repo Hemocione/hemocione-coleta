@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
 
   const banks = await BloodBank.find(
     {
+      active: true,
       coverageArea: { $geoIntersects: { $geometry: point } },
     },
     { name: 1, slug: 1, logo: 1, bloodBanksLocationId: 1, location: 1 }

@@ -1,4 +1,4 @@
-import { getBloodBankBySlug } from "~/server/services/bloodBank";
+import { getActiveBloodBankBySlug } from "~/server/services/bloodBank";
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, "slug");
@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "slug é obrigatório" });
   }
 
-  const bank = await getBloodBankBySlug(slug);
+  const bank = await getActiveBloodBankBySlug(slug);
   if (!bank) {
     throw createError({
       statusCode: 404,

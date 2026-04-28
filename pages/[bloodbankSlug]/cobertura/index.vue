@@ -708,13 +708,8 @@ const saveCoverageArea = async () => {
   if (!canSave.value) return;
 
   try {
-    // Get user data from store to extract bloodBanksLocationId
-    const user = userStore.user;
-    if (!user) {
-      throw new Error("User not found in store");
-    }
-
-    const bloodBanksLocationId = user.bloodBankRoles[0]?.bloodBanksLocationId;
+    const bloodBanksLocationId =
+      userStore.currentBloodBankRole?.bloodBanksLocationId;
     if (!bloodBanksLocationId) {
       throw new Error("No blood bank access found");
     }

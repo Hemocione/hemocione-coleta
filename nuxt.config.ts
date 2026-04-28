@@ -73,7 +73,15 @@ export default defineNuxtConfig({
     "@nuxt/image",
     "@formkit/auto-animate/nuxt",
     "nuxt-maplibre",
+    "@posthog/nuxt",
   ],
+  posthogConfig: {
+    publicKey: process.env.POSTHOG_PUBLIC_KEY ?? "",
+    host: process.env.POSTHOG_HOST ?? "https://us.i.posthog.com",
+    clientConfig: {
+      person_profiles: "identified_only",
+    },
+  },
   image: {
     domains: ["cdn.hemocione.com.br"],
   },

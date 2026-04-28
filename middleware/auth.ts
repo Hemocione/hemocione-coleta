@@ -2,8 +2,9 @@ import type { LocationQuery } from "#vue-router";
 import { useUserStore } from "~/stores/user";
 import { getHemocioneIdUrl } from "~/utils/getHemocioneIdUrl";
 import type { EnrichedMe } from "~/server/services/hemocioneId";
+import { decideBloodbankSlugAccess } from "~/utils/decideBloodbankSlugAccess";
 
-const routeBypassBloodBankRolesPrefixes = ["/agendar"];
+const routeBypassBloodBankRolesPrefixes = ["/agendar", "/sem-acesso"];
 export const routeBypassesBloodbankRoles = (route: string) => {
   return routeBypassBloodBankRolesPrefixes.some((prefix) =>
     route.startsWith(prefix)
@@ -45,6 +46,26 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     // user doesn't have any blood bank role, redirect to ID as he's trying to access a route that requires a blood bank role
     redirectToID(to.fullPath);
     return;
+  }
+
+  const retriedRaw = Array.isArray(to.query.retried)
+    ? to.query.retried[0]
+    : to.query.retried;
+  const decision = decideBloodbankSlugAccess({
+    bloodbankSlug: to.params.bloodbankSlug as string | undefined,
+    fullPath: to.fullPath,
+    retried: retriedRaw === "1",
+    isBypassRoute: routeBypassesBloodbankRoles(to.fullPath),
+    allBloodBankSlugs: userStore.allBloodBankSlugs as string[],
+    firstBloodBankSlug: userStore.firstBloodBankSlug,
+  });
+
+  if (decision.kind === "redirectToId") {
+    redirectToID(decision.redirectPath);
+    return;
+  }
+  if (decision.kind === "navigateTo") {
+    return navigateTo(decision.path, { replace: true });
   }
 });
 

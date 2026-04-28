@@ -68,4 +68,30 @@ describe('decideBloodbankSlugAccess', () => {
       });
     });
   });
+
+  describe('navigateTo (after retried)', () => {
+    it('navigates to first available bloodbank when retried and user has other roles', () => {
+      const result = decideBloodbankSlugAccess({
+        ...baseInput,
+        bloodbankSlug: 'banco-x',
+        fullPath: '/banco-x/coletas?retried=1',
+        retried: true,
+        allBloodBankSlugs: ['banco-a', 'banco-b'],
+        firstBloodBankSlug: 'banco-a',
+      });
+      expect(result).toEqual({ kind: 'navigateTo', path: '/banco-a' });
+    });
+
+    it('navigates to /sem-acesso when retried and user has no roles', () => {
+      const result = decideBloodbankSlugAccess({
+        ...baseInput,
+        bloodbankSlug: 'banco-x',
+        fullPath: '/banco-x/coletas?retried=1',
+        retried: true,
+        allBloodBankSlugs: [],
+        firstBloodBankSlug: null,
+      });
+      expect(result).toEqual({ kind: 'navigateTo', path: '/sem-acesso' });
+    });
+  });
 });

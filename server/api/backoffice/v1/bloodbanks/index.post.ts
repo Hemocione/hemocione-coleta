@@ -21,6 +21,11 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
+  // Fora do try de proposito: o catch abaixo converte erro nao reconhecido em
+  // 500, o que transformaria o 401 de credencial invalida em "erro interno do
+  // servidor" e esconderia o motivo real da recusa.
+  assertSecretAuth(event);
+
   try {
     // Validate request body
     const body = await readBody(event);

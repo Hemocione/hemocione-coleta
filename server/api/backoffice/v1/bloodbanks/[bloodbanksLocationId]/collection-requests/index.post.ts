@@ -46,6 +46,10 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
+  // Fora do try por simetria com a outra rota de backoffice e para que a recusa
+  // por credencial nao passe pelo tratamento de erro de negocio abaixo.
+  assertSecretAuth(event);
+
   try {
     // Get bloodBanksLocationId from route params
     const bloodBanksLocationId = getRouterParam(event, "bloodbanksLocationId");

@@ -1,6 +1,6 @@
 # 🩸 Hemocione Coleta
 
-Sistema de agendamento de coletas de sangue do [Hemocione](https://www.hemocione.com.br), desenvolvido com Nuxt 3. Permite que instituições solicitem visitas de coleta a hemocentros próximos, e que os próprios hemocentros gerenciem sua agenda, equipes, coberturas geográficas e restrições de doação.
+Sistema de agendamento de coletas de sangue do [Hemocione](https://www.hemocione.com.br), desenvolvido com Nuxt 3. Permite que instituições solicitem visitas de coleta a hemocentros próximos, e que os próprios hemocentros gerenciem sua agenda, equipes, coberturas geográficas e restrições de doação. Vai tomando.
 
 ---
 

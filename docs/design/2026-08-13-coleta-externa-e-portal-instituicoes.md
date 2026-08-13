@@ -1,0 +1,291 @@
+# Coleta Externa e Portal de Instituições — Arquitetura e Plano
+
+**Data:** 2026-08-13
+**Repos afetados:** `hemocione-coleta`, `hemocione-id`, `hemocione-digital-event`, `hemocione-app` (embed), e uma plataforma nova: `instituicoes.hemocione.com.br`
+**Status:** proposta em revisão — ver seção 10 (suposições a validar)
+
+## 1. Contexto e objetivo
+
+Hoje uma instituição solicita uma coleta externa a um banco de sangue através do `hemocione-coleta`. O fluxo é binário (aceita/rejeita), não tem negociação de data/horário, não liga a visita técnica à solicitação, e não existe nenhuma superfície dedicada para a instituição acompanhar seu histórico. Este documento propõe:
+
+1. Evoluir o domínio de solicitação de coleta para suportar negociação (contraproposta), nota, horário específico e visita técnica reaproveitável.
+2. Criar uma plataforma nova, `instituicoes.hemocione.com.br`, como o "lar" das instituições no ecossistema Hemocione.
+3. Integrar essa cadeia com `hemocione-digital-event` para gerar automaticamente o evento e o link de inscrição quando a coleta é confirmada.
+4. Dar visibilidade interna (equipe Hemocione) e cross-instituição (pessoa vinculada a N instituições) sobre esses pedidos.
+
+**Princípio de design usado em todo o documento:** nenhum backend novo, nenhum banco de dados novo. `hemocione-coleta` continua dona do domínio de solicitação/coleta; `hemocione-id` continua dono de identidade/instituição/notificação; `hemocione-digital-event` continua dono de evento/inscrição. A plataforma nova é uma camada de apresentação que consome essas três APIs — o mesmo padrão que `hemocione-app`/`id-frontend` já usam hoje. Isso evita duplicar regra de negócio.
+
+## 2. Fases (ordem de dependência técnica)
+
+| Fase | Conteúdo | Por que nessa ordem |
+|---|---|---|
+| **0 — Fundações** | Fecha gaps do código atual que travam tudo o resto (seção 9) | Sem isso, as fases seguintes não têm onde se apoiar |
+| **1 — Núcleo do domínio** | Nota, horário, duração, máquina de estados com contraproposta, visita técnica reaproveitável | É o dado que todo o resto lê/escreve |
+| **2 — Portal instituicoes.hemocione.com.br** | Login SSO, histórico, troca de organização, tela de acompanhamento, embed no app | Consome a Fase 1 |
+| **3 — Backoffice interno Hemocione** | Visão cross-instituição para equipe interna, cadastro em nome de instituição | Reusa a mesma UI da Fase 2, com escopo ampliado |
+| **4 — Integração com hemocione-digital-event** | Geração automática de evento, horários por perfil de dia, link de inscrição | Depende da Fase 1 estar madura (é o desfecho do fluxo) |
+| **5 — Automação de divulgação** | Notificar responsável da instituição quando o link de inscrição sai | Depende da Fase 4 existir |
+
+## 3. Modelo de dados e máquina de estados (`hemocione-coleta`)
+
+Esta é a peça central — todo o resto do documento (notificação, telas, integração) só reflete este estado.
+
+### 3.1 Evolução do `CollectionRequestSchema`
+
+Arquivo: `server/models/collectionRequest.ts`.
+
+```ts
+note?: string                     // nota da instituição na solicitação original
+requestedDates: [{
+  date: Date,
+  startTime?: string,             // "HH:mm" — horário específico, opcional
+  availableDateId, slotIds?       // mantém compatibilidade com o sistema de slots atual
+}]
+technicalVisitId?: ObjectId       // aponta para uma TechnicalVisit — nova OU reaproveitada
+counterProposal?: {               // objeto único (não array) — aplica "1 contraproposta por
+                                   // solicitação" por construção, sem precisar de validação extra
+  proposedDates: [{ date: Date, startTime: string, durationMinutes: number, note?: string }],
+  needsTechnicalVisit: boolean,
+  note?: string,
+  proposedBy: string,             // userId do banco de sangue
+  proposedAt: Date,
+  response?: {
+    decision: "accepted" | "declined",
+    selectedDateId?: string,
+    respondedAt: Date,
+    respondedBy: string,
+  }
+}
+previousCounterProposals?: Array<typeof counterProposal>
+                                   // arquivo append-only: toda vez que `counterProposal` seria
+                                   // sobrescrito ou descartado, o valor anterior migra pra cá antes
+                                   // — ver 3.3 para o motivo (recusa por engano não tem undo hoje)
+confirmedSchedule?: { date: Date, startTime: string, durationMinutes: number }
+                                   // data final acordada — unifica aceite direto e aceite de
+                                   // contraproposta num único campo que o resto do sistema lê
+eventSlug?: string                // referência ao Event criado no hemocione-digital-event
+status: enum [
+  "pending", "counter_proposed", "counter_proposal_declined",
+  "accepted", "awaiting_technical_visit", "technical_visit_confirmed",
+  "scheduled", "rejected", "cancelled",
+]
+```
+
+### 3.2 Transições de estado
+
+```
+pending
+  ├─ [banco aceita direto]                         → accepted | awaiting_technical_visit
+  ├─ [banco rejeita]                                → rejected
+  └─ [banco contrapropõe — só 1x, ver 3.3]          → counter_proposed
+
+counter_proposed
+  ├─ [instituição aceita a contraproposta]          → accepted | awaiting_technical_visit
+  └─ [instituição recusa]                           → counter_proposal_declined  (terminal)
+
+awaiting_technical_visit
+  ├─ [reaproveita visita já aprovada — ver 3.4]     → technical_visit_confirmed  (imediato)
+  ├─ [nova visita, veredito aprovado]                → technical_visit_confirmed
+  └─ [nova visita, veredito reprovado]               → rejected
+
+accepted | technical_visit_confirmed
+  └─ [banco gera link de inscrição — Fase 4]         → scheduled
+
+scheduled
+  └─ [instituição ou banco cancela]                  → cancelled  (com efeito colateral — ver nota)
+
+qualquer outro estado não-terminal
+  └─ [instituição ou banco cancela]                  → cancelled  (terminal)
+```
+
+Terminais: `scheduled` (sucesso, mas ainda cancelável — ver abaixo), `rejected`, `cancelled`, `counter_proposal_declined`.
+
+**`awaiting_technical_visit` cobre dois momentos distintos**, não um só: (a) a decisão ainda não foi tomada (reaproveitar vs. agendar nova visita) e (b) uma visita nova já foi agendada e está aguardando acontecer/receber veredito. `TechnicalVisit.outcome` já modela um terceiro valor, `"pending"`, que corresponde ao momento (b) — a UI faz join com esse campo para saber qual dos dois momentos mostrar; não é um sub-status novo em `CollectionRequest`, é leitura do `technicalVisitId` referenciado. **Cancelamento durante o momento (b)** (visita física já marcada, sem veredito ainda) deixa a `TechnicalVisit` órfã — ela continua existindo e pode ser reaproveitada por uma solicitação futura da mesma instituição+banco, então não precisa de tratamento especial de limpeza.
+
+**`scheduled → cancelled` precisa de efeito colateral explícito**: uma vez que existe um `Event` real no `hemocione-digital-event` com inscrições abertas, cancelar a solicitação sem cancelar o evento correspondente deixa as duas fontes de verdade divergentes (a solicitação mostra `cancelled`, o evento continua ativo e aceitando inscrições). A transição precisa disparar uma chamada de cancelamento/exclusão do lado do evento (a operação já existe — é a mesma usada hoje pelo backoffice Lowcoder). Também é preciso considerar o caminho inverso: o evento pode ser cancelado direto no backoffice de eventos, sem passar pela `CollectionRequest` — nesse caso a solicitação fica presa em `scheduled` apontando para um `eventSlug` morto. Fechar esse caminho exige um webhook/callback de `hemocione-digital-event` avisando `hemocione-coleta` quando um evento com `institutionId` preenchido for cancelado, ou aceitar isso como reconciliação manual conhecida na Fase 4 (ver seção 10).
+
+### 3.3 Regra "1 contraproposta por solicitação"
+
+`counterProposal` é um **objeto único opcional**, não um array. O service (`server/services/collectionRequest.ts`) rejeita a criação de uma nova contraproposta se o campo já existir — não precisa de contador nem de validação de array; a própria forma do dado impõe o limite. Se a instituição recusa (`counter_proposal_declined`), não há novo ciclo: para insistir, ela abre uma solicitação nova (mesma UX que já existe hoje para pedidos rejeitados).
+
+**Duas ressalvas importantes, vindas de revisão adversarial (seção 12):**
+
+- **Sem undo.** `counter_proposal_declined` é terminal — se a instituição recusar por engano, ou se o banco digitar a data errada na contraproposta antes da instituição responder, não existe caminho de correção sem perder o contexto original (nota, host, endereço já preenchidos). Mitigação adotada: antes de sobrescrever/descartar `counterProposal`, o valor atual migra para `previousCounterProposals[]` (seção 3.1) — não desfaz a decisão, mas preserva o histórico para suporte/auditoria e para reabrir manualmente um caso excepcional.
+- **A regra "1 rodada" não tem evidência de campo** — é uma simplificação de modelagem a partir das notas originais, não um padrão observado de como bancos negociam hoje. Se na prática for insuficiente, o custo de migrar de objeto único para array toca todo consumidor (timeline do portal, backoffice, gatilho de notificação) — vale validar com quem realmente responde essas solicitações antes de travar a decisão em código.
+
+**Proteção contra corrida:** as funções já existentes (`acceptCollectionRequest`, `rejectCollectionRequest`) usam um filtro `status: "pending"` dentro do `findOneAndUpdate` para evitar dupla transição simultânea — é esse padrão, e não apenas "o campo já existe", que precisa proteger a criação da contraproposta e sua resposta. Contar só com a forma do dado (objeto vs. array) protege contra duplicidade, não contra duas requisições concorrentes lendo o mesmo estado antes de qualquer uma escrever.
+
+### 3.4 Reaproveitamento de visita técnica
+
+`TechnicalVisit` (`server/models/technicalVisit.ts`) já é escopado por `institutionId + bloodBanksLocationId`, não por solicitação — isso já favorece reaproveitamento, só faltava o vínculo do lado certo. A mudança é `CollectionRequest.technicalVisitId` (N:1, uma visita pode ser referenciada por várias solicitações), nunca o inverso.
+
+Ao entrar em `awaiting_technical_visit`, a tela do banco de sangue mostra o histórico de visitas aprovadas daquela instituição+banco (já existe a query, só falta a UI) e oferece duas ações: **reaproveitar** (pula direto para `technical_visit_confirmed`) ou **agendar nova visita**. **Decisão confirmada:** sem expiração automática — a escolha de reaproveitar ou não é sempre manual, o sistema só mostra a data/resultado da última visita para apoiar a decisão. Sem política de validade no MVP; se isso virar um problema real (ex: banco reaproveitando visitas muito antigas), entra como ajuste futuro.
+
+**Risco a verificar antes de prometer esta feature:** `TechnicalVisit.institutionId` é opcional no schema (`server/models/technicalVisit.ts:7`), e o segundo índice do modelo é `bloodBanksLocationId + address`, não `bloodBanksLocationId + institutionId` — sinal de que o vínculo real usado até hoje pode ser por endereço, não por instituição. Se visitas antigas tiverem `institutionId` nulo, o histórico "visitas aprovadas daquela instituição" viria incompleto ou vazio para dados legados, e ninguém notaria até um banco reclamar "já fizemos essa visita, por que não aparece pra reaproveitar". Antes de implementar a Fase 1, rodar uma consulta simples (`TechnicalVisit.countDocuments({institutionId: null, outcome: "approved"})`) para medir o tamanho real do backfill necessário.
+
+### 3.5 "Aparece na solicitação ao vivo"
+
+Interpretação adotada: assim que o veredito da visita é registrado, o campo já reflete no próximo carregamento da tela — a notificação WhatsApp (seção 6) é o que avisa a pessoa a checar. Não estamos propondo WebSocket/polling em tempo real; seria engenharia além do necessário para este caso de uso. **Suposição a validar com o Guima** — ver seção 10.
+
+## 4. Plataforma `instituicoes.hemocione.com.br`
+
+### 4.1 Stack e padrão
+
+Nuxt 3 (mesmo padrão do restante do ecossistema), deploy Vercel. Recomendo Element Plus (maioria dos produtos do ecossistema usa) em vez de replicar o Tailwind+MapLibre do `hemocione-coleta` — o portal é voltado à pessoa da instituição, não ao operador de banco de sangue, então não precisa herdar a UI do backoffice de coleta. Tem sua própria camada `server/api/*` (BFF), seguindo o mesmo padrão Nuxt-server que todo repo do ecossistema já usa — não é uma escolha nova, é consistência.
+
+### 4.2 Por que isso não duplica o `hemocione-coleta`
+
+O `hemocione-coleta` mantém suas páginas públicas (`/agendar/...`) para quem chega por link direto, sem necessariamente estar logado como "pessoa de instituição" navegando o produto. O portal novo é a **casca autenticada** — dashboard, histórico agregado (solicitações + eventos juntos, que hoje vivem em dois backends diferentes e não têm um lugar comum), troca de organização. Nenhuma regra de negócio de *leitura* é reescrita: o portal só chama as APIs de `hemocione-coleta` (domínio de solicitação) e `hemocione-digital-event` (domínio de evento), e a criação de uma nova solicitação pode reusar o fluxo já existente em `/agendar` via link/embed, em vez de reimplementar.
+
+**Ressalva importante:** essa descrição vale para leitura. A geração de evento (seção 7.2) não é "consumir uma API" — é uma orquestração de escrita atravessando dois bancos Mongo diferentes sem transação distribuída, e precisa do mesmo rigor de design que o resto deste documento dá a decisões de consistência. Chamar o sistema inteiro de "camada de apresentação" seria subestimar essa parte — ver seção 7.2.
+
+**Custo de latência já existente, que este projeto empilha em cima:** `hemocione-coleta` já faz uma chamada síncrona sem cache a `hemocione-id` (`getInstitutionsByIds`, ver `server/services/hemocioneId.ts`) toda vez que lista solicitações de um banco de sangue. Uma tela de detalhe no portal novo (seção 4.6) encadeia potencialmente 3 hops HTTP síncronos (portal → hemocione-coleta → hemocione-id, e depois portal → hemocione-digital-event se `scheduled`) — o design não piora esse padrão, mas também não resolve o que já existe. Vale medir a latência real em produção antes de assumir que está aceitável.
+
+### 4.3 Autenticação e SSO
+
+Mesmo padrão do `hemocione-coleta`: JWT emitido pelo `hemocione-id`, validado localmente com o secret compartilhado (`HEMOCIONE_ID_JWT_SECRET_KEY`), redirecionamento para login centralizado quando não autenticado (`redirectToID`). **Pré-requisito a verificar antes de prometer SSO sem re-login** (não apenas assumir): confirmar no código de emissão de cookie do `hemocione-id` se o `Domain` configurado é `.hemocione.com.br` (compartilhado entre subdomínios) e não um domínio específico de cada produto. Um subdomínio novo sem esse `Domain` correto vira um bug de dia 1 visível para toda pessoa de instituição tentando entrar no portal.
+
+### 4.4 Modelo "tenant" — pessoa com múltiplas instituições
+
+`userInstitutionRole` no `hemocione-id` já suporta N vínculos por usuário (só é único o par `[userId, institutionId]`). Fluxo:
+
+1. No login, busca `GET /users/me/institutions` (já existe).
+2. Se 0 instituições → tela vazia com CTA para criar/vincular instituição.
+3. Se 1 → entra direto nela.
+4. Se N > 1 → seletor de organização ativa (padrão Slack/Vercel: dropdown no topo, persiste a escolha em cookie/localStorage). Toda chamada subsequente é escopada por essa `institutionId` (mesmo padrão de URL `[institutionId]` que `hemocione-coleta` já usa).
+
+### 4.5 Gestão de membros (gap a fechar — ver seção 9)
+
+Hoje **ninguém nunca vira `admin`** de instituição — `institutionService.createInstitution` sempre atribui `staff`, e não existe endpoint de convite. Isso precisa de dois ajustes em `hemocione-id`:
+
+- Quem cria a instituição vira `admin` (não `staff`) — corrige o bootstrap.
+- Novo endpoint `POST /institutions/:id/members` (convite por e-mail, só `admin` pode chamar) + `PUT`/`DELETE` para gerenciar papel/remoção.
+
+Sem isso, o conceito de "instituição com múltiplas pessoas" não tem como nascer na prática.
+
+**Fronteira de confiança a testar explicitamente:** esses três endpoints recebem `:id` da instituição na URL — a autorização precisa garantir que o `admin` autenticado tem `role: admin` **especificamente para essa `:id`**, não apenas `admin` de alguma instituição qualquer. É o tipo de endpoint onde "admin da instituição A consegue adicionar/remover membro da instituição B" é um erro fácil de introduzir (basta esquecer o filtro por `institutionId` numa query) e caro de descobrir depois. Antes de considerar isso "pronto", cobrir com um teste que tenta exatamente esse cenário cross-instituição.
+
+### 4.6 Conteúdo do MVP ("o básico", conforme pedido)
+
+- **Meus pedidos**: lista de `CollectionRequest` da instituição ativa, com filtro por status — consome o endpoint que hoje é um arquivo vazio em `hemocione-coleta` (Fase 0).
+- **Detalhe do pedido — "Etapas e Contrapropostas"**: versão autenticada da tela de acompanhamento, renderizando a máquina de estados da seção 3 como timeline (pending → contraproposta → visita técnica → agendado), com o veredito da visita e o link de inscrição quando `scheduled`.
+- **Meus eventos**: lista de `Event` da instituição ativa — precisa de um filtro novo em `hemocione-digital-event` (`GET /event?institutionId=`), já que os campos `institutionId`/`bloodBanksLocationId` foram mesclados recentemente (PR #47) mas ainda não são lidos em nenhuma query hoje.
+- **Nova solicitação**: link/embed para o fluxo já existente em `hemocione-coleta` (`/agendar`), pré-selecionando a instituição ativa via query param.
+
+### 4.7 Embed no `hemocione-app`
+
+Iframe via `@hemocione/sdk` (postMessage), mesmo padrão já usado para `hemocione-can-donate`, `hemocione-digital-event` e `hemocione-competitions`. Aparece como uma seção no app **apenas se a pessoa tiver ao menos uma `institutionRole`** no JWT — sem essa claim, a seção nem renderiza.
+
+## 5. Backoffice interno Hemocione
+
+Duas personas confirmadas: (a) equipe interna Hemocione cadastrando/gerenciando em nome de instituições, visão cross-organização; (b) pessoa com vínculo em várias instituições, trocando de organização (já coberto pela seção 4.4).
+
+Para (a), a proposta é **não construir uma ferramenta separada** — reusar a mesma UI do seletor de organização da seção 4.4, só que ampliada:
+
+- Quando o JWT tem `isAdmin: true` (flag global que já existe em `hemocione-id/src/db/models/user.js`, mas **hoje não está nas claims do JWT** — precisa ser adicionada em `signUser()`, é o único ajuste de backend necessário), o seletor de organização vira um campo de busca (`GET /institutions?q=`, usando `institutionService.getAllInstitutions`, que já existe no código mas nunca foi exposto por rota — outro gap barato de fechar) em vez de ficar limitado às instituições do próprio usuário.
+- A pessoa da equipe "entra" em qualquer instituição e opera exatamente a mesma tela da seção 4.6 — cadastra pedido, acompanha, etc. — em nome dela.
+- **Auditoria:** toda ação feita nesse modo grava, além do `requestedByUserId`/`respondedBy` normal, um campo `actingAsStaffId` no `statusHistory`. Sem isso, fica impossível depois responder "quem realmente clicou aceitar nesse pedido" quando um funcionário Hemocione operou em nome da instituição — accountability mínima, custo baixo de implementar agora. Esse campo só tem valor se for gravado **no service layer**, no mesmo ponto que já grava `statusHistory` hoje — nunca como responsabilidade do client-side, senão qualquer chamada direta à API (sem passar pela tela) pula a auditoria silenciosamente.
+
+Isso evita construir um segundo painel administrativo (o que seria redundância de UI e duplicação de regra de autorização) — a mesma superfície serve as duas personas, só muda o escopo de instituições visíveis.
+
+**Fronteira de confiança:** `isAdmin` passa a ser uma claim no JWT (seção 9), compartilhado e validado localmente por múltiplos serviços (`hemocione-coleta`, `hemocione-digital-event`, o portal novo — mesmo padrão descrito em 4.3). Uma vez presente no token, nada impede que outro serviço decida usar essa mesma claim para autorizar uma ação não relacionada a este projeto — o raio de impacto de um bug de checagem cresce a cada serviço que passar a confiar nela. Vale documentar `isAdmin` como "admin global do sistema, não específico deste fluxo" no ponto de emissão, para quem for usá-la no futuro não presumir um escopo mais estreito do que ela realmente tem.
+
+## 6. Notificações (WhatsApp)
+
+Canal: WhatsApp Cloud API (Meta), via `hemocione-id` (`POST /send-wpp-msg`, x-secret), disparo síncrono fire-and-forget — mesmo padrão já usado hoje para os 4 templates existentes (`collection_request_created/accepted/rejected/cancelled`).
+
+**Templates novos necessários** (todo template do WhatsApp Business precisa de aprovação prévia da Meta — **é uma dependência externa com lead time de dias, fora do controle do time; deve ser submetido o quanto antes, em paralelo ao desenvolvimento**, não pode ser deixado para o fim):
+
+| Template | Disparado quando | Para quem |
+|---|---|---|
+| `collection_request_counter_proposed` | Banco contrapropõe | Instituição |
+| `collection_request_counter_proposal_declined` | Instituição recusa a contraproposta | Banco de sangue |
+| `technical_visit_confirmed` | Veredito da visita é registrado | Instituição |
+| `collection_request_scheduled` | Link de inscrição é gerado (Fase 4) | Instituição e ponto focal |
+
+Nenhuma mudança de infraestrutura de notificação é necessária — é só consumir o endpoint que já existe, com templates novos.
+
+## 7. Integração com `hemocione-digital-event`
+
+### 7.1 Autenticação entre serviços
+
+`hemocione-digital-event` hoje só tem um secret global (`API_SECRET`) compartilhado com o Lowcoder para todo write-path de evento — não distingue quem está chamando. Para a chamada `hemocione-coleta → hemocione-digital-event`, recomendo um **secret dedicado novo** (`COLETA_INTEGRATION_SECRET`, mesmo padrão de `HEMOCIONE_ID_INTEGRATION_SECRET` que já existe para chamadas do `hemocione-id`), em vez de reusar o secret do Lowcoder. Isola o raio de impacto: rotacionar o secret do Lowcoder não deveria exigir coordenar com `hemocione-coleta`, e vice-versa.
+
+### 7.2 Geração do evento
+
+Quando o banco de sangue clica "gerar link de inscrição" (disponível em `accepted` ou `technical_visit_confirmed`), o fluxo é: criar `Event` → gerar horários (7.3) → habilitar inscrições (`subscription/enable`) → gravar `eventSlug` de volta na `CollectionRequest` e transicionar para `scheduled`. Esses 3 primeiros passos hoje são ações manuais separadas no backoffice Lowcoder; aqui viram uma orquestração única.
+
+**Isso não é uma leitura agregada, é uma escrita distribuída em 4 passos atravessando dois bancos Mongo diferentes, sem transação entre eles.** Uma cadeia ingênua de chamadas HTTP síncronas tem falhas de consistência concretas e não-hipotéticas:
+
+- Falha entre o passo 1 e o 4: `Event` fica criado em `hemocione-digital-event`, mas `CollectionRequest` nunca recebe o `eventSlug` nem sai de `accepted`/`technical_visit_confirmed`. Se o operador tentar de novo, sem uma chave de idempotência **cria um segundo `Event` duplicado** para a mesma solicitação.
+- Falha só no passo 4 (os 3 primeiros funcionam): o evento fica **ao vivo, com inscrições abertas e doadores reais se cadastrando**, enquanto a `CollectionRequest` continua presa no estado anterior — e as duas telas do portal ("Meus pedidos", via `hemocione-coleta"; "Meus eventos", via `GET /event?institutionId=` direto no `hemocione-digital-event`) passam a **discordar na mesma página**.
+
+**Design recomendado:** implementar como função durável do Inngest (já é dependência do `hemocione-digital-event` — mesma ferramenta usada hoje por `findEventsToSendDonations`), com:
+
+1. `sourceCollectionRequestId` gravado no `Event` como chave de upsert — um retry do mesmo pedido nunca cria um segundo evento, apenas continua de onde parou.
+2. Passos como steps do Inngest (retry automático por step, sem repetir o que já teve sucesso).
+3. O `eventSlug` só é gravado de volta em `CollectionRequest` como último step; se esse step falhar, o job aparece como pendente/falho no painel do Inngest (visibilidade operacional) em vez de silenciosamente deixar as duas fontes de verdade divergentes.
+
+Isso é mais esforço de implementação que uma cadeia HTTP direta, mas o cenário de falha parcial deixando um evento ativo órfão da solicitação é exatamente o tipo de bug que só aparece em produção, com uma instituição parceira real no meio — vale o investimento.
+
+### 7.3 Horários pré-configurados por dia (feature nova)
+
+Hoje `setEventDefaultSchedule` aplica o **mesmo número de vagas a todos os blocos** de horário — não existe noção de "menos vagas no horário de almoço". Proposta: estender o endpoint de geração em massa (`POST /event/[eventSlug]/default_schedules`) com um parâmetro opcional `overrides: [{ startTime: "12:00", endTime: "13:30", slots: N }]`, aplicado por horário-do-dia (independente da data), reduzindo/ajustando `slots` nos blocos cuja janela cai dentro do override. Não muda o formato de `schedules[]` — é só um ajuste no algoritmo de geração, respeitando a restrição já existente de que a geração em massa só funciona antes de `subscription.enabled = true`.
+
+### 7.4 Link de inscrição visível dos dois lados
+
+Uma vez que `CollectionRequest.eventSlug` existe, tanto o portal de instituições (seção 4.6) quanto a tela de backoffice do banco de sangue (`hemocione-coleta`) simplesmente renderizam a URL do evento a partir desse campo — nenhuma capacidade nova de leitura é necessária.
+
+## 8. Automação de divulgação
+
+Este é o item mais aberto das notas originais — a proposta abaixo é um MVP conservador; ver seção 10 para o que precisa de validação.
+
+Ao concluir o fluxo da seção 7.2 (evento criado e agendado), disparar via `hemocione-id` (`POST /notifications/send`, canal orquestrado — decide WhatsApp vs push automaticamente) uma notificação para o(s) `admin`/`staff` da instituição com o link de inscrição. Isso já está coberto pelo template `collection_request_scheduled` da seção 6.
+
+**Fora do MVP, proposto como Fase 5.1 (não bloqueia o resto):** lembrete automático próximo à data do evento, via novo cron/Inngest job em `hemocione-digital-event` (mesmo padrão do `findEventsToSendDonations` que já existe, rodando a cada 30 min) — dispararia um lembrete para a instituição alguns dias antes do evento, incentivando divulgação para a comunidade dela. Fica como próximo incremento, não como parte do escopo inicial.
+
+## 9. Achados no código atual — ações necessárias (Fase 0)
+
+| Achado | Repo | Ação | Bloqueia |
+|---|---|---|---|
+| `GET /institutions/[institutionId]/collection-requests` existe como arquivo vazio (0 bytes) | hemocione-coleta | Implementar o endpoint | Portal (4.6), Backoffice (5) |
+| `TechnicalVisit` não tem vínculo com `CollectionRequest` | hemocione-coleta | Adicionar `CollectionRequest.technicalVisitId` (seção 3.4) | Máquina de estados (3) |
+| `HemocioneUserAuthTokenData` desatualizado (sem `institutionRoles`, e também sem `bloodBankRoles`) | hemocione-digital-event | Sincronizar com o shape já usado em hemocione-coleta | Integração (7); mais concretamente, `GET /event?institutionId=` (4.6) se esse endpoint autorizar por JWT de usuário em vez de secret de serviço |
+| `institutionService.getAllInstitutions` existe mas não tem rota | hemocione-id | Expor `GET /institutions?q=` | Backoffice interno (5), busca no portal |
+| Ninguém nunca vira `admin` de instituição | hemocione-id | Corrigir bootstrap (criador vira admin) + endpoint de convite de membro | Modelo tenant (4.4/4.5) |
+| `isAdmin` não está nas claims do JWT | hemocione-id | Adicionar a `signUser()` | Backoffice interno (5) |
+| Sem secret dedicado para hemocione-coleta → hemocione-digital-event | hemocione-digital-event | Novo `COLETA_INTEGRATION_SECRET` | Integração (7.1) |
+| Branch `feat/event-institution-bloodbank-link` (PR #47) já mesclada em `develop`, mas não promovida a `main`; 2 violações de prettier introduzidas por ela ainda em `develop` | hemocione-digital-event | Promover `develop → main` quando for a hora, com um `yarn lint:fix` antes | Integração (7.2) — os campos `institutionId`/`bloodBanksLocationId` só existem em `develop` hoje |
+| Criação de instituição (`POST /institutions`) tem `AUTO_APPROVE` hardcoded — todo cadastro nasce `validated`, apesar de existir fluxo de moderação (`listar_instituicoes_pendentes`/`validar_instituicao`) | hemocione-id | Inconsistência a resolver — decidir se a moderação deve voltar a valer ou se o fluxo de moderação hoje é vestigial | Não bloqueia esta iniciativa, mas afeta confiabilidade do cadastro de instituição que o portal vai expor |
+| `subscription/index.post.ts` faz check-then-act sem lock atômico (`schedule.slots > schedule.occupiedSlots` checado contra leitura cacheada, depois salva e incrementa em separado — `server/services/subscription.ts:123-160`); o único `// todo` real do arquivo está em `deleteSubscription` (linha 181, caminho de *cancelamento*, não o de criação aqui descrito) | hemocione-digital-event | Trocar por `findOneAndUpdate` condicional (`occupiedSlots < slots`) antes de incrementar | **Bloqueador da Fase 4** — este projeto cria o funil que mais aumenta tráfego concorrente nesse path (grupo inteiro de uma instituição se inscrevendo no mesmo horário quando o link sai) |
+| `acceptCollectionRequest` pula transação deliberadamente (`server/services/collectionRequest.ts:378-380`, comentário `// For development, we'll skip transactions... TODO: Implement proper transaction handling for production`) | hemocione-coleta | Implementar a transação antes de produção — o próprio código já sinaliza isso como pendência conhecida | Máquina de estados (3) — mais estados novos = mais transições concorrentes possíveis sobre o mesmo documento |
+| Guard de solicitação duplicada (`createCollectionRequest`, `server/services/collectionRequest.ts:727`) só bloqueia nova solicitação se já existir uma com `status: "pending"` | hemocione-coleta | Estender o guard para também bloquear com `counter_proposed`, `awaiting_technical_visit`, `technical_visit_confirmed`, `accepted` | Máquina de estados (3) — sem isso, os estados novos reabrem silenciosamente um buraco que hoje só existe para `pending` |
+
+## 10. Suposições assumidas — validar com o Guima
+
+Como parte deste brainstorming avançou de forma assíncrona (ver histórico da conversa), as decisões abaixo foram tomadas por julgamento próprio e precisam de confirmação explícita antes da implementação:
+
+1. **Máquina de estados da seção 3.2** — sintetizada diretamente das notas originais, mas nunca teve confirmação explícita de "faz sentido" — é a peça mais crítica do documento, revisar com atenção.
+2. **"Aparece ao vivo" (3.5)** interpretado como "atualizado no próximo carregamento de página + notificação avisando", não WebSocket real-time.
+3. **UI kit do portal novo (4.1)** — Element Plus recomendado por consistência com a maioria do ecossistema; não foi validado.
+4. **Fase 5 (divulgação)** é a menos detalhada nas notas originais — o MVP proposto (notificar responsável com o link) é uma leitura conservadora; o lembrete automático (5.1) é uma extrapolação minha, não um pedido explícito.
+5. **Secret dedicado `COLETA_INTEGRATION_SECRET` (7.1)** é uma recomendação de boa prática, não uma característica pedida — poderia também reusar o `API_SECRET` do Lowcoder se preferir simplicidade a isolamento.
+6. **Cookie SSO `Domain=.hemocione.com.br` (4.3)** e **backfill de `TechnicalVisit.institutionId` (3.4)** — ambos precisam de uma checagem rápida no código/dado real antes da Fase 1/2 começar; o documento assume os dois, mas nenhum foi confirmado contra o estado atual.
+7. **"1 contraproposta por solicitação" (3.3)** é a leitura mais direta das notas originais, mas não foi confirmada como padrão real de negociação — se times de banco de sangue costumam negociar em mais rodadas na prática (telefone, WhatsApp informal), o limite de 1 pode ser cedo demais.
+
+## 11. Ordem de implementação recomendada
+
+1. Fase 0 (fundações) — nenhuma tem valor de produto sozinha, mas todas são baratas e destravam o resto.
+2. Fase 1 (núcleo do domínio) — sem isso, nada do resto tem o que mostrar.
+3. Fases 2 e 3 em paralelo (portal + backoffice interno compartilham a mesma UI-base, diferem só no escopo de instituições visíveis).
+4. Fase 4 (integração com eventos) — só faz sentido depois que uma solicitação real consegue chegar a `technical_visit_confirmed`/`accepted`.
+5. Fase 5 (divulgação) — incremento sobre a Fase 4, pode esperar um ciclo depois do lançamento das fases anteriores.
+
+## 12. Revisões deste documento
+
+Antes de virar plano de implementação, este documento passou por duas rodadas de revisão adversarial (pedir refutação, não aprovação — mesmo princípio usado nas duas):
+
+- **Advisor de arquitetura (Fable)**, com o documento completo em mãos: confirmou a base factual (endpoint vazio, `AUTO_APPROVE` hardcoded, `isAdmin` fora do JWT, campos do PR #47 só em `develop`), e apontou os pontos mais importantes já incorporados acima — as duas race conditions pré-existentes tratadas como bloqueador de Fase 4, a falta de `scheduled → cancelled`, a fragilidade de `awaiting_technical_visit`, a integração síncrona da seção 7.2 redesenhada para orquestração idempotente, e as notas de fronteira de confiança em 4.5/5.
+- **Verificação factual linha-a-linha** contra o código real dos três repos (grep/read, não opinião) — rodada com um subagente genérico porque o Codex apresentou uma falha de ambiente (sandbox de rede, `bwrap: loopback: Operation not permitted`) nas duas tentativas feitas; não foi possível usar a ferramenta pedida originalmente para esta etapa. Resultado: de ~20 afirmações factuais checadas (paths, linhas, comportamento de código, estado real da branch/PR #47 via git, violações de prettier), **19 confirmadas exatamente como escrito** e **1 corrigida** — a linha 260 citava um comentário `// todo` que na verdade está numa função diferente (`deleteSubscription`, caminho de cancelamento, não o de criação de inscrição criticado ali); já ajustada no texto.
+
+Este documento reflete as correções já incorporadas; ele não substitui uma leitura humana antes da implementação começar — em especial a seção 10, que lista o que ainda é suposição.

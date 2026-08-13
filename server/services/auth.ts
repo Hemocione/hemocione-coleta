@@ -111,6 +111,28 @@ export function assertUserAccessToBloodBanksLocationId(
   }
 }
 
+export function assertUserAccessToInstitutionId(
+  user: HemocioneUserAuthTokenData,
+  institutionId: string
+) {
+  if (!user.institutionRoles.length) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "User does not have access to any institution",
+    });
+  }
+  if (
+    !user.institutionRoles.some(
+      (role) => role.institutionId === institutionId
+    )
+  ) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "User does not have access to this institution",
+    });
+  }
+}
+
 export function useHemocioneUserAuthOrHemocioneIdIntegrationSecret(
   event: H3Event
 ) {

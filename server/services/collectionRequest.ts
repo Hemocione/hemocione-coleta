@@ -88,8 +88,11 @@ export interface CollectionRequestWithDetails {
   updatedAt: Date;
 }
 
-export async function getCollectionRequestsByBloodBank(
-  bloodBanksLocationId: string,
+async function getCollectionRequestsByScope(
+  scope: {
+    bloodBanksLocationId?: string;
+    institutionId?: string;
+  },
   filters: CollectionRequestFilters = {},
   pagination: PaginationOptions = {}
 ): Promise<PaginatedResult<CollectionRequestWithDetails>> {
@@ -99,7 +102,7 @@ export async function getCollectionRequestsByBloodBank(
 
   // Build query
   const query: any = {
-    bloodBanksLocationId,
+    ...scope,
     deletedAt: null,
     // Exclude cancelled status
     status: { $ne: "cancelled" },
@@ -259,6 +262,26 @@ export async function getCollectionRequestsByBloodBank(
       pages,
     },
   };
+}
+
+export async function getCollectionRequestsByBloodBank(
+  bloodBanksLocationId: string,
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  return getCollectionRequestsByScope(
+    { bloodBanksLocationId },
+    filters,
+    pagination
+  );
+}
+
+export async function getCollectionRequestsByInstitution(
+  institutionId: string,
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  return getCollectionRequestsByScope({ institutionId }, filters, pagination);
 }
 
 export async function getCollectionRequestById(

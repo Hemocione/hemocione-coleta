@@ -178,17 +178,39 @@ Iframe via `@hemocione/sdk` (postMessage), mesmo padrão já usado para `hemocio
 
 ## 5. Backoffice interno Hemocione
 
-Duas personas confirmadas: (a) equipe interna Hemocione cadastrando/gerenciando em nome de instituições, visão cross-organização; (b) pessoa com vínculo em várias instituições, trocando de organização (já coberto pela seção 4.4).
+Duas personas confirmadas: (a) equipe interna Hemocione cadastrando/gerenciando em nome de instituições, visão cross-organização; (b) pessoa com vínculo em várias instituições, trocando de organização (já coberto pela seção 4.4, sem mudança).
 
-Para (a), a proposta é **não construir uma ferramenta separada** — reusar a mesma UI do seletor de organização da seção 4.4, só que ampliada:
+**Decisão confirmada pelo Guima: para a persona (a), reaproveitar ao máximo o `hemocione-mcp` já existente, em vez de construir uma superfície de UI dedicada.** Isso substitui a proposta anterior (seletor de organização ampliado com claim `isAdmin` no JWT) — o caminho abaixo é o novo desenho.
 
-- Quando o JWT tem `isAdmin: true` (flag global que já existe em `hemocione-id/src/db/models/user.js`, mas **hoje não está nas claims do JWT** — precisa ser adicionada em `signUser()`, é o único ajuste de backend necessário), o seletor de organização vira um campo de busca (`GET /institutions?q=`, usando `institutionService.getAllInstitutions`, que já existe no código mas nunca foi exposto por rota — outro gap barato de fechar) em vez de ficar limitado às instituições do próprio usuário.
-- A pessoa da equipe "entra" em qualquer instituição e opera exatamente a mesma tela da seção 4.6 — cadastra pedido, acompanha, etc. — em nome dela.
-- **Auditoria:** toda ação feita nesse modo grava, além do `requestedByUserId`/`respondedBy` normal, um campo `actingAsStaffId` no `statusHistory`. Sem isso, fica impossível depois responder "quem realmente clicou aceitar nesse pedido" quando um funcionário Hemocione operou em nome da instituição — accountability mínima, custo baixo de implementar agora. Esse campo só tem valor se for gravado **no service layer**, no mesmo ponto que já grava `statusHistory` hoje — nunca como responsabilidade do client-side, senão qualquer chamada direta à API (sem passar pela tela) pula a auditoria silenciosamente.
+### 5.1 Como o `hemocione-mcp` já funciona
 
-Isso evita construir um segundo painel administrativo (o que seria redundância de UI e duplicação de regra de autorização) — a mesma superfície serve as duas personas, só muda o escopo de instituições visíveis.
+`hemocione-mcp` é um servidor MCP HTTP (Hono, stateless, sem banco) que expõe endpoints de backoffice de vários serviços Hemocione como *tools* — cada serviço é um objeto `Service` (`id`, `baseUrlEnv`, `auth: {header: "x-secret", secretEnv}`, `endpoints: [...]`) registrado em `src/catalog/index.ts`. Adicionar um endpoint novo a um serviço já cadastrado é **só uma entrada de array** — nenhum handler dedicado, nenhum arquivo de servidor a tocar; a tool nasce no próximo boot (mecanismo documentado no próprio README do repo).
 
-**Fronteira de confiança:** `isAdmin` passa a ser uma claim no JWT (seção 9), compartilhado e validado localmente por múltiplos serviços (`hemocione-coleta`, `hemocione-digital-event`, o portal novo — mesmo padrão descrito em 4.3). Uma vez presente no token, nada impede que outro serviço decida usar essa mesma claim para autorizar uma ação não relacionada a este projeto — o raio de impacto de um bug de checagem cresce a cada serviço que passar a confiar nela. Vale documentar `isAdmin` como "admin global do sistema, não específico deste fluxo" no ponto de emissão, para quem for usá-la no futuro não presumir um escopo mais estreito do que ela realmente tem.
+O catálogo de `hemocione-coleta` **já existe**, com 2 tools (`cadastrar_hemocentro`, `criar_solicitacao_de_coleta`), ambas via header `x-secret` contra `COLETA_SECRET` — mas vive hoje dentro de `src/catalog/outros.ts`, um arquivo-cesto compartilhado com mais 4 serviços (`certificados`, `askForHelp`, `promotions`, `ondeDoar`), e as variáveis `COLETA_SECRET`/`COLETA_BASE_URL` estão **vazias no ambiente atual** do `hemocione-mcp` — ou seja, essas 2 tools não funcionam de fato hoje (ver seção 9).
+
+### 5.2 O que este projeto adiciona ao catálogo
+
+Cada novo endpoint de backoffice proposto neste documento ganha uma entrada correspondente no catálogo — o custo marginal é uma linha de array, não uma tela nova:
+
+| Tool MCP nova | Endpoint que ela chama | Observação |
+|---|---|---|
+| `coleta__listar_solicitacoes` | `GET /api/backoffice/v1/collection-requests` (novo, com filtros `institutionId?`/`bloodBanksLocationId?`/`status?`) | Visão cross-organização — endpoint novo, distinto do listing JWT-escopado da seção 4.6 |
+| `coleta__aceitar_solicitacao` / `contrapor_solicitacao` / `rejeitar_solicitacao` / `cancelar_solicitacao` | Variantes backoffice-secret dos endpoints hoje só-JWT (`accept.post.ts` etc.) | Corpo exige `actingAsStaffId` explícito — mesmo padrão que `criar_solicitacao_de_coleta` já usa para `requestedByUserId` |
+| `coleta__reaproveitar_visita_tecnica` / `registrar_veredito_visita` | Ações sobre `TechnicalVisit` (seção 3.4) | — |
+| `coleta__gerar_link_de_inscricao` | Orquestração da seção 7.2 | — |
+| `id__buscar_instituicoes_por_texto` | `GET /institutions?q=` (o gap da seção 9, agora catalogado) | Substitui a necessidade de UI de busca no portal para esta persona |
+
+**Importante — a rota, não o catálogo, é quem autoriza e valida.** Confirmado no código do `hemocione-mcp`: o campo `body` de qualquer endpoint é repassado como `z.any()`, sem shape, sem whitelist de campos — "nada é parseado, validado ou reserializado no caminho" (comentário do próprio `forward()`). Isso significa que toda validação de autorização e todo whitelist de campos (ex.: a personalização de evento da seção 7.5 só pode tocar `banner`/`logo`/`address`, nunca datas ou vagas) **tem que estar no endpoint real** de `hemocione-coleta`/`hemocione-digital-event` — o catálogo MCP não oferece nenhuma garantia adicional, só a conveniência de invocação.
+
+**Quem alcança essas tools hoje:** qualquer conta Google do domínio `@hemocione.com.br` (ou API key válida), sem escopo por operação ou por serviço — risco já documentado no próprio README do `hemocione-mcp` ("qualquer conta do domínio acessa tudo que o catálogo expõe"). Isso reforça por que `actingAsStaffId` precisa ser um **parâmetro explícito no corpo** de cada chamada (responsabilidade de quem chama preencher corretamente, mesmo padrão que `requestedByUserId` já usa em `criar_solicitacao_de_coleta`) — não algo inferido automaticamente da identidade de quem invocou o MCP, que não é necessariamente um usuário Hemocione.
+
+**Sem duplicar lógica de negócio:** tanto a rota JWT (banco de sangue respondendo diretamente) quanto a variante backoffice-secret (equipe interna agindo em nome de alguém) chamam a **mesma função de service** (`acceptCollectionRequest` etc., seção 3.2) — a diferença entre as duas é só autenticação e resolução de quem está agindo, nunca a máquina de estados em si.
+
+### 5.3 Persona (b) — sem mudança
+
+Pessoa com vínculo em várias instituições continua servida pela UI do portal (seletor de organização, seção 4.4) — essa persona não tem conta `@hemocione.com.br` nem acesso ao MCP, então a UI web continua sendo o caminho certo para ela.
+
+**Risco evitado por esta decisão:** ao usar o secret já existente do MCP em vez de uma claim `isAdmin` nova no JWT, evitamos crescer o raio de impacto de uma claim global compartilhada por múltiplos serviços — risco que tinha sido apontado na revisão adversarial (seção 12) sobre o desenho anterior.
 
 ## 6. Notificações (WhatsApp)
 
@@ -275,8 +297,10 @@ Isso é uma frente **futura, fora do escopo imediato deste documento** — fica 
 | `HemocioneUserAuthTokenData` desatualizado (sem `institutionRoles`, e também sem `bloodBankRoles`) | hemocione-digital-event | Sincronizar com o shape já usado em hemocione-coleta | Integração (7); mais concretamente, `GET /event?institutionId=` (4.6) se esse endpoint autorizar por JWT de usuário em vez de secret de serviço |
 | `institutionService.getAllInstitutions` existe mas não tem rota | hemocione-id | Expor `GET /institutions?q=` | Backoffice interno (5), busca no portal |
 | Ninguém nunca vira `admin` de instituição | hemocione-id | Corrigir bootstrap (criador vira admin) + endpoint de convite de membro | Modelo tenant (4.4/4.5) |
-| `isAdmin` não está nas claims do JWT | hemocione-id | Adicionar a `signUser()` | Backoffice interno (5) |
 | Sem secret dedicado para hemocione-coleta → hemocione-digital-event | hemocione-digital-event | Novo `COLETA_INTEGRATION_SECRET` | Integração (7.1) |
+| `COLETA_SECRET`/`COLETA_BASE_URL` vazios no ambiente do `hemocione-mcp` — as 2 tools de coleta que já existem no catálogo não funcionam de fato hoje | hemocione-mcp | Configurar as duas variáveis | Backoffice interno (5.1) |
+| Catálogo `coleta` vive dentro de `src/catalog/outros.ts`, junto com 4 outros serviços | hemocione-mcp | Extrair para `src/catalog/hemocione-coleta.ts` próprio (mesmo padrão de `hemocione-id.ts`/`eventos.ts`/`copa.ts`) antes do catálogo crescer com as tools da seção 5.2 | Backoffice interno (5.1) |
+| Endpoints de resposta (aceitar/contrapor/rejeitar/cancelar) só têm variante JWT — não existe caminho backoffice-secret para a equipe interna agir em nome de alguém | hemocione-coleta | Criar as variantes com `actingAsStaffId` obrigatório no corpo, chamando a mesma função de service da variante JWT (seção 5.2) | Backoffice interno (5.2) |
 | Branch `feat/event-institution-bloodbank-link` (PR #47) já mesclada em `develop`, mas não promovida a `main`; 2 violações de prettier introduzidas por ela ainda em `develop` | hemocione-digital-event | Promover `develop → main` quando for a hora, com um `yarn lint:fix` antes | Integração (7.2) — os campos `institutionId`/`bloodBanksLocationId` só existem em `develop` hoje |
 | Criação de instituição (`POST /institutions`) tem `AUTO_APPROVE` hardcoded — todo cadastro nasce `validated`, apesar de existir fluxo de moderação (`listar_instituicoes_pendentes`/`validar_instituicao`) | hemocione-id | Inconsistência a resolver — decidir se a moderação deve voltar a valer ou se o fluxo de moderação hoje é vestigial | Não bloqueia esta iniciativa, mas afeta confiabilidade do cadastro de instituição que o portal vai expor |
 | `subscription/index.post.ts` faz check-then-act sem lock atômico (`schedule.slots > schedule.occupiedSlots` checado contra leitura cacheada, depois salva e incrementa em separado — `server/services/subscription.ts:123-160`); o único `// todo` real do arquivo está em `deleteSubscription` (linha 181, caminho de *cancelamento*, não o de criação aqui descrito) | hemocione-digital-event | Trocar por `findOneAndUpdate` condicional (`occupiedSlots < slots`) antes de incrementar | **Bloqueador da Fase 4** — este projeto cria o funil que mais aumenta tráfego concorrente nesse path (grupo inteiro de uma instituição se inscrevendo no mesmo horário quando o link sai) |
@@ -312,3 +336,4 @@ Antes de virar plano de implementação, este documento passou por duas rodadas 
 Este documento reflete as correções já incorporadas; ele não substitui uma leitura humana antes da implementação começar — em especial a seção 10, que lista o que ainda é suposição.
 
 - **Rodada de decisões de negócio (Guima, 2026-08-13):** confirmou o formato real do link de evento (7.4), o princípio de notificar em toda transição de etapa (6), e adicionou a feature de personalização do evento pela instituição (7.5). Reduziu o escopo da seção 8 (divulgação) para "notificação por etapa", movendo a automação de redes sociais internas para uma fase futura sem desenho técnico ainda.
+- **Reaproveitamento do `hemocione-mcp` (Guima, 2026-08-13):** substituiu o desenho anterior do backoffice interno (seletor de organização ampliado + claim `isAdmin` no JWT) por extensão do catálogo `hemocione-mcp` já existente (seção 5) — verificado contra o código real do repo antes de escrever (padrão de `Service`, mecanismo de registro, estado atual do catálogo `coleta`, e a ausência de validação de corpo no proxy).

@@ -125,7 +125,7 @@ Ao entrar em `awaiting_technical_visit`, a tela do banco de sangue mostra o hist
 
 ### 3.5 "Aparece na solicitação ao vivo"
 
-Interpretação adotada: assim que o veredito da visita é registrado, o campo já reflete no próximo carregamento da tela — a notificação WhatsApp (seção 6) é o que avisa a pessoa a checar. Não estamos propondo WebSocket/polling em tempo real; seria engenharia além do necessário para este caso de uso. **Suposição a validar com o Guima** — ver seção 10.
+**Confirmado pelo Guima:** "ao vivo" significa "atualiza assim que a pessoa abre a tela de novo" — não uma tela que se atualiza sozinha na frente da pessoa. Sem WebSocket/polling em tempo real. O que fecha essa experiência é a notificação: toda transição de etapa dispara um aviso via `hemocione-id` (WhatsApp ou push, decidido automaticamente pelo canal orquestrado — ver seção 6) para quem precisa saber, e é esse aviso que leva a pessoa a abrir a tela e ver o estado já atualizado.
 
 ## 4. Plataforma `instituicoes.hemocione.com.br`
 
@@ -192,18 +192,25 @@ Isso evita construir um segundo painel administrativo (o que seria redundância 
 
 ## 6. Notificações (WhatsApp)
 
-Canal: WhatsApp Cloud API (Meta), via `hemocione-id` (`POST /send-wpp-msg`, x-secret), disparo síncrono fire-and-forget — mesmo padrão já usado hoje para os 4 templates existentes (`collection_request_created/accepted/rejected/cancelled`).
+**Princípio confirmado pelo Guima: toda transição de etapa notifica quem precisa saber ou agir.** Não é "notificar só em pontos específicos" — é regra geral: cada mudança de `status` em `CollectionRequest` dispara uma chamada a `hemocione-id`, que já decide o canal automaticamente (WhatsApp se a pessoa nunca abriu o app, push com fallback para WhatsApp se já abriu — lógica adaptativa que já existe em `notificationService.js`). Canal: WhatsApp Cloud API (Meta), via `hemocione-id` (`POST /send-wpp-msg` ou o orquestrado `POST /notifications/send`), disparo síncrono fire-and-forget — mesmo padrão já usado hoje para os 4 templates existentes.
 
-**Templates novos necessários** (todo template do WhatsApp Business precisa de aprovação prévia da Meta — **é uma dependência externa com lead time de dias, fora do controle do time; deve ser submetido o quanto antes, em paralelo ao desenvolvimento**, não pode ser deixado para o fim):
+**Mapa completo de transição → quem é notificado:**
 
-| Template | Disparado quando | Para quem |
+| Transição | Notifica | Template |
 |---|---|---|
-| `collection_request_counter_proposed` | Banco contrapropõe | Instituição |
-| `collection_request_counter_proposal_declined` | Instituição recusa a contraproposta | Banco de sangue |
-| `technical_visit_confirmed` | Veredito da visita é registrado | Instituição |
-| `collection_request_scheduled` | Link de inscrição é gerado (Fase 4) | Instituição e ponto focal |
+| Criação (`pending`) | Banco de sangue | `collection_request_created` (existente) |
+| → `counter_proposed` | Instituição | `collection_request_counter_proposed` (novo) |
+| → `counter_proposal_declined` | Banco de sangue | `collection_request_counter_proposal_declined` (novo) |
+| → `accepted` | Instituição | `collection_request_accepted` (existente) |
+| → `awaiting_technical_visit` | Instituição | `collection_request_awaiting_technical_visit` (novo) |
+| → `technical_visit_confirmed` | Instituição | `technical_visit_confirmed` (novo) |
+| → `rejected` | Instituição | `collection_request_rejected` (existente) |
+| → `scheduled` | Instituição e ponto focal | `collection_request_scheduled` (novo) |
+| → `cancelled` | A outra parte (quem não cancelou) | `collection_request_cancelled` (existente) |
 
-Nenhuma mudança de infraestrutura de notificação é necessária — é só consumir o endpoint que já existe, com templates novos.
+**Templates novos necessários** (todo template do WhatsApp Business precisa de aprovação prévia da Meta — **é uma dependência externa com lead time de dias, fora do controle do time; deve ser submetido o quanto antes, em paralelo ao desenvolvimento**, não pode ser deixado para o fim): `collection_request_counter_proposed`, `collection_request_counter_proposal_declined`, `collection_request_awaiting_technical_visit`, `technical_visit_confirmed`, `collection_request_scheduled` — 5 novos; os outros 4 já existem e continuam sendo usados como estão.
+
+Nenhuma mudança de infraestrutura de notificação é necessária — é só consumir o endpoint que já existe, com templates novos, disparado a partir do mesmo ponto do service layer que já grava `statusHistory` (garante que toda transição, sem exceção, dispara o aviso — nunca fica responsabilidade de cada endpoint lembrar de chamar).
 
 ## 7. Integração com `hemocione-digital-event`
 
@@ -234,15 +241,30 @@ Hoje `setEventDefaultSchedule` aplica o **mesmo número de vagas a todos os bloc
 
 ### 7.4 Link de inscrição visível dos dois lados
 
-Uma vez que `CollectionRequest.eventSlug` existe, tanto o portal de instituições (seção 4.6) quanto a tela de backoffice do banco de sangue (`hemocione-coleta`) simplesmente renderizam a URL do evento a partir desse campo — nenhuma capacidade nova de leitura é necessária.
+Uma vez que `CollectionRequest.eventSlug` existe, tanto o portal de instituições (seção 4.6) quanto a tela de backoffice do banco de sangue (`hemocione-coleta`) simplesmente renderizam a URL do evento a partir desse campo — nenhuma capacidade nova de leitura é necessária. **Formato confirmado:** `eventos.hemocione.com.br/event/<eventSlug>` (ex.: `eventos.hemocione.com.br/event/escola-modelo-piriquito-papagaio`).
+
+### 7.5 Personalização do evento pela instituição (feature nova)
+
+**Confirmado pelo Guima:** ao receber o link do evento, a instituição deve poder deixar o evento "com a cara dela" — troca de banner, logo e, possivelmente, endereço. Por padrão, esses campos vêm preenchidos automaticamente:
+
+- **Banner e logo**: default a partir do próprio cadastro da `Institution` no `hemocione-id` (campos `logo`/`banner` já existem nesse model — confirmado em `hemocione-id/src/db/models/institution.js`).
+- **Endereço**: default a partir do `address` já preenchido na própria `CollectionRequest` (é o endereço real do local da coleta, mais específico que o endereço geral cadastrado na instituição).
+
+**Risco baixo confirmado:** o model `Event` em `hemocione-digital-event` **já tem** os campos `logo`, `banner` e `location` (`address`/`city`/`state`) — não é preciso schema novo nesse repo, só um caminho de escrita.
+
+**Caminho de escrita recomendado:** não expor esses campos a JWT de usuário diretamente em `hemocione-digital-event` (hoje só tem `assertSecretAuth` global e `x-secret`/`API_SECRET`, sem noção de "essa instituição só pode editar o evento dela"). Em vez disso, criar um endpoint escopado em `hemocione-coleta` (ex.: `PUT /v1/institutions/[institutionId]/collection-requests/[requestId]/event-branding`), que:
+
+1. Valida que a pessoa autenticada tem `institutionRole` para `institutionId` **e** que a `CollectionRequest` referenciada pertence a essa mesma instituição (mesma checagem cross-instituição da seção 4.5).
+2. Aceita só os três campos permitidos (`banner`, `logo`, `address`) — nunca datas, vagas, ou qualquer outro campo do evento.
+3. Repassa a atualização para `hemocione-digital-event` via `PUT /event/[eventSlug]`, autenticado com o `COLETA_INTEGRATION_SECRET` (seção 7.1) — a mesma aresta nova que já existe para criar o evento, reusada para atualizar.
+
+Isso mantém a autorização por instituição centralizada em `hemocione-coleta` (onde esse padrão já existe e é testado) em vez de duplicá-la dentro de `hemocione-digital-event`.
 
 ## 8. Automação de divulgação
 
-Este é o item mais aberto das notas originais — a proposta abaixo é um MVP conservador; ver seção 10 para o que precisa de validação.
+**Escopo corrigido pelo Guima:** isto não é sobre avisar a instituição — isso já está resolvido pelo princípio geral da seção 6 (toda transição notifica, incluindo `scheduled` com o link de inscrição). "Divulgação automática" aqui é sobre **divulgação interna do próprio Hemocione**: automatizar posts em redes sociais (Instagram etc.) quando um evento nasce dessa integração.
 
-Ao concluir o fluxo da seção 7.2 (evento criado e agendado), disparar via `hemocione-id` (`POST /notifications/send`, canal orquestrado — decide WhatsApp vs push automaticamente) uma notificação para o(s) `admin`/`staff` da instituição com o link de inscrição. Isso já está coberto pelo template `collection_request_scheduled` da seção 6.
-
-**Fora do MVP, proposto como Fase 5.1 (não bloqueia o resto):** lembrete automático próximo à data do evento, via novo cron/Inngest job em `hemocione-digital-event` (mesmo padrão do `findEventsToSendDonations` que já existe, rodando a cada 30 min) — dispararia um lembrete para a instituição alguns dias antes do evento, incentivando divulgação para a comunidade dela. Fica como próximo incremento, não como parte do escopo inicial.
+Isso é uma frente **futura, fora do escopo imediato deste documento** — fica registrado para não se perder, mas sem desenho técnico agora (não foi pedido e provavelmente envolve decisões de conteúdo/aprovação editorial que não são deste domínio). Quando entrar em pauta, o gancho técnico mais natural é o mesmo `eventSlug`/dados do evento já disponíveis a partir da Fase 4 — não deveria exigir mudança de modelo.
 
 ## 9. Achados no código atual — ações necessárias (Fase 0)
 
@@ -263,15 +285,14 @@ Ao concluir o fluxo da seção 7.2 (evento criado e agendado), disparar via `hem
 
 ## 10. Suposições assumidas — validar com o Guima
 
-Como parte deste brainstorming avançou de forma assíncrona (ver histórico da conversa), as decisões abaixo foram tomadas por julgamento próprio e precisam de confirmação explícita antes da implementação:
+**Confirmado pelo Guima em 2026-08-13** (não são mais suposições abertas): a interpretação de "ao vivo" (3.5), o limite de 1 contraproposta por solicitação sem previsão de rodadas extras (3.3), o reaproveitamento de visita técnica sem prazo de validade (3.4), e o escopo de divulgação automática reduzido a "notificar em toda transição de etapa" com a automação de redes sociais internas ficando para uma fase futura (8).
 
-1. **Máquina de estados da seção 3.2** — sintetizada diretamente das notas originais, mas nunca teve confirmação explícita de "faz sentido" — é a peça mais crítica do documento, revisar com atenção.
-2. **"Aparece ao vivo" (3.5)** interpretado como "atualizado no próximo carregamento de página + notificação avisando", não WebSocket real-time.
-3. **UI kit do portal novo (4.1)** — Element Plus recomendado por consistência com a maioria do ecossistema; não foi validado.
-4. **Fase 5 (divulgação)** é a menos detalhada nas notas originais — o MVP proposto (notificar responsável com o link) é uma leitura conservadora; o lembrete automático (5.1) é uma extrapolação minha, não um pedido explícito.
-5. **Secret dedicado `COLETA_INTEGRATION_SECRET` (7.1)** é uma recomendação de boa prática, não uma característica pedida — poderia também reusar o `API_SECRET` do Lowcoder se preferir simplicidade a isolamento.
-6. **Cookie SSO `Domain=.hemocione.com.br` (4.3)** e **backfill de `TechnicalVisit.institutionId` (3.4)** — ambos precisam de uma checagem rápida no código/dado real antes da Fase 1/2 começar; o documento assume os dois, mas nenhum foi confirmado contra o estado atual.
-7. **"1 contraproposta por solicitação" (3.3)** é a leitura mais direta das notas originais, mas não foi confirmada como padrão real de negociação — se times de banco de sangue costumam negociar em mais rodadas na prática (telefone, WhatsApp informal), o limite de 1 pode ser cedo demais.
+O que ainda segue como suposição, sem confirmação explícita:
+
+1. **Máquina de estados da seção 3.2** — sintetizada diretamente das notas originais; ainda não teve um "faz sentido" explícito ponto a ponto — é a peça mais crítica do documento, revisar com atenção antes da Fase 1.
+2. **UI kit do portal novo (4.1)** — Element Plus recomendado por consistência com a maioria do ecossistema; não foi validado.
+3. **Secret dedicado `COLETA_INTEGRATION_SECRET` (7.1)** é uma recomendação de boa prática, não uma característica pedida — poderia também reusar o `API_SECRET` do Lowcoder se preferir simplicidade a isolamento.
+4. **Cookie SSO `Domain=.hemocione.com.br` (4.3)** e **backfill de `TechnicalVisit.institutionId` (3.4)** — ambos precisam de uma checagem rápida no código/dado real antes da Fase 1/2 começar; o documento assume os dois, mas nenhum foi confirmado contra o estado atual.
 
 ## 11. Ordem de implementação recomendada
 
@@ -289,3 +310,5 @@ Antes de virar plano de implementação, este documento passou por duas rodadas 
 - **Verificação factual linha-a-linha** contra o código real dos três repos (grep/read, não opinião) — rodada com um subagente genérico porque o Codex apresentou uma falha de ambiente (sandbox de rede, `bwrap: loopback: Operation not permitted`) nas duas tentativas feitas; não foi possível usar a ferramenta pedida originalmente para esta etapa. Resultado: de ~20 afirmações factuais checadas (paths, linhas, comportamento de código, estado real da branch/PR #47 via git, violações de prettier), **19 confirmadas exatamente como escrito** e **1 corrigida** — a linha 260 citava um comentário `// todo` que na verdade está numa função diferente (`deleteSubscription`, caminho de cancelamento, não o de criação de inscrição criticado ali); já ajustada no texto.
 
 Este documento reflete as correções já incorporadas; ele não substitui uma leitura humana antes da implementação começar — em especial a seção 10, que lista o que ainda é suposição.
+
+- **Rodada de decisões de negócio (Guima, 2026-08-13):** confirmou o formato real do link de evento (7.4), o princípio de notificar em toda transição de etapa (6), e adicionou a feature de personalização do evento pela instituição (7.5). Reduziu o escopo da seção 8 (divulgação) para "notificação por etapa", movendo a automação de redes sociais internas para uma fase futura sem desenho técnico ainda.

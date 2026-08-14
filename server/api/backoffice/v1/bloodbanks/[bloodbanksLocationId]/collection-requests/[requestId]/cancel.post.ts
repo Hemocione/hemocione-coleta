@@ -1,0 +1,68 @@
+import { z } from "zod";
+import { assertSecretAuth } from "~/server/services/auth";
+import { cancelCollectionRequest } from "~/server/services/collectionRequest";
+
+const bodySchema = z.object({
+  actingAsStaffId: z.string().trim().min(1),
+  cancellationReason: z.string().trim().min(1).max(1000),
+});
+
+export default defineEventHandler(async (event) => {
+  assertSecretAuth(event);
+
+  try {
+    const bloodBanksLocationId = getRouterParam(event, "bloodbanksLocationId");
+    const requestId = getRouterParam(event, "requestId");
+
+    if (!bloodBanksLocationId) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Blood bank location ID is required",
+      });
+    }
+
+    if (!requestId) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Request ID is required",
+      });
+    }
+
+    const body = bodySchema.parse(await readBody(event));
+    const updatedRequest = await cancelCollectionRequest(
+      requestId,
+      body.cancellationReason,
+      body.actingAsStaffId,
+      bloodBanksLocationId
+    );
+
+    if (!updatedRequest) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: "Collection request not found or cannot be cancelled",
+      });
+    }
+
+    return {
+      success: true,
+      data: updatedRequest,
+      message: "Collection request cancelled successfully",
+    };
+  } catch (error: any) {
+    if (error.statusCode) {
+      throw error;
+    }
+
+    if (error.name === "ZodError") {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Dados inválidos; actingAsStaffId é obrigatório",
+      });
+    }
+
+    throw createError({
+      statusCode: 500,
+      statusMessage: error.message || "Internal server error",
+    });
+  }
+});

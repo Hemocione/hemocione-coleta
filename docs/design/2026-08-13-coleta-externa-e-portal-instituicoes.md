@@ -348,3 +348,39 @@ Este documento reflete as correções já incorporadas; ele não substitui uma l
 - **Rodada de decisões de negócio (Guima, 2026-08-13):** confirmou o formato real do link de evento (7.4), o princípio de notificar em toda transição de etapa (6), e adicionou a feature de personalização do evento pela instituição (7.5). Reduziu o escopo da seção 8 (divulgação) para "notificação por etapa", movendo a automação de redes sociais internas para uma fase futura sem desenho técnico ainda.
 - **Reaproveitamento do `hemocione-mcp` (Guima, 2026-08-13):** substituiu o desenho anterior do backoffice interno (seletor de organização ampliado + claim `isAdmin` no JWT) por extensão do catálogo `hemocione-mcp` já existente (seção 5) — verificado contra o código real do repo antes de escrever (padrão de `Service`, mecanismo de registro, estado atual do catálogo `coleta`, e a ausência de validação de corpo no proxy).
 - **Terceira opção de visita técnica (Guima, 2026-08-13):** adicionou a possibilidade de declarar uma visita já realizada sem registro prévio (seção 3.4, opção 2) — o banco de sangue informa data e confirma que não precisa de nova visita; o sistema cria a `TechnicalVisit` retroativamente e segue o fluxo como reaproveitamento.
+
+## 13. Textos dos templates de WhatsApp — prontos para cadastro
+
+Os 5 templates novos da seção 6, com nome (slug), categoria, idioma e corpo — prontos para cadastrar no WhatsApp Business Manager. Todos usam variáveis numeradas (`{{1}}`, `{{2}}`...) no formato exigido pela Cloud API; a ordem das variáveis abaixo é a ordem que `templateComponents` precisa preencher (mesmo padrão posicional que `whatsAppService.js` já usa). Categoria **Utilidade** (transacional, não marketing) para os 5 — evita a fila de revisão mais lenta/rigorosa da Meta. Idioma: **Português (BR)** — `pt_BR`, mesmo código já usado nos templates existentes.
+
+### `collection_request_counter_proposed`
+Disparado quando o banco de sangue contrapõe. Para: instituição.
+> Olá, {{1}}! O {{2}} enviou uma nova proposta de data para a coleta. Data sugerida: {{3}}, às {{4}}. Acesse o link para responder: {{5}}
+
+Variáveis: 1) nome do contato da instituição — 2) nome do banco de sangue — 3) data proposta — 4) horário proposto — 5) link de acompanhamento.
+
+### `collection_request_counter_proposal_declined`
+Disparado quando a instituição recusa a contraproposta. Para: banco de sangue.
+> Olá, {{1}}! A instituição {{2}} recusou a proposta de data para a coleta. Acesse o link para ver os detalhes: {{3}}
+
+Variáveis: 1) nome do contato do banco de sangue — 2) nome da instituição — 3) link de acompanhamento.
+
+### `collection_request_awaiting_technical_visit`
+Disparado quando o aceite exige visita técnica. Para: instituição.
+> Olá, {{1}}! O {{2}} aceitou o pedido de coleta. Antes de confirmar, é necessária uma visita técnica. Acompanhe o andamento: {{3}}
+
+Variáveis: 1) nome do contato da instituição — 2) nome do banco de sangue — 3) link de acompanhamento.
+
+### `technical_visit_confirmed`
+Disparado quando o veredito da visita é registrado. Para: instituição.
+> Olá, {{1}}! A visita técnica do {{2}} foi concluída. Resultado: {{3}}. Veja os detalhes: {{4}}
+
+Variáveis: 1) nome do contato — 2) nome do banco de sangue — 3) resultado (`Aprovada` ou `Reprovada`) — 4) link de acompanhamento.
+
+### `collection_request_scheduled`
+Disparado quando o link de inscrição é gerado. Para: instituição e ponto focal.
+> Olá, {{1}}! Sua coleta com o {{2}} está confirmada para {{3}}. Link de inscrição: {{4}}
+
+Variáveis: 1) nome do contato — 2) nome do banco de sangue — 3) data e horário confirmados — 4) link de inscrição (`eventos.hemocione.com.br/event/<slug>`, seção 7.4).
+
+**Nota:** os slugs acima já são os nomes técnicos usados no código (seção 6) — cadastre exatamente com esses nomes, senão a integração precisa ser ajustada para bater com o nome real aprovado pela Meta.

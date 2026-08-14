@@ -18,6 +18,51 @@ export interface CollectionRequestFilters {
   dateTo?: string;
 }
 
+export type CollectionRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "counter_proposed"
+  | "counter_proposal_declined"
+  | "awaiting_technical_visit"
+  | "technical_visit_confirmed"
+  | "scheduled";
+
+export interface CounterProposalDate {
+  date: Date;
+  startTime: string;
+  durationMinutes: number;
+  note: string;
+}
+
+export interface CounterProposal {
+  proposedDates: CounterProposalDate[];
+  needsTechnicalVisit: boolean;
+  note: string;
+  proposedBy: string;
+  proposedAt: Date;
+  response?: {
+    decision: "accepted" | "declined";
+    selectedDateId: string;
+    respondedAt: Date;
+    respondedBy: string;
+  };
+}
+
+export interface CounterProposeData {
+  proposedDates: CounterProposalDate[];
+  needsTechnicalVisit: boolean;
+  note: string;
+  proposedBy: string;
+}
+
+export interface RespondToCounterProposalData {
+  decision: "accepted" | "declined";
+  selectedDateId: string;
+  respondedBy: string;
+}
+
 export interface PaginationOptions {
   page?: number;
   limit?: number;
@@ -76,7 +121,17 @@ export interface CollectionRequestWithDetails {
   accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  note?: string;
+  technicalVisitId?: string;
+  counterProposal?: CounterProposal;
+  previousCounterProposals?: CounterProposal[];
+  confirmedSchedule?: {
+    date: Date;
+    startTime: string;
+    durationMinutes: number;
+  };
+  eventSlug?: string;
+  status: CollectionRequestStatus;
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -484,6 +539,147 @@ export async function acceptCollectionRequest(
   }
 }
 
+export async function counterPropose(
+  requestId: string,
+  data: CounterProposeData
+) {
+  const counterProposal: CounterProposal = {
+    ...data,
+    proposedAt: new Date(),
+  };
+  const statusHistoryEntry = {
+    status: "counter_proposed",
+    changedAt: new Date(),
+    changedBy: data.proposedBy,
+    reason: "Counter proposal sent by blood bank",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      status: "pending",
+      deletedAt: null,
+      counterProposal: { $exists: false },
+    },
+    {
+      $set: {
+        counterProposal,
+        status: "counter_proposed",
+      },
+      $push: { statusHistory: statusHistoryEntry },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Request not found, not in pending status, or already has a counter proposal"
+    );
+  }
+
+  return updatedRequest;
+}
+
+export async function respondToCounterProposal(
+  requestId: string,
+  data: RespondToCounterProposalData
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "counter_proposed",
+    deletedAt: null,
+    counterProposal: { $exists: true },
+  });
+
+  if (!request?.counterProposal) {
+    throw new Error("Request not found or not in counter proposed status");
+  }
+
+  const currentCounterProposal = request.counterProposal as unknown as CounterProposal;
+  let nextStatus: CollectionRequestStatus;
+  let confirmedSchedule:
+    | {
+        date: Date;
+        startTime: string;
+        durationMinutes: number;
+      }
+    | undefined;
+
+  if (data.decision === "accepted") {
+    const selectedDateIndex = Number(data.selectedDateId);
+    const selectedDate =
+      Number.isInteger(selectedDateIndex) && selectedDateIndex >= 0
+        ? currentCounterProposal.proposedDates[selectedDateIndex]
+        : undefined;
+
+    if (!selectedDate) {
+      throw new Error("Selected date is not in the counter proposal");
+    }
+
+    confirmedSchedule = {
+      date: selectedDate.date,
+      startTime: selectedDate.startTime,
+      durationMinutes: selectedDate.durationMinutes,
+    };
+    nextStatus = currentCounterProposal.needsTechnicalVisit
+      ? "awaiting_technical_visit"
+      : "accepted";
+  } else if (data.decision === "declined") {
+    nextStatus = "counter_proposal_declined";
+  } else {
+    throw new Error("Invalid counter proposal decision");
+  }
+
+  const respondedAt = new Date();
+  const resolvedCounterProposal: CounterProposal = {
+    ...currentCounterProposal,
+    response: {
+      decision: data.decision,
+      selectedDateId: data.selectedDateId,
+      respondedAt,
+      respondedBy: data.respondedBy,
+    },
+  };
+  const statusHistoryEntry = {
+    status: nextStatus,
+    changedAt: respondedAt,
+    changedBy: data.respondedBy,
+    reason:
+      data.decision === "accepted"
+        ? "Counter proposal accepted by institution"
+        : "Counter proposal declined by institution",
+  };
+
+  const update = {
+    $set: {
+      status: nextStatus,
+      ...(confirmedSchedule && { confirmedSchedule }),
+    },
+    $push: {
+      previousCounterProposals: resolvedCounterProposal,
+      statusHistory: statusHistoryEntry,
+    },
+    $unset: { counterProposal: 1 },
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      status: "counter_proposed",
+      deletedAt: null,
+      counterProposal: { $exists: true },
+    },
+    update,
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Request was already responded to");
+  }
+
+  return updatedRequest;
+}
+
 export async function rejectCollectionRequest(
   requestId: string,
   rejectionReason: string,
@@ -721,6 +917,7 @@ export interface CreateCollectionRequestData {
   requestedDates: Array<{
     availableDateId: string;
     slotIds?: string[];
+    startTime?: string;
   }>;
   host: {
     name: string;
@@ -728,6 +925,7 @@ export interface CreateCollectionRequestData {
     phone: string;
   };
   address?: StructuredAddress;
+  note?: string;
 }
 
 export async function createCollectionRequest(
@@ -750,7 +948,15 @@ export async function createCollectionRequest(
   const existingOpenRequest = await CollectionRequest.findOne({
     institutionId: data.institutionId,
     bloodBanksLocationId,
-    status: "pending",
+    status: {
+      $in: [
+        "pending",
+        "counter_proposed",
+        "awaiting_technical_visit",
+        "technical_visit_confirmed",
+        "accepted",
+      ],
+    },
     deletedAt: null,
   });
 
@@ -782,7 +988,9 @@ export async function createCollectionRequest(
     requestedDates: data.requestedDates.map((rd) => ({
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
+      startTime: rd.startTime,
     })),
+    note: data.note,
     host: data.host,
     address: data.address,
     status: "pending",
@@ -817,7 +1025,7 @@ export async function createCollectionRequest(
 
 export interface CollectionRequestPublicDetails {
   _id: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  status: CollectionRequestStatus;
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;

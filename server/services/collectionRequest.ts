@@ -14,6 +14,7 @@ import { getInstitutionsByIds } from "./hemocioneId";
 export interface CollectionRequestFilters {
   status?: string;
   institutionId?: string;
+  bloodBanksLocationId?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -337,6 +338,20 @@ export async function getCollectionRequestsByInstitution(
   pagination: PaginationOptions = {}
 ): Promise<PaginatedResult<CollectionRequestWithDetails>> {
   return getCollectionRequestsByScope({ institutionId }, filters, pagination);
+}
+
+export async function getCollectionRequests(
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  const scope = {
+    ...(filters.institutionId && { institutionId: filters.institutionId }),
+    ...(filters.bloodBanksLocationId && {
+      bloodBanksLocationId: filters.bloodBanksLocationId,
+    }),
+  };
+
+  return getCollectionRequestsByScope(scope, filters, pagination);
 }
 
 export async function getCollectionRequestById(

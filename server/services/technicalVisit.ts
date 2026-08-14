@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { collectionRequest, technicalVisit } from "~/server/models";
 const { TechnicalVisit } = technicalVisit;
 const { CollectionRequest } = collectionRequest;
+import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
 export interface TechnicalVisitData {
   _id: string | Types.ObjectId;
@@ -137,7 +138,7 @@ export async function updateTechnicalVisit(
         ? updated.notes || "Technical visit rejected"
         : undefined;
 
-    await CollectionRequest.findOneAndUpdate(
+    const updatedCollectionRequest = await CollectionRequest.findOneAndUpdate(
       {
         technicalVisitId: visitId,
         bloodBanksLocationId,
@@ -163,6 +164,16 @@ export async function updateTechnicalVisit(
       },
       { new: true }
     );
+
+    if (updatedCollectionRequest?._id) {
+      void notifyCollectionRequestStatusTransition({
+        requestId: updatedCollectionRequest._id.toString(),
+        bloodBanksLocationId,
+        transition: "technical_visit_verdict",
+        technicalVisitResult:
+          updates.outcome === "approved" ? "Aprovada" : "Reprovada",
+      });
+    }
   }
 
   return updated as TechnicalVisitData | null;

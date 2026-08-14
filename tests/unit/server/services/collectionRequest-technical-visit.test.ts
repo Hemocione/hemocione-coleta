@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptCollectionRequest,
+  markCollectionRequestScheduled,
   registerRetroactiveVisit,
   reuseTechnicalVisit,
   scheduleNewTechnicalVisit,
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getInstitutionsByIds: vi.fn(),
   createTechnicalVisit: vi.fn(),
   getTechnicalVisitById: vi.fn(),
+  notifyCollectionRequestStatusTransition: vi.fn(),
 }));
 
 vi.mock("~/server/models", () => ({
@@ -48,6 +50,11 @@ vi.mock("~/server/services/technicalVisit", () => ({
     mocks.createTechnicalVisit(...args),
   getTechnicalVisitById: (...args: unknown[]) =>
     mocks.getTechnicalVisitById(...args),
+}));
+
+vi.mock("~/server/services/collectionRequestNotification", () => ({
+  notifyCollectionRequestStatusTransition: (...args: unknown[]) =>
+    mocks.notifyCollectionRequestStatusTransition(...args),
 }));
 
 const requestId = "request-a";
@@ -112,6 +119,11 @@ describe("fluxo de visita técnica da collection request", () => {
       status: "awaiting_technical_visit",
       changedBy: changedByUserId,
     });
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId,
+      bloodBanksLocationId,
+      transition: "awaiting_technical_visit",
+    });
   });
 
   it("reutiliza uma visita aprovada e confirma a solicitação", async () => {
@@ -140,6 +152,11 @@ describe("fluxo de visita técnica da collection request", () => {
     expect(update.$push.statusHistory).toMatchObject({
       status: "technical_visit_confirmed",
       changedBy: changedByUserId,
+    });
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId,
+      bloodBanksLocationId,
+      transition: "technical_visit_confirmed",
     });
   });
 
@@ -230,6 +247,45 @@ describe("fluxo de visita técnica da collection request", () => {
     });
     expect(update.$push.statusHistory).toMatchObject({
       status: "awaiting_technical_visit",
+    });
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId,
+      bloodBanksLocationId,
+      transition: "awaiting_technical_visit",
+    });
+  });
+
+  it("marca a solicitação como scheduled e dispara a notificação", async () => {
+    mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
+      _id: requestId,
+      status: "scheduled",
+    });
+
+    await markCollectionRequestScheduled(requestId, {
+      bloodBanksLocationId,
+      scheduledByUserId: changedByUserId,
+      eventSlug: "campanha-setembro",
+    });
+
+    expect(mocks.collectionRequestFindOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: requestId,
+        bloodBanksLocationId,
+        status: "technical_visit_confirmed",
+        deletedAt: null,
+      },
+      expect.objectContaining({
+        $set: {
+          status: "scheduled",
+          eventSlug: "campanha-setembro",
+        },
+      }),
+      { new: true }
+    );
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId,
+      bloodBanksLocationId,
+      transition: "scheduled",
     });
   });
 });

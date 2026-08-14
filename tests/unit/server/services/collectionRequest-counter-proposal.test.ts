@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   collectionRequestFindOneAndUpdate: vi.fn(),
   bloodBankFindOne: vi.fn(),
   availableDateFind: vi.fn(),
+  notifyCollectionRequestStatusTransition: vi.fn(),
 }));
 
 vi.mock("~/server/models", () => ({
@@ -39,6 +40,11 @@ vi.mock("~/server/models", () => ({
 
 vi.mock("~/server/services/hemocioneId", () => ({
   getInstitutionsByIds: vi.fn(),
+}));
+
+vi.mock("~/server/services/collectionRequestNotification", () => ({
+  notifyCollectionRequestStatusTransition: (...args: unknown[]) =>
+    mocks.notifyCollectionRequestStatusTransition(...args),
 }));
 
 const proposedDates = [
@@ -80,11 +86,16 @@ beforeEach(() => {
   mocks.collectionRequestFindOneAndUpdate.mockReset();
   mocks.bloodBankFindOne.mockReset();
   mocks.availableDateFind.mockReset();
+  mocks.notifyCollectionRequestStatusTransition.mockReset();
 });
 
 describe("máquina de estados de contraproposta", () => {
   it("counterPropose cria uma contraproposta apenas para uma solicitação pending sem proposta ativa", async () => {
-    const updatedRequest = { _id: "request-a", status: "counter_proposed" };
+    const updatedRequest = {
+      _id: "request-a",
+      status: "counter_proposed",
+      bloodBanksLocationId: "blood-bank-a",
+    };
     mocks.collectionRequestFindOneAndUpdate.mockResolvedValue(updatedRequest);
 
     await expect(
@@ -115,6 +126,11 @@ describe("máquina de estados de contraproposta", () => {
     });
     expect(update.$set.counterProposal.proposedAt).toBeInstanceOf(Date);
     expect(options).toEqual({ new: true });
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId: "request-a",
+      bloodBanksLocationId: "blood-bank-a",
+      transition: "counter_proposed",
+    });
   });
 
   it("counterPropose rejeita uma segunda tentativa quando já existe contraproposta", async () => {
@@ -177,6 +193,7 @@ describe("máquina de estados de contraproposta", () => {
       mocks.collectionRequestFindOne.mockResolvedValue({
         _id: "request-a",
         status: "counter_proposed",
+        bloodBanksLocationId: "blood-bank-a",
         counterProposal: { ...counterProposal, needsTechnicalVisit },
       });
       mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
@@ -217,6 +234,17 @@ describe("máquina de estados de contraproposta", () => {
       });
       expect(update.$unset).toEqual({ counterProposal: 1 });
       expect(options).toEqual({ new: true });
+      if (expectedStatus === "awaiting_technical_visit") {
+        expect(
+          mocks.notifyCollectionRequestStatusTransition
+        ).toHaveBeenCalledWith({
+          requestId: "request-a",
+          bloodBanksLocationId: "blood-bank-a",
+          transition: "awaiting_technical_visit",
+        });
+      } else {
+        expect(mocks.notifyCollectionRequestStatusTransition).not.toHaveBeenCalled();
+      }
     }
   );
 
@@ -224,6 +252,7 @@ describe("máquina de estados de contraproposta", () => {
     mocks.collectionRequestFindOne.mockResolvedValue({
       _id: "request-a",
       status: "counter_proposed",
+      bloodBanksLocationId: "blood-bank-a",
       counterProposal,
     });
     mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
@@ -248,6 +277,12 @@ describe("máquina de estados de contraproposta", () => {
       },
     });
     expect(update.$unset).toEqual({ counterProposal: 1 });
+    expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+      requestId: "request-a",
+      bloodBanksLocationId: "blood-bank-a",
+      transition: "counter_proposal_declined",
+      recipientUserId: "blood-bank-user",
+    });
   });
 });
 

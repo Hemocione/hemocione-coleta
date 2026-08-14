@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   technicalVisitFindOne: vi.fn(),
   technicalVisitFindOneAndUpdate: vi.fn(),
   collectionRequestFindOneAndUpdate: vi.fn(),
+  notifyCollectionRequestStatusTransition: vi.fn(),
 }));
 
 vi.mock("~/server/models", () => ({
@@ -21,6 +22,11 @@ vi.mock("~/server/models", () => ({
         mocks.collectionRequestFindOneAndUpdate(...args),
     },
   },
+}));
+
+vi.mock("~/server/services/collectionRequestNotification", () => ({
+  notifyCollectionRequestStatusTransition: (...args: unknown[]) =>
+    mocks.notifyCollectionRequestStatusTransition(...args),
 }));
 
 const bloodBanksLocationId = "blood-bank-a";
@@ -40,6 +46,9 @@ beforeEach(() => {
       notes: updates.notes,
     })
   );
+  mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
+    _id: "request-a",
+  });
 });
 
 describe("cascata do veredito da visita técnica", () => {
@@ -92,6 +101,14 @@ describe("cascata do veredito da visita técnica", () => {
           "Endereço não atende aos requisitos"
         );
       }
+
+      expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
+        requestId: "request-a",
+        bloodBanksLocationId,
+        transition: "technical_visit_verdict",
+        technicalVisitResult:
+          expectedStatus === "rejected" ? "Reprovada" : "Aprovada",
+      });
     }
   );
 });

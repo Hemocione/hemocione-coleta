@@ -14,6 +14,7 @@ import {
   createTechnicalVisit,
   getTechnicalVisitById,
 } from "./technicalVisit";
+import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
 export interface CollectionRequestFilters {
   status?: string;
@@ -85,6 +86,12 @@ export interface ScheduleNewVisitData {
   visitDate: Date;
   bloodBanksLocationId: string;
   changedByUserId: string;
+}
+
+export interface MarkCollectionRequestScheduledData {
+  bloodBanksLocationId: string;
+  scheduledByUserId: string;
+  eventSlug?: string;
 }
 
 export interface PaginationOptions {
@@ -576,6 +583,14 @@ export async function acceptCollectionRequest(
       }
     );
 
+    if (nextStatus === "awaiting_technical_visit") {
+      void notifyCollectionRequestStatusTransition({
+        requestId,
+        bloodBanksLocationId,
+        transition: "awaiting_technical_visit",
+      });
+    }
+
     return await getCollectionRequestById(requestId, bloodBanksLocationId);
   } catch (error: any) {
     console.error("Error accepting collection request:", error);
@@ -659,6 +674,15 @@ async function linkTechnicalVisitToRequest(
   if (!updatedRequest) {
     throw new Error("Collection request was already resolved");
   }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition:
+      status === "technical_visit_confirmed"
+        ? "technical_visit_confirmed"
+        : "awaiting_technical_visit",
+  });
 
   return updatedRequest;
 }
@@ -753,6 +777,50 @@ export async function scheduleNewTechnicalVisit(
   );
 }
 
+export async function markCollectionRequestScheduled(
+  requestId: string,
+  data: MarkCollectionRequestScheduledData
+) {
+  const changedAt = new Date();
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId: data.bloodBanksLocationId,
+      status: "technical_visit_confirmed",
+      deletedAt: null,
+    },
+    {
+      $set: {
+        status: "scheduled",
+        ...(data.eventSlug !== undefined && { eventSlug: data.eventSlug }),
+      },
+      $push: {
+        statusHistory: {
+          status: "scheduled",
+          changedAt,
+          changedBy: data.scheduledByUserId,
+          reason: "Collection request scheduled",
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Collection request not found or not ready to be scheduled"
+    );
+  }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    transition: "scheduled",
+  });
+
+  return updatedRequest;
+}
+
 export async function counterPropose(
   requestId: string,
   data: CounterProposeData
@@ -789,6 +857,16 @@ export async function counterPropose(
     throw new Error(
       "Request not found, not in pending status, or already has a counter proposal"
     );
+  }
+
+  const notificationBloodBanksLocationId = updatedRequest.bloodBanksLocationId
+    ?.toString();
+  if (notificationBloodBanksLocationId) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "counter_proposed",
+    });
   }
 
   return updatedRequest;
@@ -889,6 +967,29 @@ export async function respondToCounterProposal(
 
   if (!updatedRequest) {
     throw new Error("Request was already responded to");
+  }
+
+  const notificationBloodBanksLocationId = request.bloodBanksLocationId
+    ?.toString();
+  if (
+    notificationBloodBanksLocationId &&
+    nextStatus === "awaiting_technical_visit"
+  ) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "awaiting_technical_visit",
+    });
+  } else if (
+    notificationBloodBanksLocationId &&
+    nextStatus === "counter_proposal_declined"
+  ) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "counter_proposal_declined",
+      recipientUserId: currentCounterProposal.proposedBy.toString(),
+    });
   }
 
   return updatedRequest;

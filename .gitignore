@@ -98,3 +98,4 @@ test-results/
 playwright-report/
 bruno
 .chief/
+.env*

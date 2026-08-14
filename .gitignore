@@ -99,3 +99,4 @@ playwright-report/
 bruno
 .chief/
 .env*
+!.env.example

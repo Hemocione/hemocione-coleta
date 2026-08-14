@@ -271,7 +271,7 @@ describe("fluxo de visita técnica da collection request", () => {
       {
         _id: requestId,
         bloodBanksLocationId,
-        status: "technical_visit_confirmed",
+        status: { $in: ["accepted", "technical_visit_confirmed"] },
         deletedAt: null,
       },
       expect.objectContaining({

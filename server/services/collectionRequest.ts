@@ -786,7 +786,7 @@ export async function markCollectionRequestScheduled(
     {
       _id: requestId,
       bloodBanksLocationId: data.bloodBanksLocationId,
-      status: "technical_visit_confirmed",
+      status: { $in: ["accepted", "technical_visit_confirmed"] },
       deletedAt: null,
     },
     {

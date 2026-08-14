@@ -41,6 +41,16 @@ export const useUserStore = defineStore("user", {
     },
     setUser(user: EnrichedMe | null) {
       this.user = user;
+      const posthog = usePostHog();
+      if (user) {
+        posthog?.identify(user.id, {
+          email: user.email,
+          name: `${user.givenName} ${user.surName}`.trim(),
+          bloodBanksCount: user.bloodBankRoles?.length ?? 0,
+        });
+      } else {
+        posthog?.reset();
+      }
     },
     setToken(token: string | null) {
       this.token = token;
@@ -48,10 +58,10 @@ export const useUserStore = defineStore("user", {
 
     async logOut() {
       try {
+        this.setUser(null);
         this.setToken(null);
         const route = useRoute();
         await redirectToID(route.fullPath);
-        // Clear user data
       } catch (error) {
         console.error("🚨 Error during logout:", error);
       }

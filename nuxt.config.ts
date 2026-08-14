@@ -21,6 +21,7 @@ const getSiteUrl = () => {
 
 const siteUrl = getSiteUrl();
 const currentEnv = process.env.VERCEL_ENV || "dev";
+const bugsnagApiKey = process.env.BUGSNAG_API_KEY?.trim();
 
 export default defineNuxtConfig({
   devtools: { enabled: true },
@@ -89,11 +90,11 @@ export default defineNuxtConfig({
     },
   },
   bugsnag: {
-    publishRelease: true,
+    publishRelease: Boolean(bugsnagApiKey),
     disableLog: false, // might activate later
     baseUrl: siteUrl,
     config: {
-      apiKey: process.env.BUGSNAG_API_KEY ?? "",
+      apiKey: bugsnagApiKey || "",
       enabledReleaseStages: ["prod", "dev"],
       releaseStage: currentEnv,
       appVersion: `${currentEnv}-${process.env.VERCEL_GIT_COMMIT_SHA}`,

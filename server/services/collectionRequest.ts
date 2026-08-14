@@ -10,6 +10,10 @@ const { CollectionRequest } = collectionRequest;
 const { AvailableDate } = availableDate;
 const { BloodBank } = bloodBank;
 import { getInstitutionsByIds } from "./hemocioneId";
+import {
+  createTechnicalVisit,
+  getTechnicalVisitById,
+} from "./technicalVisit";
 
 export interface CollectionRequestFilters {
   status?: string;
@@ -62,6 +66,25 @@ export interface RespondToCounterProposalData {
   decision: "accepted" | "declined";
   selectedDateId: string;
   respondedBy: string;
+}
+
+export interface ReuseTechnicalVisitData {
+  technicalVisitId: string;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
+}
+
+export interface RegisterRetroactiveVisitData {
+  visitDate: Date;
+  note?: string;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
+}
+
+export interface ScheduleNewVisitData {
+  visitDate: Date;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
 }
 
 export interface PaginationOptions {
@@ -466,7 +489,8 @@ export async function acceptCollectionRequest(
   selectedAvailableDateId: string,
   selectedSlotId: string,
   acceptedByUserId: string,
-  bloodBanksLocationId: string
+  bloodBanksLocationId: string,
+  needsTechnicalVisit = false
 ): Promise<CollectionRequestWithDetails | null> {
   try {
     // For development, we'll skip transactions and use a simpler approach
@@ -523,11 +547,16 @@ export async function acceptCollectionRequest(
     );
 
     // 5. Update request status
+    const nextStatus: CollectionRequestStatus = needsTechnicalVisit
+      ? "awaiting_technical_visit"
+      : "accepted";
     const statusHistoryEntry = {
-      status: "accepted",
+      status: nextStatus,
       changedAt: new Date(),
       changedBy: acceptedByUserId,
-      reason: "Request accepted by blood bank",
+      reason: needsTechnicalVisit
+        ? "Request accepted by blood bank; technical visit required"
+        : "Request accepted by blood bank",
     };
 
     await CollectionRequest.findOneAndUpdate(
@@ -539,7 +568,7 @@ export async function acceptCollectionRequest(
       },
       {
         $set: {
-          status: "accepted",
+          status: nextStatus,
           selectedAvailableDateId: new Types.ObjectId(selectedAvailableDateId),
           selectedSlotId: new Types.ObjectId(selectedSlotId),
         },
@@ -552,6 +581,176 @@ export async function acceptCollectionRequest(
     console.error("Error accepting collection request:", error);
     throw error;
   }
+}
+
+function getTechnicalVisitAddress(request: {
+  address?: StructuredAddress;
+}): string {
+  if (!request.address) {
+    return "Endereço não informado";
+  }
+
+  const address = request.address;
+  const formattedAddress = [
+    `${address.street}, ${address.number}`,
+    address.complement,
+    address.neighborhood,
+    `${address.city} - ${address.state}`,
+    address.zipCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return formattedAddress.slice(0, 500) || "Endereço não informado";
+}
+
+async function getAwaitingTechnicalVisitRequest(
+  requestId: string,
+  bloodBanksLocationId: string
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    bloodBanksLocationId,
+    status: "awaiting_technical_visit",
+    deletedAt: null,
+  });
+
+  if (!request) {
+    throw new Error(
+      "Collection request not found or not awaiting technical visit"
+    );
+  }
+
+  return request;
+}
+
+async function linkTechnicalVisitToRequest(
+  requestId: string,
+  bloodBanksLocationId: string,
+  technicalVisitId: string | Types.ObjectId,
+  status: "awaiting_technical_visit" | "technical_visit_confirmed",
+  changedByUserId: string,
+  reason: string
+) {
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+    },
+    {
+      $set: {
+        technicalVisitId,
+        status,
+      },
+      $push: {
+        statusHistory: {
+          status,
+          changedAt: new Date(),
+          changedBy: changedByUserId,
+          reason,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Collection request was already resolved");
+  }
+
+  return updatedRequest;
+}
+
+export async function reuseTechnicalVisit(
+  requestId: string,
+  data: ReuseTechnicalVisitData
+) {
+  await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await getTechnicalVisitById(
+    data.bloodBanksLocationId,
+    data.technicalVisitId
+  );
+
+  if (!visit) {
+    throw new Error("Technical visit not found for this blood bank");
+  }
+
+  if (visit.outcome !== "approved") {
+    throw new Error("Technical visit must be approved");
+  }
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    data.technicalVisitId,
+    "technical_visit_confirmed",
+    data.changedByUserId,
+    "Approved technical visit reused for collection request"
+  );
+}
+
+export async function registerRetroactiveVisit(
+  requestId: string,
+  data: RegisterRetroactiveVisitData
+) {
+  const request = await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: data.visitDate,
+    outcome: "approved",
+    notes: data.note,
+    visitedBy: data.changedByUserId,
+    registeredRetroactively: true,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    visit._id,
+    "technical_visit_confirmed",
+    data.changedByUserId,
+    "Technical visit registered retroactively and approved"
+  );
+}
+
+export async function scheduleNewTechnicalVisit(
+  requestId: string,
+  data: ScheduleNewVisitData
+) {
+  const request = await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: data.visitDate,
+    outcome: "pending",
+    visitedBy: data.changedByUserId,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    visit._id,
+    "awaiting_technical_visit",
+    data.changedByUserId,
+    "Technical visit scheduled"
+  );
 }
 
 export async function counterPropose(

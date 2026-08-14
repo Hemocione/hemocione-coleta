@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CollectionRequestSchema } from "~/server/models/collectionRequest";
+import { TechnicalVisitSchema } from "~/server/models/technicalVisit";
 import {
   counterPropose,
   createCollectionRequest,
@@ -308,5 +309,6 @@ describe("schema de CollectionRequest", () => {
         "scheduled",
       ])
     );
+    expect(TechnicalVisitSchema.path("registeredRetroactively")).toBeDefined();
   });
 });

@@ -65,6 +65,7 @@ const validBodies: Record<Action, Record<string, unknown>> = {
     actingAsStaffId,
     selectedAvailableDateId: "available-date-a",
     selectedSlotId: "slot-a",
+    needsTechnicalVisit: false,
   },
   reject: {
     actingAsStaffId,
@@ -155,7 +156,8 @@ describe("ações de collection request no backoffice", () => {
       "available-date-a",
       "slot-a",
       actingAsStaffId,
-      bloodBanksLocationId
+      bloodBanksLocationId,
+      false
     );
   });
 

@@ -6,6 +6,7 @@ const bodySchema = z.object({
   actingAsStaffId: z.string().trim().min(1),
   selectedAvailableDateId: z.string().trim().min(1),
   selectedSlotId: z.string().trim().min(1),
+  needsTechnicalVisit: z.boolean().default(false),
 });
 
 export default defineEventHandler(async (event) => {
@@ -35,7 +36,8 @@ export default defineEventHandler(async (event) => {
       body.selectedAvailableDateId,
       body.selectedSlotId,
       body.actingAsStaffId,
-      bloodBanksLocationId
+      bloodBanksLocationId,
+      body.needsTechnicalVisit
     );
 
     if (!updatedRequest) {

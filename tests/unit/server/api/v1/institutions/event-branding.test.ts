@@ -177,6 +177,42 @@ describe("PUT /api/v1/institutions/:institutionId/collection-requests/:requestId
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
+  it("impede instituição B de editar uma request da instituição A", async () => {
+    const institutionA = "institution-a";
+    const institutionB = "institution-b";
+    const event = makeEvent({ address: "Rua das Flores, 100" });
+    event.context.params.institutionId = institutionA;
+    mocks.useHemocioneUserAuth.mockReturnValue({
+      id: "institution-b-user",
+      institutionRoles: [{ institutionId: institutionB, role: "staff" }],
+    });
+    mocks.assertUserAccessToInstitutionId.mockImplementation(
+      (user: { institutionRoles: Array<{ institutionId: string }> }, requestedInstitutionId: string) => {
+        if (
+          !user.institutionRoles.some(
+            (role) => role.institutionId === requestedInstitutionId
+          )
+        ) {
+          throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+        }
+      }
+    );
+    mockRequest({
+      _id: requestId,
+      institutionId: institutionA,
+      status: "scheduled",
+      eventSlug: "campanha-hemocione",
+    });
+
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 403 });
+    expect(mocks.assertUserAccessToInstitutionId).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "institution-b-user" }),
+      institutionA
+    );
+    expect(mocks.collectionRequestFindOne).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
   it("retorna 400 quando o evento ainda não foi gerado", async () => {
     mockRequest({
       _id: requestId,

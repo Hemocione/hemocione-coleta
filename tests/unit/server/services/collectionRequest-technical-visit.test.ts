@@ -10,6 +10,7 @@ import {
 const mocks = vi.hoisted(() => ({
   collectionRequestFindOne: vi.fn(),
   collectionRequestFindOneAndUpdate: vi.fn(),
+  collectionRequestStartSession: vi.fn(),
   availableDateFindOne: vi.fn(),
   availableDateFindOneAndUpdate: vi.fn(),
   availableDateFind: vi.fn(),
@@ -17,6 +18,12 @@ const mocks = vi.hoisted(() => ({
   createTechnicalVisit: vi.fn(),
   getTechnicalVisitById: vi.fn(),
   notifyCollectionRequestStatusTransition: vi.fn(),
+  session: {
+    withTransaction: vi.fn(),
+    commitTransaction: vi.fn(),
+    abortTransaction: vi.fn(),
+    endSession: vi.fn(),
+  },
 }));
 
 vi.mock("~/server/models", () => ({
@@ -25,6 +32,8 @@ vi.mock("~/server/models", () => ({
       findOne: (...args: unknown[]) => mocks.collectionRequestFindOne(...args),
       findOneAndUpdate: (...args: unknown[]) =>
         mocks.collectionRequestFindOneAndUpdate(...args),
+      startSession: (...args: unknown[]) =>
+        mocks.collectionRequestStartSession(...args),
     },
   },
   availableDate: {
@@ -76,8 +85,41 @@ const awaitingRequest = {
   },
 };
 
+function queryWithSession<T>(value: T) {
+  return {
+    session: vi.fn().mockResolvedValue(value),
+  };
+}
+
+function prepareAcceptRequest(request: Record<string, unknown>) {
+  mocks.collectionRequestFindOne
+    .mockReturnValueOnce(queryWithSession(request))
+    .mockReturnValueOnce({ lean: async () => request });
+  mocks.availableDateFindOne.mockReturnValue(
+    queryWithSession({
+      slots: {
+        id: () => ({ locked: false, lockedBy: null }),
+      },
+    })
+  );
+}
+
 beforeEach(() => {
-  Object.values(mocks).forEach((mock) => mock.mockReset());
+  Object.values(mocks).forEach((mock) => {
+    if (typeof mock === "function") mock.mockReset();
+  });
+  Object.values(mocks.session).forEach((mock) => mock.mockReset());
+  mocks.collectionRequestStartSession.mockResolvedValue(mocks.session);
+  mocks.session.withTransaction.mockImplementation(async (callback) => {
+    try {
+      await callback();
+      await mocks.session.commitTransaction();
+    } catch (error) {
+      await mocks.session.abortTransaction();
+      throw error;
+    }
+  });
+  mocks.session.endSession.mockResolvedValue(undefined);
   mocks.getInstitutionsByIds.mockResolvedValue([]);
   mocks.availableDateFind.mockReturnValue({
     populate: () => ({ lean: async () => [] }),
@@ -85,6 +127,9 @@ beforeEach(() => {
   mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
     _id: requestId,
     status: "technical_visit_confirmed",
+  });
+  mocks.availableDateFindOneAndUpdate.mockResolvedValue({
+    _id: availableDateId,
   });
 });
 
@@ -95,14 +140,7 @@ describe("fluxo de visita técnica da collection request", () => {
       institutionId: "institution-a",
       requestedDates: [{ availableDateId: availableDateId }],
     };
-    mocks.collectionRequestFindOne
-      .mockResolvedValueOnce(request)
-      .mockReturnValueOnce({ lean: async () => request });
-    mocks.availableDateFindOne.mockResolvedValue({
-      slots: {
-        id: () => ({ locked: false, lockedBy: null }),
-      },
-    });
+    prepareAcceptRequest(request);
 
     await acceptCollectionRequest(
       requestId,
@@ -119,11 +157,60 @@ describe("fluxo de visita técnica da collection request", () => {
       status: "awaiting_technical_visit",
       changedBy: changedByUserId,
     });
+    expect(mocks.collectionRequestStartSession).toHaveBeenCalledOnce();
+    expect(mocks.session.withTransaction).toHaveBeenCalledOnce();
+    expect(mocks.session.commitTransaction).toHaveBeenCalledOnce();
+    expect(mocks.session.abortTransaction).not.toHaveBeenCalled();
+    expect(mocks.availableDateFindOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: availableDateId,
+        "slots._id": slotId,
+      },
+      {
+        $set: {
+          "slots.$.locked": true,
+          "slots.$.lockedBy": requestId,
+        },
+      },
+      { session: mocks.session }
+    );
+    expect(
+      mocks.collectionRequestFindOneAndUpdate.mock.calls[0][2]
+    ).toEqual({ session: mocks.session });
     expect(mocks.notifyCollectionRequestStatusTransition).toHaveBeenCalledWith({
       requestId,
       bloodBanksLocationId,
       transition: "awaiting_technical_visit",
     });
+  });
+
+  it("aborta a transação quando a atualização da request falha depois do lock", async () => {
+    const request = {
+      _id: requestId,
+      institutionId: "institution-a",
+      requestedDates: [{ availableDateId: availableDateId }],
+    };
+    const failure = new Error("request update failed");
+    prepareAcceptRequest(request);
+    mocks.collectionRequestFindOneAndUpdate.mockRejectedValueOnce(failure);
+
+    await expect(
+      acceptCollectionRequest(
+        requestId,
+        availableDateId,
+        slotId,
+        changedByUserId,
+        bloodBanksLocationId
+      )
+    ).rejects.toBe(failure);
+
+    expect(mocks.availableDateFindOneAndUpdate).toHaveBeenCalledOnce();
+    expect(mocks.collectionRequestFindOneAndUpdate).toHaveBeenCalledOnce();
+    expect(mocks.session.withTransaction).toHaveBeenCalledOnce();
+    expect(mocks.session.commitTransaction).not.toHaveBeenCalled();
+    expect(mocks.session.abortTransaction).toHaveBeenCalledOnce();
+    expect(mocks.session.endSession).toHaveBeenCalledOnce();
+    expect(mocks.notifyCollectionRequestStatusTransition).not.toHaveBeenCalled();
   });
 
   it("reutiliza uma visita aprovada e confirma a solicitação", async () => {

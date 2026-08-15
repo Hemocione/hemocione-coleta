@@ -499,89 +499,102 @@ export async function acceptCollectionRequest(
   bloodBanksLocationId: string,
   needsTechnicalVisit = false
 ): Promise<CollectionRequestWithDetails | null> {
+  const session = await CollectionRequest.startSession();
+  let nextStatus: CollectionRequestStatus = "accepted";
+
   try {
-    // For development, we'll skip transactions and use a simpler approach
-    // TODO: Implement proper transaction handling for production
-    // 1. Validate request exists and is pending
-    const request = await CollectionRequest.findOne({
-      _id: requestId,
-      status: "pending",
-      deletedAt: null,
-      bloodBanksLocationId,
-    });
-
-    if (!request) {
-      throw new Error("Request not found or not in pending status");
-    }
-
-    // 2. Validate selected date/slot is in requestedDates
-    const isRequestedDate = request.requestedDates.some(
-      (rd) => rd.availableDateId.toString() === selectedAvailableDateId
-    );
-
-    if (!isRequestedDate) {
-      throw new Error("Selected date/slot is not in requested dates");
-    }
-
-    // 3. Check if slot is available (not locked)
-    const availableDate = await AvailableDate.findOne({
-      _id: selectedAvailableDateId,
-      "slots._id": selectedSlotId,
-      deletedAt: null,
-    });
-
-    if (!availableDate) {
-      throw new Error("Available date or slot not found");
-    }
-
-    const slot = availableDate.slots.id(selectedSlotId);
-    if (!slot || slot.locked || slot.lockedBy) {
-      throw new Error("Slot is already locked");
-    }
-
-    // 4. Lock the slot
-    await AvailableDate.findOneAndUpdate(
-      {
-        _id: selectedAvailableDateId,
-        "slots._id": selectedSlotId,
-      },
-      {
-        $set: {
-          "slots.$.locked": true,
-          "slots.$.lockedBy": requestId,
-        },
-      }
-    );
-
-    // 5. Update request status
-    const nextStatus: CollectionRequestStatus = needsTechnicalVisit
-      ? "awaiting_technical_visit"
-      : "accepted";
-    const statusHistoryEntry = {
-      status: nextStatus,
-      changedAt: new Date(),
-      changedBy: acceptedByUserId,
-      reason: needsTechnicalVisit
-        ? "Request accepted by blood bank; technical visit required"
-        : "Request accepted by blood bank",
-    };
-
-    await CollectionRequest.findOneAndUpdate(
-      {
+    await session.withTransaction(async () => {
+      // 1. Validate request exists and is pending
+      const request = await CollectionRequest.findOne({
         _id: requestId,
-        bloodBanksLocationId,
         status: "pending",
         deletedAt: null,
-      },
-      {
-        $set: {
-          status: nextStatus,
-          selectedAvailableDateId: new Types.ObjectId(selectedAvailableDateId),
-          selectedSlotId: new Types.ObjectId(selectedSlotId),
-        },
-        $push: { statusHistory: statusHistoryEntry },
+        bloodBanksLocationId,
+      }).session(session);
+
+      if (!request) {
+        throw new Error("Request not found or not in pending status");
       }
-    );
+
+      // 2. Validate selected date/slot is in requestedDates
+      const isRequestedDate = request.requestedDates.some(
+        (rd) => rd.availableDateId.toString() === selectedAvailableDateId
+      );
+
+      if (!isRequestedDate) {
+        throw new Error("Selected date/slot is not in requested dates");
+      }
+
+      // 3. Check if slot is available (not locked)
+      const availableDate = await AvailableDate.findOne({
+        _id: selectedAvailableDateId,
+        "slots._id": selectedSlotId,
+        deletedAt: null,
+      }).session(session);
+
+      if (!availableDate) {
+        throw new Error("Available date or slot not found");
+      }
+
+      const slot = availableDate.slots.id(selectedSlotId);
+      if (!slot || slot.locked || slot.lockedBy) {
+        throw new Error("Slot is already locked");
+      }
+
+      // 4. Lock the slot
+      const lockedDate = await AvailableDate.findOneAndUpdate(
+        {
+          _id: selectedAvailableDateId,
+          "slots._id": selectedSlotId,
+        },
+        {
+          $set: {
+            "slots.$.locked": true,
+            "slots.$.lockedBy": requestId,
+          },
+        },
+        { session }
+      );
+
+      if (!lockedDate) {
+        throw new Error("Available date or slot could not be locked");
+      }
+
+      // 5. Update request status
+      nextStatus = needsTechnicalVisit
+        ? "awaiting_technical_visit"
+        : "accepted";
+      const statusHistoryEntry = {
+        status: nextStatus,
+        changedAt: new Date(),
+        changedBy: acceptedByUserId,
+        reason: needsTechnicalVisit
+          ? "Request accepted by blood bank; technical visit required"
+          : "Request accepted by blood bank",
+      };
+
+      const updatedRequest = await CollectionRequest.findOneAndUpdate(
+        {
+          _id: requestId,
+          bloodBanksLocationId,
+          status: "pending",
+          deletedAt: null,
+        },
+        {
+          $set: {
+            status: nextStatus,
+            selectedAvailableDateId: new Types.ObjectId(selectedAvailableDateId),
+            selectedSlotId: new Types.ObjectId(selectedSlotId),
+          },
+          $push: { statusHistory: statusHistoryEntry },
+        },
+        { session }
+      );
+
+      if (!updatedRequest) {
+        throw new Error("Request could not be accepted");
+      }
+    });
 
     if (nextStatus === "awaiting_technical_visit") {
       void notifyCollectionRequestStatusTransition({
@@ -592,9 +605,8 @@ export async function acceptCollectionRequest(
     }
 
     return await getCollectionRequestById(requestId, bloodBanksLocationId);
-  } catch (error: any) {
-    console.error("Error accepting collection request:", error);
-    throw error;
+  } finally {
+    await session.endSession();
   }
 }
 

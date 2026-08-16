@@ -25,6 +25,7 @@ export const TechnicalVisitSchema = new Schema(
     },
     notes: { type: String, required: false, maxlength: 2000, trim: true },
     visitedBy: { type: Schema.Types.UUID, required: true },
+    registeredRetroactively: { type: Boolean, required: false },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

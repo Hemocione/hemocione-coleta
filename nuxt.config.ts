@@ -21,6 +21,7 @@ const getSiteUrl = () => {
 
 const siteUrl = getSiteUrl();
 const currentEnv = process.env.VERCEL_ENV || "dev";
+const bugsnagApiKey = process.env.BUGSNAG_API_KEY?.trim();
 
 export default defineNuxtConfig({
   devtools: { enabled: true },
@@ -50,6 +51,12 @@ export default defineNuxtConfig({
       process.env.HEMOCIONE_ID_JWT_SECRET_KEY ?? "secret",
     hemocioneIdIntegrationSecret:
       process.env.HEMOCIONE_ID_INTEGRATION_SECRET ?? "secret",
+    hemocioneDigitalEventUrl:
+      process.env.HEMOCIONE_DIGITAL_EVENT_URL ||
+      process.env.EVENTOS_HEMOCIONE ||
+      "https://eventos.d.hemocione.com.br",
+    coletaIntegrationSecret:
+      process.env.COLETA_INTEGRATION_SECRET ?? "secret",
   },
   nitro: {
     preset: "vercel", // Deploy no Vercel
@@ -83,11 +90,11 @@ export default defineNuxtConfig({
     },
   },
   bugsnag: {
-    publishRelease: true,
+    publishRelease: Boolean(bugsnagApiKey),
     disableLog: false, // might activate later
     baseUrl: siteUrl,
     config: {
-      apiKey: process.env.BUGSNAG_API_KEY ?? "",
+      apiKey: bugsnagApiKey || "",
       enabledReleaseStages: ["prod", "dev"],
       releaseStage: currentEnv,
       appVersion: `${currentEnv}-${process.env.VERCEL_GIT_COMMIT_SHA}`,

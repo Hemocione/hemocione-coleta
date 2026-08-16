@@ -30,12 +30,20 @@ export default defineEventHandler(async (event) => {
     // Get request body
     const body = await readBody(event);
     const { selectedAvailableDateId, selectedSlotId } = body;
+    const needsTechnicalVisit = body.needsTechnicalVisit ?? false;
 
     if (!selectedAvailableDateId || !selectedSlotId) {
       throw createError({
         statusCode: 400,
         statusMessage:
           "selectedAvailableDateId and selectedSlotId are required",
+      });
+    }
+
+    if (typeof needsTechnicalVisit !== "boolean") {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "needsTechnicalVisit must be a boolean",
       });
     }
 
@@ -48,7 +56,8 @@ export default defineEventHandler(async (event) => {
       selectedAvailableDateId,
       selectedSlotId,
       acceptedByUserId,
-      bloodBanksLocationId
+      bloodBanksLocationId,
+      needsTechnicalVisit
     );
 
     if (!updatedRequest) {

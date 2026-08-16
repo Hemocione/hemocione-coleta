@@ -10,12 +10,88 @@ const { CollectionRequest } = collectionRequest;
 const { AvailableDate } = availableDate;
 const { BloodBank } = bloodBank;
 import { getInstitutionsByIds } from "./hemocioneId";
+import {
+  createTechnicalVisit,
+  getTechnicalVisitById,
+} from "./technicalVisit";
+import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
 export interface CollectionRequestFilters {
   status?: string;
   institutionId?: string;
+  bloodBanksLocationId?: string;
   dateFrom?: string;
   dateTo?: string;
+}
+
+export type CollectionRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "counter_proposed"
+  | "counter_proposal_declined"
+  | "awaiting_technical_visit"
+  | "technical_visit_confirmed"
+  | "scheduled";
+
+export interface CounterProposalDate {
+  date: Date;
+  startTime: string;
+  durationMinutes: number;
+  note: string;
+}
+
+export interface CounterProposal {
+  proposedDates: CounterProposalDate[];
+  needsTechnicalVisit: boolean;
+  note: string;
+  proposedBy: string;
+  proposedAt: Date;
+  response?: {
+    decision: "accepted" | "declined";
+    selectedDateId: string;
+    respondedAt: Date;
+    respondedBy: string;
+  };
+}
+
+export interface CounterProposeData {
+  proposedDates: CounterProposalDate[];
+  needsTechnicalVisit: boolean;
+  note: string;
+  proposedBy: string;
+}
+
+export interface RespondToCounterProposalData {
+  decision: "accepted" | "declined";
+  selectedDateId: string;
+  respondedBy: string;
+}
+
+export interface ReuseTechnicalVisitData {
+  technicalVisitId: string;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
+}
+
+export interface RegisterRetroactiveVisitData {
+  visitDate: Date;
+  note?: string;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
+}
+
+export interface ScheduleNewVisitData {
+  visitDate: Date;
+  bloodBanksLocationId: string;
+  changedByUserId: string;
+}
+
+export interface MarkCollectionRequestScheduledData {
+  bloodBanksLocationId: string;
+  scheduledByUserId: string;
+  eventSlug?: string;
 }
 
 export interface PaginationOptions {
@@ -76,7 +152,17 @@ export interface CollectionRequestWithDetails {
   accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  note?: string;
+  technicalVisitId?: string;
+  counterProposal?: CounterProposal;
+  previousCounterProposals?: CounterProposal[];
+  confirmedSchedule?: {
+    date: Date;
+    startTime: string;
+    durationMinutes: number;
+  };
+  eventSlug?: string;
+  status: CollectionRequestStatus;
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -88,8 +174,11 @@ export interface CollectionRequestWithDetails {
   updatedAt: Date;
 }
 
-export async function getCollectionRequestsByBloodBank(
-  bloodBanksLocationId: string,
+async function getCollectionRequestsByScope(
+  scope: {
+    bloodBanksLocationId?: string;
+    institutionId?: string;
+  },
   filters: CollectionRequestFilters = {},
   pagination: PaginationOptions = {}
 ): Promise<PaginatedResult<CollectionRequestWithDetails>> {
@@ -99,7 +188,7 @@ export async function getCollectionRequestsByBloodBank(
 
   // Build query
   const query: any = {
-    bloodBanksLocationId,
+    ...scope,
     deletedAt: null,
     // Exclude cancelled status
     status: { $ne: "cancelled" },
@@ -261,6 +350,40 @@ export async function getCollectionRequestsByBloodBank(
   };
 }
 
+export async function getCollectionRequestsByBloodBank(
+  bloodBanksLocationId: string,
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  return getCollectionRequestsByScope(
+    { bloodBanksLocationId },
+    filters,
+    pagination
+  );
+}
+
+export async function getCollectionRequestsByInstitution(
+  institutionId: string,
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  return getCollectionRequestsByScope({ institutionId }, filters, pagination);
+}
+
+export async function getCollectionRequests(
+  filters: CollectionRequestFilters = {},
+  pagination: PaginationOptions = {}
+): Promise<PaginatedResult<CollectionRequestWithDetails>> {
+  const scope = {
+    ...(filters.institutionId && { institutionId: filters.institutionId }),
+    ...(filters.bloodBanksLocationId && {
+      bloodBanksLocationId: filters.bloodBanksLocationId,
+    }),
+  };
+
+  return getCollectionRequestsByScope(scope, filters, pagination);
+}
+
 export async function getCollectionRequestById(
   requestId: string,
   bloodBanksLocationId?: string
@@ -373,92 +496,515 @@ export async function acceptCollectionRequest(
   selectedAvailableDateId: string,
   selectedSlotId: string,
   acceptedByUserId: string,
-  bloodBanksLocationId: string
+  bloodBanksLocationId: string,
+  needsTechnicalVisit = false
 ): Promise<CollectionRequestWithDetails | null> {
+  const session = await CollectionRequest.startSession();
+  let nextStatus: CollectionRequestStatus = "accepted";
+
   try {
-    // For development, we'll skip transactions and use a simpler approach
-    // TODO: Implement proper transaction handling for production
-    // 1. Validate request exists and is pending
-    const request = await CollectionRequest.findOne({
+    await session.withTransaction(async () => {
+      // 1. Validate request exists and is pending
+      const request = await CollectionRequest.findOne({
+        _id: requestId,
+        status: "pending",
+        deletedAt: null,
+        bloodBanksLocationId,
+      }).session(session);
+
+      if (!request) {
+        throw new Error("Request not found or not in pending status");
+      }
+
+      // 2. Validate selected date/slot is in requestedDates
+      const isRequestedDate = request.requestedDates.some(
+        (rd) => rd.availableDateId.toString() === selectedAvailableDateId
+      );
+
+      if (!isRequestedDate) {
+        throw new Error("Selected date/slot is not in requested dates");
+      }
+
+      // 3. Check if slot is available (not locked)
+      const availableDate = await AvailableDate.findOne({
+        _id: selectedAvailableDateId,
+        "slots._id": selectedSlotId,
+        deletedAt: null,
+      }).session(session);
+
+      if (!availableDate) {
+        throw new Error("Available date or slot not found");
+      }
+
+      const slot = availableDate.slots.id(selectedSlotId);
+      if (!slot || slot.locked || slot.lockedBy) {
+        throw new Error("Slot is already locked");
+      }
+
+      // 4. Lock the slot
+      const lockedDate = await AvailableDate.findOneAndUpdate(
+        {
+          _id: selectedAvailableDateId,
+          "slots._id": selectedSlotId,
+        },
+        {
+          $set: {
+            "slots.$.locked": true,
+            "slots.$.lockedBy": requestId,
+          },
+        },
+        { session }
+      );
+
+      if (!lockedDate) {
+        throw new Error("Available date or slot could not be locked");
+      }
+
+      // 5. Update request status
+      nextStatus = needsTechnicalVisit
+        ? "awaiting_technical_visit"
+        : "accepted";
+      const statusHistoryEntry = {
+        status: nextStatus,
+        changedAt: new Date(),
+        changedBy: acceptedByUserId,
+        reason: needsTechnicalVisit
+          ? "Request accepted by blood bank; technical visit required"
+          : "Request accepted by blood bank",
+      };
+
+      const updatedRequest = await CollectionRequest.findOneAndUpdate(
+        {
+          _id: requestId,
+          bloodBanksLocationId,
+          status: "pending",
+          deletedAt: null,
+        },
+        {
+          $set: {
+            status: nextStatus,
+            selectedAvailableDateId: new Types.ObjectId(selectedAvailableDateId),
+            selectedSlotId: new Types.ObjectId(selectedSlotId),
+          },
+          $push: { statusHistory: statusHistoryEntry },
+        },
+        { session }
+      );
+
+      if (!updatedRequest) {
+        throw new Error("Request could not be accepted");
+      }
+    });
+
+    if (nextStatus === "awaiting_technical_visit") {
+      void notifyCollectionRequestStatusTransition({
+        requestId,
+        bloodBanksLocationId,
+        transition: "awaiting_technical_visit",
+      });
+    }
+
+    return await getCollectionRequestById(requestId, bloodBanksLocationId);
+  } finally {
+    await session.endSession();
+  }
+}
+
+function getTechnicalVisitAddress(request: {
+  address?: StructuredAddress;
+}): string {
+  if (!request.address) {
+    return "Endereço não informado";
+  }
+
+  const address = request.address;
+  const formattedAddress = [
+    `${address.street}, ${address.number}`,
+    address.complement,
+    address.neighborhood,
+    `${address.city} - ${address.state}`,
+    address.zipCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return formattedAddress.slice(0, 500) || "Endereço não informado";
+}
+
+async function getAwaitingTechnicalVisitRequest(
+  requestId: string,
+  bloodBanksLocationId: string
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    bloodBanksLocationId,
+    status: "awaiting_technical_visit",
+    deletedAt: null,
+  });
+
+  if (!request) {
+    throw new Error(
+      "Collection request not found or not awaiting technical visit"
+    );
+  }
+
+  return request;
+}
+
+async function linkTechnicalVisitToRequest(
+  requestId: string,
+  bloodBanksLocationId: string,
+  technicalVisitId: string | Types.ObjectId,
+  status: "awaiting_technical_visit" | "technical_visit_confirmed",
+  changedByUserId: string,
+  reason: string
+) {
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+    },
+    {
+      $set: {
+        technicalVisitId,
+        status,
+      },
+      $push: {
+        statusHistory: {
+          status,
+          changedAt: new Date(),
+          changedBy: changedByUserId,
+          reason,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Collection request was already resolved");
+  }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition:
+      status === "technical_visit_confirmed"
+        ? "technical_visit_confirmed"
+        : "awaiting_technical_visit",
+  });
+
+  return updatedRequest;
+}
+
+export async function reuseTechnicalVisit(
+  requestId: string,
+  data: ReuseTechnicalVisitData
+) {
+  await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await getTechnicalVisitById(
+    data.bloodBanksLocationId,
+    data.technicalVisitId
+  );
+
+  if (!visit) {
+    throw new Error("Technical visit not found for this blood bank");
+  }
+
+  if (visit.outcome !== "approved") {
+    throw new Error("Technical visit must be approved");
+  }
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    data.technicalVisitId,
+    "technical_visit_confirmed",
+    data.changedByUserId,
+    "Approved technical visit reused for collection request"
+  );
+}
+
+export async function registerRetroactiveVisit(
+  requestId: string,
+  data: RegisterRetroactiveVisitData
+) {
+  const request = await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: data.visitDate,
+    outcome: "approved",
+    notes: data.note,
+    visitedBy: data.changedByUserId,
+    registeredRetroactively: true,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    visit._id,
+    "technical_visit_confirmed",
+    data.changedByUserId,
+    "Technical visit registered retroactively and approved"
+  );
+}
+
+export async function scheduleNewTechnicalVisit(
+  requestId: string,
+  data: ScheduleNewVisitData
+) {
+  const request = await getAwaitingTechnicalVisitRequest(
+    requestId,
+    data.bloodBanksLocationId
+  );
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: data.visitDate,
+    outcome: "pending",
+    visitedBy: data.changedByUserId,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    data.bloodBanksLocationId,
+    visit._id,
+    "awaiting_technical_visit",
+    data.changedByUserId,
+    "Technical visit scheduled"
+  );
+}
+
+export async function markCollectionRequestScheduled(
+  requestId: string,
+  data: MarkCollectionRequestScheduledData
+) {
+  const changedAt = new Date();
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId: data.bloodBanksLocationId,
+      status: { $in: ["accepted", "technical_visit_confirmed"] },
+      deletedAt: null,
+    },
+    {
+      $set: {
+        status: "scheduled",
+        ...(data.eventSlug !== undefined && { eventSlug: data.eventSlug }),
+      },
+      $push: {
+        statusHistory: {
+          status: "scheduled",
+          changedAt,
+          changedBy: data.scheduledByUserId,
+          reason: "Collection request scheduled",
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Collection request not found or not ready to be scheduled"
+    );
+  }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId: data.bloodBanksLocationId,
+    transition: "scheduled",
+  });
+
+  return updatedRequest;
+}
+
+export async function counterPropose(
+  requestId: string,
+  data: CounterProposeData
+) {
+  const counterProposal: CounterProposal = {
+    ...data,
+    proposedAt: new Date(),
+  };
+  const statusHistoryEntry = {
+    status: "counter_proposed",
+    changedAt: new Date(),
+    changedBy: data.proposedBy,
+    reason: "Counter proposal sent by blood bank",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
       _id: requestId,
       status: "pending",
       deletedAt: null,
-      bloodBanksLocationId,
-    });
-
-    if (!request) {
-      throw new Error("Request not found or not in pending status");
-    }
-
-    // 2. Validate selected date/slot is in requestedDates
-    const isRequestedDate = request.requestedDates.some(
-      (rd) => rd.availableDateId.toString() === selectedAvailableDateId
-    );
-
-    if (!isRequestedDate) {
-      throw new Error("Selected date/slot is not in requested dates");
-    }
-
-    // 3. Check if slot is available (not locked)
-    const availableDate = await AvailableDate.findOne({
-      _id: selectedAvailableDateId,
-      "slots._id": selectedSlotId,
-      deletedAt: null,
-    });
-
-    if (!availableDate) {
-      throw new Error("Available date or slot not found");
-    }
-
-    const slot = availableDate.slots.id(selectedSlotId);
-    if (!slot || slot.locked || slot.lockedBy) {
-      throw new Error("Slot is already locked");
-    }
-
-    // 4. Lock the slot
-    await AvailableDate.findOneAndUpdate(
-      {
-        _id: selectedAvailableDateId,
-        "slots._id": selectedSlotId,
+      counterProposal: { $exists: false },
+    },
+    {
+      $set: {
+        counterProposal,
+        status: "counter_proposed",
       },
-      {
-        $set: {
-          "slots.$.locked": true,
-          "slots.$.lockedBy": requestId,
-        },
-      }
+      $push: { statusHistory: statusHistoryEntry },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Request not found, not in pending status, or already has a counter proposal"
     );
-
-    // 5. Update request status
-    const statusHistoryEntry = {
-      status: "accepted",
-      changedAt: new Date(),
-      changedBy: acceptedByUserId,
-      reason: "Request accepted by blood bank",
-    };
-
-    await CollectionRequest.findOneAndUpdate(
-      {
-        _id: requestId,
-        bloodBanksLocationId,
-        status: "pending",
-        deletedAt: null,
-      },
-      {
-        $set: {
-          status: "accepted",
-          selectedAvailableDateId: new Types.ObjectId(selectedAvailableDateId),
-          selectedSlotId: new Types.ObjectId(selectedSlotId),
-        },
-        $push: { statusHistory: statusHistoryEntry },
-      }
-    );
-
-    return await getCollectionRequestById(requestId, bloodBanksLocationId);
-  } catch (error: any) {
-    console.error("Error accepting collection request:", error);
-    throw error;
   }
+
+  const notificationBloodBanksLocationId = updatedRequest.bloodBanksLocationId
+    ?.toString();
+  if (notificationBloodBanksLocationId) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "counter_proposed",
+    });
+  }
+
+  return updatedRequest;
+}
+
+export async function respondToCounterProposal(
+  requestId: string,
+  data: RespondToCounterProposalData
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "counter_proposed",
+    deletedAt: null,
+    counterProposal: { $exists: true },
+  });
+
+  if (!request?.counterProposal) {
+    throw new Error("Request not found or not in counter proposed status");
+  }
+
+  const currentCounterProposal = request.counterProposal as unknown as CounterProposal;
+  let nextStatus: CollectionRequestStatus;
+  let confirmedSchedule:
+    | {
+        date: Date;
+        startTime: string;
+        durationMinutes: number;
+      }
+    | undefined;
+
+  if (data.decision === "accepted") {
+    const selectedDateIndex = Number(data.selectedDateId);
+    const selectedDate =
+      Number.isInteger(selectedDateIndex) && selectedDateIndex >= 0
+        ? currentCounterProposal.proposedDates[selectedDateIndex]
+        : undefined;
+
+    if (!selectedDate) {
+      throw new Error("Selected date is not in the counter proposal");
+    }
+
+    confirmedSchedule = {
+      date: selectedDate.date,
+      startTime: selectedDate.startTime,
+      durationMinutes: selectedDate.durationMinutes,
+    };
+    nextStatus = currentCounterProposal.needsTechnicalVisit
+      ? "awaiting_technical_visit"
+      : "accepted";
+  } else if (data.decision === "declined") {
+    nextStatus = "counter_proposal_declined";
+  } else {
+    throw new Error("Invalid counter proposal decision");
+  }
+
+  const respondedAt = new Date();
+  const resolvedCounterProposal: CounterProposal = {
+    ...currentCounterProposal,
+    response: {
+      decision: data.decision,
+      selectedDateId: data.selectedDateId,
+      respondedAt,
+      respondedBy: data.respondedBy,
+    },
+  };
+  const statusHistoryEntry = {
+    status: nextStatus,
+    changedAt: respondedAt,
+    changedBy: data.respondedBy,
+    reason:
+      data.decision === "accepted"
+        ? "Counter proposal accepted by institution"
+        : "Counter proposal declined by institution",
+  };
+
+  const update = {
+    $set: {
+      status: nextStatus,
+      ...(confirmedSchedule && { confirmedSchedule }),
+    },
+    $push: {
+      previousCounterProposals: resolvedCounterProposal,
+      statusHistory: statusHistoryEntry,
+    },
+    $unset: { counterProposal: 1 },
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      status: "counter_proposed",
+      deletedAt: null,
+      counterProposal: { $exists: true },
+    },
+    update,
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Request was already responded to");
+  }
+
+  const notificationBloodBanksLocationId = request.bloodBanksLocationId
+    ?.toString();
+  if (
+    notificationBloodBanksLocationId &&
+    nextStatus === "awaiting_technical_visit"
+  ) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "awaiting_technical_visit",
+    });
+  } else if (
+    notificationBloodBanksLocationId &&
+    nextStatus === "counter_proposal_declined"
+  ) {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId: notificationBloodBanksLocationId,
+      transition: "counter_proposal_declined",
+      recipientUserId: currentCounterProposal.proposedBy.toString(),
+    });
+  }
+
+  return updatedRequest;
 }
 
 export async function rejectCollectionRequest(
@@ -698,6 +1244,7 @@ export interface CreateCollectionRequestData {
   requestedDates: Array<{
     availableDateId: string;
     slotIds?: string[];
+    startTime?: string;
   }>;
   host: {
     name: string;
@@ -705,6 +1252,7 @@ export interface CreateCollectionRequestData {
     phone: string;
   };
   address?: StructuredAddress;
+  note?: string;
 }
 
 export async function createCollectionRequest(
@@ -727,7 +1275,15 @@ export async function createCollectionRequest(
   const existingOpenRequest = await CollectionRequest.findOne({
     institutionId: data.institutionId,
     bloodBanksLocationId,
-    status: "pending",
+    status: {
+      $in: [
+        "pending",
+        "counter_proposed",
+        "awaiting_technical_visit",
+        "technical_visit_confirmed",
+        "accepted",
+      ],
+    },
     deletedAt: null,
   });
 
@@ -759,7 +1315,9 @@ export async function createCollectionRequest(
     requestedDates: data.requestedDates.map((rd) => ({
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
+      startTime: rd.startTime,
     })),
+    note: data.note,
     host: data.host,
     address: data.address,
     status: "pending",
@@ -794,7 +1352,7 @@ export async function createCollectionRequest(
 
 export interface CollectionRequestPublicDetails {
   _id: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  status: CollectionRequestStatus;
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;

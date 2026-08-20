@@ -71,7 +71,8 @@ export default defineEventHandler(async (event) => {
     const visit = await updateTechnicalVisit(
       bloodBanksLocationId,
       visitId,
-      updates
+      updates,
+      user.id
     );
 
     if (!visit) {

@@ -12,6 +12,16 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const assertSecretAuth = vi.fn();
 const useHemocioneUserAuth = vi.fn(() => ({ id: "user-1" }));
+const h3Mocks = vi.hoisted(() => ({
+  setResponseHeaders: vi.fn(),
+  sendNoContent: vi.fn(),
+}));
+
+vi.mock("h3", () => ({
+  setResponseHeaders: (...args: unknown[]) =>
+    h3Mocks.setResponseHeaders(...args),
+  sendNoContent: (...args: unknown[]) => h3Mocks.sendNoContent(...args),
+}));
 
 vi.mock("~/server/services/auth", () => ({
   assertSecretAuth: (...args: unknown[]) => assertSecretAuth(...args),
@@ -20,16 +30,22 @@ vi.mock("~/server/services/auth", () => ({
 
 interface FakeEvent {
   path: string;
+  method: string;
   headers: { get: (name: string) => string | null };
   context: Record<string, unknown>;
 }
 
-function makeEvent(path: string, headers: Record<string, string> = {}): FakeEvent {
+function makeEvent(
+  path: string,
+  headers: Record<string, string> = {},
+  method = "GET",
+): FakeEvent {
   const normalizados = Object.fromEntries(
     Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
   );
   return {
     path,
+    method,
     headers: { get: (name: string) => normalizados[name.toLowerCase()] ?? null },
     context: {},
   };
@@ -52,6 +68,8 @@ beforeAll(async () => {
 beforeEach(() => {
   assertSecretAuth.mockReset();
   useHemocioneUserAuth.mockReset();
+  h3Mocks.setResponseHeaders.mockReset();
+  h3Mocks.sendNoContent.mockReset();
   useHemocioneUserAuth.mockReturnValue({ id: "user-1" });
 });
 
@@ -96,6 +114,32 @@ describe("middleware de auth — rotas de backoffice", () => {
 });
 
 describe("middleware de auth — demais rotas", () => {
+  it("responde preflight OPTIONS sem token e com os headers de CORS", () => {
+    const event = makeEvent(
+      "/api/v1/qualquer-coisa",
+      {
+        Origin: "https://instituicoes.d.hemocione.com.br",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "Authorization, Content-Type",
+      },
+      "OPTIONS",
+    );
+
+    middleware(event);
+
+    expect(h3Mocks.setResponseHeaders).toHaveBeenCalledWith(
+      event,
+      expect.objectContaining({
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "access-control-allow-headers": "Authorization, Content-Type",
+      }),
+    );
+    expect(h3Mocks.sendNoContent).toHaveBeenCalledWith(event, 204);
+    expect(assertSecretAuth).not.toHaveBeenCalled();
+    expect(useHemocioneUserAuth).not.toHaveBeenCalled();
+  });
+
   it("libera as rotas públicas sem nenhuma checagem", () => {
     middleware(makeEvent("/api/v1/public/bloodbanks"));
 
@@ -110,12 +154,15 @@ describe("middleware de auth — demais rotas", () => {
     expect(useHemocioneUserAuth).not.toHaveBeenCalled();
   });
 
-  it("recusa rota autenticada sem Authorization", () => {
-    expect(() => middleware(makeEvent("/api/v1/bloodbank/abc/dashboard"))).toThrow(
-      "Unauthorized - Missing Token",
-    );
-    expect(useHemocioneUserAuth).not.toHaveBeenCalled();
-  });
+  it.each(["GET", "POST"])(
+    "recusa rota autenticada sem Authorization (%s)",
+    (method) => {
+      expect(() =>
+        middleware(makeEvent("/api/v1/bloodbank/abc/dashboard", {}, method)),
+      ).toThrow("Unauthorized - Missing Token");
+      expect(useHemocioneUserAuth).not.toHaveBeenCalled();
+    },
+  );
 
   it("aplica o fluxo de JWT na rota autenticada e popula o contexto", () => {
     const event = makeEvent("/api/v1/bloodbank/abc/dashboard", {
@@ -130,6 +177,10 @@ describe("middleware de auth — demais rotas", () => {
       token: "token-de-teste",
       user: { id: "user-1" },
     });
+    expect(h3Mocks.setResponseHeaders).toHaveBeenCalledWith(
+      event,
+      expect.objectContaining({ "access-control-allow-origin": "*" }),
+    );
   });
 
   it("não confunde um path que apenas contém 'backoffice' depois de /api/v1", () => {

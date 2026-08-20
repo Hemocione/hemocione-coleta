@@ -51,9 +51,76 @@ const RequestedDateSchema = new Schema(
       type: [Schema.Types.ObjectId],
       required: false,
     },
+    startTime: {
+      type: String,
+      required: false,
+    },
   },
   { _id: false }
 );
+
+const CounterProposalDateSchema = new Schema(
+  {
+    date: { type: Date, required: true },
+    startTime: { type: String, required: true },
+    durationMinutes: { type: Number, required: true },
+    note: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const CounterProposalResponseSchema = new Schema(
+  {
+    decision: {
+      type: String,
+      required: true,
+      enum: ["accepted", "declined"],
+    },
+    selectedDateId: { type: String, required: true },
+    respondedAt: { type: Date, required: true },
+    respondedBy: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const CounterProposalSchema = new Schema(
+  {
+    proposedDates: {
+      type: [CounterProposalDateSchema],
+      required: true,
+    },
+    needsTechnicalVisit: { type: Boolean, required: true },
+    note: { type: String, required: true },
+    proposedBy: { type: String, required: true },
+    proposedAt: { type: Date, required: true },
+    response: {
+      type: CounterProposalResponseSchema,
+      required: false,
+    },
+  },
+  { _id: false }
+);
+
+const ConfirmedScheduleSchema = new Schema(
+  {
+    date: { type: Date, required: true },
+    startTime: { type: String, required: true },
+    durationMinutes: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const COLLECTION_REQUEST_STATUSES = [
+  "pending",
+  "accepted",
+  "rejected",
+  "cancelled",
+  "counter_proposed",
+  "counter_proposal_declined",
+  "awaiting_technical_visit",
+  "technical_visit_confirmed",
+  "scheduled",
+] as const;
 
 // Status History Schema for audit trail
 const StatusHistorySchema = new Schema(
@@ -61,7 +128,7 @@ const StatusHistorySchema = new Schema(
     status: {
       type: String,
       required: true,
-      enum: ["pending", "accepted", "rejected", "cancelled"],
+      enum: COLLECTION_REQUEST_STATUSES,
     },
     changedAt: {
       type: Date,
@@ -113,10 +180,36 @@ export const CollectionRequestSchema = new Schema(
       type: Schema.Types.ObjectId,
       required: false,
     },
+    note: {
+      type: String,
+      required: false,
+    },
+    technicalVisitId: {
+      type: Schema.Types.ObjectId,
+      ref: "TechnicalVisit",
+      required: false,
+    },
+    counterProposal: {
+      type: CounterProposalSchema,
+      required: false,
+    },
+    previousCounterProposals: {
+      type: [CounterProposalSchema],
+      required: false,
+      default: [],
+    },
+    confirmedSchedule: {
+      type: ConfirmedScheduleSchema,
+      required: false,
+    },
+    eventSlug: {
+      type: String,
+      required: false,
+    },
     status: {
       type: String,
       required: true,
-      enum: ["pending", "accepted", "rejected", "cancelled"],
+      enum: COLLECTION_REQUEST_STATUSES,
       default: "pending",
     },
     rejectionReason: {
@@ -148,12 +241,14 @@ export const CollectionRequestSchema = new Schema(
   { timestamps: true }
 );
 
-// Validation: when status is "accepted", selected fields are required
+// Validation: when status is "accepted", selected fields or a confirmed schedule are required
 CollectionRequestSchema.pre("validate", function (next) {
   if (this.status === "accepted") {
-    if (!this.selectedAvailableDateId || !this.selectedSlotId) {
+    const hasSelectedSlot =
+      this.selectedAvailableDateId && this.selectedSlotId;
+    if (!hasSelectedSlot && !this.confirmedSchedule) {
       const error = new Error(
-        "selectedAvailableDateId and selectedSlotId are required when status is 'accepted'"
+        "selectedAvailableDateId and selectedSlotId or confirmedSchedule are required when status is 'accepted'"
       );
       return next(error);
     }

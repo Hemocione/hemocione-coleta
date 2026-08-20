@@ -1,6 +1,8 @@
 import { Types } from "mongoose";
-import { technicalVisit } from "~/server/models";
+import { collectionRequest, technicalVisit } from "~/server/models";
 const { TechnicalVisit } = technicalVisit;
+const { CollectionRequest } = collectionRequest;
+import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
 export interface TechnicalVisitData {
   _id: string | Types.ObjectId;
@@ -12,6 +14,7 @@ export interface TechnicalVisitData {
   outcome: "approved" | "rejected" | "pending";
   notes?: string | null;
   visitedBy: string | Types.UUID;
+  registeredRetroactively?: boolean;
   deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +29,7 @@ export interface CreateTechnicalVisitData {
   outcome: "approved" | "rejected" | "pending";
   notes?: string | null;
   visitedBy: string;
+  registeredRetroactively?: boolean;
 }
 
 export interface UpdateTechnicalVisitData {
@@ -102,7 +106,8 @@ export async function getTechnicalVisitById(
 export async function updateTechnicalVisit(
   bloodBanksLocationId: string,
   visitId: string,
-  updates: UpdateTechnicalVisitData
+  updates: UpdateTechnicalVisitData,
+  changedByUserId?: string
 ): Promise<TechnicalVisitData | null> {
   const existing = await TechnicalVisit.findOne({
     _id: visitId,
@@ -119,6 +124,57 @@ export async function updateTechnicalVisit(
     updates,
     { new: true, lean: true }
   );
+
+  if (
+    updated &&
+    (updates.outcome === "approved" || updates.outcome === "rejected")
+  ) {
+    const nextStatus =
+      updates.outcome === "approved"
+        ? "technical_visit_confirmed"
+        : "rejected";
+    const rejectionReason =
+      updates.outcome === "rejected"
+        ? updated.notes || "Technical visit rejected"
+        : undefined;
+
+    const updatedCollectionRequest = await CollectionRequest.findOneAndUpdate(
+      {
+        technicalVisitId: visitId,
+        bloodBanksLocationId,
+        status: "awaiting_technical_visit",
+        deletedAt: null,
+      },
+      {
+        $set: {
+          status: nextStatus,
+          ...(rejectionReason && { rejectionReason }),
+        },
+        $push: {
+          statusHistory: {
+            status: nextStatus,
+            changedAt: new Date(),
+            changedBy: changedByUserId || updated.visitedBy?.toString(),
+            reason:
+              updates.outcome === "approved"
+                ? "Technical visit approved"
+                : rejectionReason,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (updatedCollectionRequest?._id) {
+      void notifyCollectionRequestStatusTransition({
+        requestId: updatedCollectionRequest._id.toString(),
+        bloodBanksLocationId,
+        transition: "technical_visit_verdict",
+        technicalVisitResult:
+          updates.outcome === "approved" ? "Aprovada" : "Reprovada",
+      });
+    }
+  }
 
   return updated as TechnicalVisitData | null;
 }

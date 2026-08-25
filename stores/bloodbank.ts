@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
+import type { AvailableDateStatus } from "~/utils/availableDateStatus";
 
 // Types
 export interface BloodbankData {
@@ -64,6 +65,7 @@ export interface AvailableDate {
   date: string;
   year: number;
   isAllTeams: boolean;
+  status?: AvailableDateStatus;
   slots: Slot[];
   allSlotsLocked?: boolean; // virtual
   deletedAt?: Date;

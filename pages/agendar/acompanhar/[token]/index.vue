@@ -814,18 +814,25 @@ function historyStatusLabel(status: string) {
   }
 }
 
-async function loadRequest() {
-  loading.value = true;
-  error.value = false;
+async function loadRequest(options: { quiet?: boolean } = {}) {
+  const { quiet = false } = options;
+  if (!quiet) {
+    loading.value = true;
+    error.value = false;
+  }
   try {
     const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
       `/api/v1/public/collection-requests/track/${accessToken}`
     );
     request.value = response.data;
   } catch {
-    error.value = true;
+    if (!quiet) {
+      error.value = true;
+    }
   } finally {
-    loading.value = false;
+    if (!quiet) {
+      loading.value = false;
+    }
   }
 }
 
@@ -844,7 +851,7 @@ async function respondToCounterProposal(
   if (!request.value) return;
   respondingToCounterProposal.value = true;
   try {
-    const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
+    await $fetch<{ success: boolean; data: PublicRequestData }>(
       `/api/v1/public/collection-requests/track/${accessToken}/respond-counter-proposal`,
       {
         method: "POST",
@@ -857,7 +864,7 @@ async function respondToCounterProposal(
         },
       }
     );
-    request.value = response.data;
+    await loadRequest({ quiet: true });
     showDeclineCounterProposalModal.value = false;
     toast.add({
       title:
@@ -881,7 +888,7 @@ async function respondToTechnicalVisitProposal(
   if (!request.value) return;
   respondingToTechnicalVisitProposal.value = true;
   try {
-    const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
+    await $fetch<{ success: boolean; data: PublicRequestData }>(
       `/api/v1/public/collection-requests/track/${accessToken}/respond-technical-visit-proposal`,
       {
         method: "POST",
@@ -894,7 +901,7 @@ async function respondToTechnicalVisitProposal(
         },
       }
     );
-    request.value = response.data;
+    await loadRequest({ quiet: true });
     showDeclineTechnicalVisitProposalModal.value = false;
     toast.add({
       title:

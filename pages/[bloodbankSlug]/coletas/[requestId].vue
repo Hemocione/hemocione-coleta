@@ -571,6 +571,30 @@
           </div>
         </UCard>
 
+        <!-- Technical Visit Proposal -->
+        <UCard v-if="canProposeTechnicalVisit">
+          <template #header>
+            <div class="flex items-center gap-2 text-amber-700">
+              <UIcon name="i-lucide-map-pinned" class="w-5 h-5" />
+              <h3 class="text-lg font-semibold text-gray-900">
+                Visita técnica necessária
+              </h3>
+            </div>
+          </template>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm text-gray-600">
+              Envie opções de data e horário para a instituição escolher.
+            </p>
+            <UButton
+              color="warning"
+              class="cursor-pointer shrink-0"
+              @click="showTechnicalVisitProposalDialog"
+            >
+              Propor visita técnica
+            </UButton>
+          </div>
+        </UCard>
+
         <!-- Rejection Reason (if rejected) -->
         <UCard
           v-if="
@@ -941,6 +965,97 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Technical Visit Proposal Modal -->
+    <UModal v-model:open="showTechnicalVisitProposalModal">
+      <template #content>
+        <div class="p-6 max-h-[80vh] overflow-y-auto">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Propor visita técnica
+          </h3>
+
+          <div class="space-y-4">
+            <div
+              v-for="(d, idx) in technicalVisitProposalDates"
+              :key="idx"
+              class="border rounded-lg p-3 space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-700">
+                  Opção {{ idx + 1 }}
+                </span>
+                <UButton
+                  v-if="technicalVisitProposalDates.length > 1"
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  @click="removeTechnicalVisitProposalDate(idx)"
+                />
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <UFormField label="Data">
+                  <UInput v-model="d.date" type="date" class="w-full" />
+                </UFormField>
+                <UFormField label="Horário">
+                  <UInput v-model="d.startTime" type="time" class="w-full" />
+                </UFormField>
+                <UFormField label="Duração (min)">
+                  <UInput
+                    v-model.number="d.durationMinutes"
+                    type="number"
+                    min="1"
+                    class="w-full"
+                  />
+                </UFormField>
+              </div>
+              <UFormField label="Nota desta opção">
+                <UInput
+                  v-model="d.note"
+                  placeholder="Ex: sujeito à confirmação da equipe"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+
+            <UButton
+              variant="ghost"
+              icon="i-lucide-plus"
+              @click="addTechnicalVisitProposalDate"
+            >
+              Adicionar outra opção de data
+            </UButton>
+
+            <UFormField label="Nota geral para a instituição">
+              <UTextarea
+                v-model="technicalVisitProposalNote"
+                placeholder="Inclua orientações para a visita técnica..."
+                :rows="3"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton
+              variant="ghost"
+              @click="showTechnicalVisitProposalModal = false"
+              :disabled="isSendingTechnicalVisitProposal"
+            >
+              Cancelar
+            </UButton>
+            <UButton
+              color="warning"
+              @click="confirmTechnicalVisitProposal"
+              :loading="isSendingTechnicalVisitProposal"
+              :disabled="!isTechnicalVisitProposalValid"
+            >
+              Enviar proposta
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -1282,6 +1397,47 @@ const counterProposalDates = ref<CounterProposalDateDraft[]>([
   { date: "", startTime: "", durationMinutes: 60, note: "" },
 ]);
 
+const canProposeTechnicalVisit = computed(() => {
+  const request = currentCollectionRequest.value;
+  return Boolean(
+    request?.status === "awaiting_technical_visit" &&
+      !request.visitProposal &&
+      !request.technicalVisitId
+  );
+});
+
+const showTechnicalVisitProposalModal = ref(false);
+const isSendingTechnicalVisitProposal = ref(false);
+const technicalVisitProposalNote = ref("");
+const technicalVisitProposalDates = ref<CounterProposalDateDraft[]>([
+  { date: "", startTime: "", durationMinutes: 60, note: "" },
+]);
+
+const addTechnicalVisitProposalDate = () => {
+  technicalVisitProposalDates.value.push({
+    date: "",
+    startTime: "",
+    durationMinutes: 60,
+    note: "",
+  });
+};
+
+const removeTechnicalVisitProposalDate = (index: number) => {
+  technicalVisitProposalDates.value.splice(index, 1);
+};
+
+const showTechnicalVisitProposalDialog = () => {
+  showTechnicalVisitProposalModal.value = true;
+};
+
+const isTechnicalVisitProposalValid = computed(
+  () =>
+    technicalVisitProposalDates.value.length > 0 &&
+    technicalVisitProposalDates.value.every(
+      (d) => d.date && d.startTime && d.durationMinutes > 0
+    )
+);
+
 const addCounterProposalDate = () => {
   counterProposalDates.value.push({
     date: "",
@@ -1371,6 +1527,64 @@ const confirmCounterProposal = async () => {
     });
   } finally {
     isSendingCounterProposal.value = false;
+  }
+};
+
+const confirmTechnicalVisitProposal = async () => {
+  if (!isTechnicalVisitProposalValid.value) {
+    useToast().add({
+      title: "Preencha todas as datas propostas",
+      color: "warning",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isSendingTechnicalVisitProposal.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    await bloodbankStore.proposeTechnicalVisit(
+      requestId,
+      {
+        proposedDates: technicalVisitProposalDates.value.map((d) => ({
+          date: new Date(`${d.date}T00:00:00`).toISOString(),
+          startTime: d.startTime,
+          durationMinutes: Number(d.durationMinutes),
+          note: d.note,
+        })),
+        note: technicalVisitProposalNote.value,
+      },
+      bloodBanksLocationId.value
+    );
+
+    useToast().add({
+      title: "Proposta de visita técnica enviada!",
+      description: "A instituição foi notificada das opções de data.",
+      color: "success",
+      duration: 3000,
+    });
+
+    showTechnicalVisitProposalModal.value = false;
+    technicalVisitProposalNote.value = "";
+    technicalVisitProposalDates.value = [
+      { date: "", startTime: "", durationMinutes: 60, note: "" },
+    ];
+
+    await loadRequestDetails();
+  } catch (error: any) {
+    console.error("Error sending technical visit proposal:", error);
+    useToast().add({
+      title: "Erro ao enviar proposta de visita técnica",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isSendingTechnicalVisitProposal.value = false;
   }
 };
 

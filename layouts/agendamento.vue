@@ -17,6 +17,15 @@
           <span class="font-semibold">Agendar Coleta</span>
         </div>
         <div class="flex items-center gap-2">
+          <NuxtLink v-if="isLoggedIn" to="/agendar/meus-agendamentos">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-calendar-clock"
+            >
+              Meus Agendamentos
+            </UButton>
+          </NuxtLink>
           <UButton
             v-if="!isLoggedIn"
             color="primary"

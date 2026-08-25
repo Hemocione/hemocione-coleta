@@ -853,7 +853,8 @@ export async function markCollectionRequestScheduled(
 
 export async function counterPropose(
   requestId: string,
-  data: CounterProposeData
+  data: CounterProposeData,
+  bloodBanksLocationId: string
 ) {
   const counterProposal: CounterProposal = {
     ...data,
@@ -869,6 +870,7 @@ export async function counterPropose(
   const updatedRequest = await CollectionRequest.findOneAndUpdate(
     {
       _id: requestId,
+      bloodBanksLocationId,
       status: "pending",
       deletedAt: null,
       counterProposal: { $exists: false },
@@ -889,15 +891,11 @@ export async function counterPropose(
     );
   }
 
-  const notificationBloodBanksLocationId = updatedRequest.bloodBanksLocationId
-    ?.toString();
-  if (notificationBloodBanksLocationId) {
-    void notifyCollectionRequestStatusTransition({
-      requestId,
-      bloodBanksLocationId: notificationBloodBanksLocationId,
-      transition: "counter_proposed",
-    });
-  }
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition: "counter_proposed",
+  });
 
   return updatedRequest;
 }

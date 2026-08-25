@@ -44,12 +44,16 @@ export default defineEventHandler(async (event) => {
     const body = bodySchema.parse(await readBody(event));
     const proposedByUserId = event.context.auth.user.id;
 
-    const updatedRequest = await counterPropose(requestId, {
-      proposedDates: body.proposedDates,
-      needsTechnicalVisit: body.needsTechnicalVisit,
-      note: body.note,
-      proposedBy: proposedByUserId,
-    });
+    const updatedRequest = await counterPropose(
+      requestId,
+      {
+        proposedDates: body.proposedDates,
+        needsTechnicalVisit: body.needsTechnicalVisit,
+        note: body.note,
+        proposedBy: proposedByUserId,
+      },
+      bloodBanksLocationId
+    );
 
     return {
       success: true,

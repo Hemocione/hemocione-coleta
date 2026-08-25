@@ -99,18 +99,23 @@ describe("máquina de estados de contraproposta", () => {
     mocks.collectionRequestFindOneAndUpdate.mockResolvedValue(updatedRequest);
 
     await expect(
-      counterPropose("request-a", {
-        proposedDates,
-        needsTechnicalVisit: false,
-        note: counterProposal.note,
-        proposedBy: counterProposal.proposedBy,
-      })
+      counterPropose(
+        "request-a",
+        {
+          proposedDates,
+          needsTechnicalVisit: false,
+          note: counterProposal.note,
+          proposedBy: counterProposal.proposedBy,
+        },
+        "blood-bank-a"
+      )
     ).resolves.toEqual(updatedRequest);
 
     const [query, update, options] =
       mocks.collectionRequestFindOneAndUpdate.mock.calls[0];
     expect(query).toEqual({
       _id: "request-a",
+      bloodBanksLocationId: "blood-bank-a",
       status: "pending",
       deletedAt: null,
       counterProposal: { $exists: false },
@@ -137,22 +142,61 @@ describe("máquina de estados de contraproposta", () => {
     mocks.collectionRequestFindOneAndUpdate.mockResolvedValue(null);
 
     await expect(
-      counterPropose("request-a", {
-        proposedDates,
-        needsTechnicalVisit: false,
-        note: "Outra proposta",
-        proposedBy: "blood-bank-user",
-      })
+      counterPropose(
+        "request-a",
+        {
+          proposedDates,
+          needsTechnicalVisit: false,
+          note: "Outra proposta",
+          proposedBy: "blood-bank-user",
+        },
+        "blood-bank-a"
+      )
     ).rejects.toThrow("already has a counter proposal");
 
     expect(mocks.collectionRequestFindOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
+        bloodBanksLocationId: "blood-bank-a",
         status: "pending",
         counterProposal: { $exists: false },
       }),
       expect.anything(),
       { new: true }
     );
+  });
+
+  it("counterPropose rejeita (IDOR) quando a solicitação pertence a outro banco de sangue", async () => {
+    // A solicitação é do banco B; o chamador está autorizado só pro banco A.
+    // O findOneAndUpdate real não bateria (_id + bloodBanksLocationId=A não
+    // casa com um doc gravado com bloodBanksLocationId=B), então o mock
+    // reflete esse "não encontrado" retornando null — o teste prova que o
+    // filtro enviado ao model inclui o bloodBanksLocationId do chamador.
+    mocks.collectionRequestFindOneAndUpdate.mockResolvedValue(null);
+
+    await expect(
+      counterPropose(
+        "request-do-banco-b",
+        {
+          proposedDates,
+          needsTechnicalVisit: false,
+          note: "Tentativa de contraproposta cross-bank",
+          proposedBy: "usuario-banco-a",
+        },
+        "blood-bank-a"
+      )
+    ).rejects.toThrow(
+      "Request not found, not in pending status, or already has a counter proposal"
+    );
+
+    expect(mocks.collectionRequestFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: "request-do-banco-b",
+        bloodBanksLocationId: "blood-bank-a",
+      }),
+      expect.anything(),
+      { new: true }
+    );
+    expect(mocks.notifyCollectionRequestStatusTransition).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -167,12 +211,16 @@ describe("máquina de estados de contraproposta", () => {
     mocks.collectionRequestFindOneAndUpdate.mockResolvedValue(null);
 
     await expect(
-      counterPropose("request-a", {
-        proposedDates,
-        needsTechnicalVisit: false,
-        note: "Outra proposta",
-        proposedBy: "blood-bank-user",
-      })
+      counterPropose(
+        "request-a",
+        {
+          proposedDates,
+          needsTechnicalVisit: false,
+          note: "Outra proposta",
+          proposedBy: "blood-bank-user",
+        },
+        "blood-bank-a"
+      )
     ).rejects.toThrow();
 
     expect(mocks.collectionRequestFindOneAndUpdate.mock.calls[0][0]).toEqual(

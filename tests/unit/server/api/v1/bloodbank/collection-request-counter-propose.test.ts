@@ -91,19 +91,23 @@ describe("POST self-service counter-propose", () => {
       { id: userId },
       bloodBanksLocationId
     );
-    expect(mocks.counterPropose).toHaveBeenCalledWith(requestId, {
-      proposedDates: [
-        {
-          date: new Date("2026-09-10T00:00:00.000Z"),
-          startTime: "09:00",
-          durationMinutes: 60,
-          note: "Horário alternativo",
-        },
-      ],
-      needsTechnicalVisit: false,
-      note: "Podemos atender nesta data",
-      proposedBy: userId,
-    });
+    expect(mocks.counterPropose).toHaveBeenCalledWith(
+      requestId,
+      {
+        proposedDates: [
+          {
+            date: new Date("2026-09-10T00:00:00.000Z"),
+            startTime: "09:00",
+            durationMinutes: 60,
+            note: "Horário alternativo",
+          },
+        ],
+        needsTechnicalVisit: false,
+        note: "Podemos atender nesta data",
+        proposedBy: userId,
+      },
+      bloodBanksLocationId
+    );
   });
 
   it("retorna 400 quando proposedDates está vazio", async () => {

@@ -29,6 +29,7 @@ const bodySchema = z.object({
       z.object({
         availableDateId: z.string(),
         slotIds: z.array(z.string()).optional(),
+        priority: z.number().int().min(1).max(3).optional(),
       })
     )
     .min(1)

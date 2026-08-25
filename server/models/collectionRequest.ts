@@ -55,6 +55,12 @@ const RequestedDateSchema = new Schema(
       type: String,
       required: false,
     },
+    priority: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 3,
+    },
   },
   { _id: false }
 );
@@ -167,9 +173,14 @@ export const CollectionRequestSchema = new Schema(
       required: true,
       validate: {
         validator: function (dates: any[]) {
-          return dates.length >= 1 && dates.length <= 3;
+          if (dates.length < 1 || dates.length > 3) return false;
+          const priorities = dates.map((d) => d.priority);
+          const uniquePriorities = new Set(priorities);
+          if (uniquePriorities.size !== dates.length) return false;
+          return priorities.every((p) => p >= 1 && p <= dates.length);
         },
-        message: "Must have between 1 and 3 requested dates",
+        message:
+          "Must have between 1 and 3 requested dates with unique priorities from 1 to the number of dates",
       },
     },
     selectedAvailableDateId: {

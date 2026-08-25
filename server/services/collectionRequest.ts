@@ -142,6 +142,7 @@ export interface CollectionRequestWithDetails {
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
+    priority?: number; // Prioridade que a instituição atribuiu à data solicitada
   }>;
   host: {
     name: string;
@@ -172,6 +173,17 @@ export interface CollectionRequestWithDetails {
   }>;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Ordena as datas solicitadas pela prioridade que a instituição atribuiu
+// (1 = preferida), para que o banco de sangue veja as opções mais
+// desejadas primeiro.
+function sortRequestedDatesByPriority<T extends { priority?: number }>(
+  requestedDates: T[]
+): T[] {
+  return [...requestedDates].sort(
+    (a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER)
+  );
 }
 
 async function getCollectionRequestsByScope(
@@ -269,6 +281,7 @@ async function getCollectionRequestsByScope(
         teamColor?: string;
         isLocked?: boolean;
         isRequested?: boolean;
+        priority?: number;
       }> = [];
 
       // Create a set of requested slot IDs for quick lookup
@@ -281,8 +294,9 @@ async function getCollectionRequestsByScope(
         }
       });
 
-      // Process each requested date and extract all available slots
-      request.requestedDates.forEach((rd) => {
+      // Process each requested date (da mais preferida para a menos) e
+      // extrair todos os slots disponíveis
+      sortRequestedDatesByPriority(request.requestedDates).forEach((rd) => {
         const availableDate = availableDateMap.get(
           rd.availableDateId.toString()
         );
@@ -310,6 +324,7 @@ async function getCollectionRequestsByScope(
                 teamColor: (slot.teamId as any)?.color || "#3B82F6",
                 isLocked: slot.locked || false,
                 isRequested: requestedSlotIds.has(slot._id.toString()),
+                priority: rd.priority,
               });
             }
           });
@@ -435,10 +450,12 @@ export async function getCollectionRequestById(
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean;
+    priority?: number;
   }> = [];
 
-  // Process each requested date and extract all available slots
-  request.requestedDates.forEach((rd) => {
+  // Process each requested date (da mais preferida para a menos) e extrair
+  // todos os slots disponíveis
+  sortRequestedDatesByPriority(request.requestedDates).forEach((rd) => {
     const availableDate = availableDateMap.get(rd.availableDateId.toString());
     const requestedSlotIds = new Set<string>();
 
@@ -466,6 +483,7 @@ export async function getCollectionRequestById(
             teamColor: (slot.teamId as { color?: string })?.color || "#3B82F6",
             isLocked: slot.locked || false,
             isRequested: requestedSlotIds.has(slot._id.toString()),
+            priority: rd.priority,
           });
         }
       });
@@ -1245,6 +1263,7 @@ export interface CreateCollectionRequestData {
     availableDateId: string;
     slotIds?: string[];
     startTime?: string;
+    priority?: number;
   }>;
   host: {
     name: string;
@@ -1253,6 +1272,29 @@ export interface CreateCollectionRequestData {
   };
   address?: StructuredAddress;
   note?: string;
+}
+
+// Preenche priority sequencialmente pela posição no array quando o chamador
+// não informa uma prioridade explícita para cada data. Mistura entre
+// datas com e sem priority não é permitida: se qualquer uma vier sem
+// priority, todas são renumeradas pela posição, para nunca gerar
+// prioridades duplicadas ou parciais.
+function normalizeRequestedDatesPriority(
+  requestedDates: CreateCollectionRequestData["requestedDates"]
+): Array<{
+  availableDateId: string;
+  slotIds?: string[];
+  startTime?: string;
+  priority: number;
+}> {
+  const hasExplicitPriority = requestedDates.every(
+    (rd) => typeof rd.priority === "number"
+  );
+
+  return requestedDates.map((rd, index) => ({
+    ...rd,
+    priority: hasExplicitPriority ? (rd.priority as number) : index + 1,
+  }));
 }
 
 export async function createCollectionRequest(
@@ -1308,14 +1350,18 @@ export async function createCollectionRequest(
   }
 
   // Create the collection request
+  const normalizedRequestedDates = normalizeRequestedDatesPriority(
+    data.requestedDates
+  );
   const collectionRequest = new CollectionRequest({
     institutionId: data.institutionId,
     requestedByUserId: data.requestedByUserId,
     bloodBanksLocationId,
-    requestedDates: data.requestedDates.map((rd) => ({
+    requestedDates: normalizedRequestedDates.map((rd) => ({
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
       startTime: rd.startTime,
+      priority: rd.priority,
     })),
     note: data.note,
     host: data.host,

@@ -1650,6 +1650,13 @@ export interface CollectionRequestPublicDetails {
     note: string;
     proposedAt: Date;
   };
+  technicalVisit?: {
+    id: string;
+    visitDate: Date;
+    address: string;
+    outcome: "approved" | "rejected" | "pending";
+    notes?: string;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1678,16 +1685,23 @@ export async function getCollectionRequestPublicByToken(
 async function buildCollectionRequestPublicDetails(
   request: any
 ): Promise<CollectionRequestPublicDetails> {
-  const [institutions, bloodBankDoc, availableDates] = await Promise.all([
-    getInstitutionsByIds([request.institutionId.toString()]),
-    BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
-    AvailableDate.find({
-      _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
-      deletedAt: null,
-    })
-      .populate({ path: "slots.teamId", select: "name", model: Team })
-      .lean(),
-  ]);
+  const [institutions, bloodBankDoc, availableDates, technicalVisitDoc] =
+    await Promise.all([
+      getInstitutionsByIds([request.institutionId.toString()]),
+      BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
+      AvailableDate.find({
+        _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
+        deletedAt: null,
+      })
+        .populate({ path: "slots.teamId", select: "name", model: Team })
+        .lean(),
+      request.technicalVisitId
+        ? getTechnicalVisitById(
+            request.bloodBanksLocationId,
+            request.technicalVisitId.toString()
+          )
+        : Promise.resolve(null),
+    ]);
 
   const institution = institutions[0];
   const availableDateMap = new Map(
@@ -1752,6 +1766,17 @@ async function buildCollectionRequestPublicDetails(
         }
       : undefined;
 
+  const technicalVisit: CollectionRequestPublicDetails["technicalVisit"] =
+    technicalVisitDoc
+      ? {
+          id: technicalVisitDoc._id.toString(),
+          visitDate: technicalVisitDoc.visitDate,
+          address: technicalVisitDoc.address,
+          outcome: technicalVisitDoc.outcome as "approved" | "rejected" | "pending",
+          ...(technicalVisitDoc.notes && { notes: technicalVisitDoc.notes }),
+        }
+      : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -1765,6 +1790,7 @@ async function buildCollectionRequestPublicDetails(
     selectedDate,
     counterProposal,
     visitProposal,
+    technicalVisit,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,

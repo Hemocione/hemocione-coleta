@@ -132,6 +132,8 @@ export interface CollectionRequestWithDetails {
   institutionBanner?: string;
   requestedByUserId: string;
   bloodBanksLocationId: string;
+  bloodBankName?: string;
+  bloodBankLogo?: string | null;
   availableSlotOptions: Array<{
     availableDateId: string;
     slotId: string;
@@ -242,10 +244,17 @@ async function getCollectionRequestsByScope(
     )
   );
 
-  // Parallelize institution and availableDates calls
-  const [institutions, availableDates] = await Promise.all([
+  const bloodBankIds = Array.from(
+    new Set(requests.map((r) => r.bloodBanksLocationId))
+  );
+
+  // Parallelize institution, bloodBank and availableDates calls
+  const [institutions, bloodBanks, availableDates] = await Promise.all([
     institutionIds.length > 0
       ? getInstitutionsByIds(institutionIds)
+      : Promise.resolve([]),
+    bloodBankIds.length > 0
+      ? BloodBank.find({ bloodBanksLocationId: { $in: bloodBankIds } }).lean()
       : Promise.resolve([]),
     AvailableDate.find({
       _id: { $in: allRequestedDateIds },
@@ -256,6 +265,10 @@ async function getCollectionRequestsByScope(
   ]);
   // Create institution lookup map
   const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
+
+  const bloodBankMap = new Map(
+    bloodBanks.map((bb) => [bb.bloodBanksLocationId, bb])
+  );
 
   const availableDateMap = new Map(
     availableDates.map((ad) => [ad._id.toString(), ad])
@@ -269,6 +282,8 @@ async function getCollectionRequestsByScope(
       if (!institution) {
         return null;
       }
+
+      const bloodBankDoc = bloodBankMap.get(request.bloodBanksLocationId);
 
       // Build available slot options for this request
       const availableSlotOptions: Array<{
@@ -345,6 +360,8 @@ async function getCollectionRequestsByScope(
         institutionLogo: institution.logo,
         institutionBanner: institution.banner,
         institutionStatus: institution.status,
+        bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
+        bloodBankLogo: bloodBankDoc?.logo,
         availableSlotOptions,
       };
     })

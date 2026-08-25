@@ -220,6 +220,19 @@
           <p class="text-sm text-gray-700">{{ formattedAddress }}</p>
         </UCard>
 
+        <!-- Note -->
+        <UCard v-if="request.note">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-sticky-note" class="w-5 h-5 text-gray-500" />
+              <span class="font-semibold">Nota</span>
+            </div>
+          </template>
+          <p class="text-sm text-gray-700 whitespace-pre-line">
+            {{ request.note }}
+          </p>
+        </UCard>
+
         <!-- Status Timeline -->
         <UCard>
           <template #header>
@@ -325,6 +338,7 @@ interface PublicRequestData {
     state: string;
     zipCode: string;
   };
+  note?: string;
   requestedDates: Array<{
     date: string;
     startTime?: string;

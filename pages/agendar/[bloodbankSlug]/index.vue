@@ -321,6 +321,26 @@
           </div>
         </div>
 
+        <!-- Nota adicional -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Nota Adicional (opcional)
+          </h3>
+          <p class="text-xs text-gray-500">
+            Informe qualquer detalhe relevante para o banco de sangue, como um
+            evento com mais de um dia de coleta.
+          </p>
+          <UFormField>
+            <UTextarea
+              v-model="note"
+              placeholder="Ex: evento com dois dias de coleta, atender pela manhã..."
+              :rows="3"
+              :maxlength="500"
+              class="w-full"
+            />
+          </UFormField>
+        </div>
+
         <div class="mt-4 md:mt-6 flex items-center justify-end">
           <UButton
             :disabled="
@@ -443,6 +463,8 @@ const addressNeighborhood = ref("");
 const addressCity = ref("");
 const addressState = ref("");
 const addressZipCode = ref("");
+
+const note = ref("");
 
 const brStates = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -674,6 +696,7 @@ const closeConfirmationModal = () => {
   addressComplement.value = "";
   addressNeighborhood.value = "";
   addressZipCode.value = "";
+  note.value = "";
 };
 
 const submit = async () => {
@@ -725,6 +748,7 @@ const submit = async () => {
         state: addressState.value,
         zipCode: addressZipCode.value.replace(/\D/g, ""),
       },
+      note: note.value.trim() || undefined,
     };
     const res = await fetchWithAuth<{ success: boolean; data: { accessToken?: string } }>(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,

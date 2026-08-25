@@ -35,6 +35,7 @@ const bodySchema = z.object({
     .max(3),
   host: hostSchema,
   address: addressSchema.optional(),
+  note: z.string().max(500).optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -53,7 +54,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { bloodBanksLocationId, requestedDates, host, address } = bodySchema.parse(body);
+  const { bloodBanksLocationId, requestedDates, host, address, note } =
+    bodySchema.parse(body);
 
   const result = await createCollectionRequest(bloodBanksLocationId, {
     institutionId,
@@ -61,6 +63,7 @@ export default defineEventHandler(async (event) => {
     requestedDates,
     host,
     address,
+    note,
   });
 
   // Fire-and-forget WhatsApp notification to blood bank responsible person

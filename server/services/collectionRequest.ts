@@ -1421,6 +1421,12 @@ export interface CollectionRequestPublicDetails {
     endTime?: Date;
     teamName?: string;
   };
+  counterProposal?: {
+    proposedDates: CounterProposalDate[];
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedAt: Date;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1504,6 +1510,16 @@ async function buildCollectionRequestPublicDetails(
     }
   }
 
+  const counterProposal: CollectionRequestPublicDetails["counterProposal"] =
+    request.counterProposal
+      ? {
+          proposedDates: request.counterProposal.proposedDates,
+          needsTechnicalVisit: request.counterProposal.needsTechnicalVisit,
+          note: request.counterProposal.note,
+          proposedAt: request.counterProposal.proposedAt,
+        }
+      : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -1515,6 +1531,7 @@ async function buildCollectionRequestPublicDetails(
     note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
+    counterProposal,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,

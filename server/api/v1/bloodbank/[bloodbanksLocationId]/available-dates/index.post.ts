@@ -6,22 +6,25 @@ const bodySchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD"),
-  isAllTeams: z.boolean(),
-  slotsConfig: z.object({
-    type: z.enum(["global", "individual"]),
-    globalStartTime: z.string().optional(),
-    globalEndTime: z.string().optional(),
-    teamIds: z.array(z.string()).optional(),
-    slots: z
-      .array(
-        z.object({
-          teamId: z.string(),
-          startTime: z.string(),
-          endTime: z.string(),
-        })
-      )
-      .optional(),
-  }),
+  status: z.enum(["blocked", "pending", "released"]).default("released"),
+  isAllTeams: z.boolean().optional(),
+  slotsConfig: z
+    .object({
+      type: z.enum(["global", "individual"]),
+      globalStartTime: z.string().optional(),
+      globalEndTime: z.string().optional(),
+      teamIds: z.array(z.string()).optional(),
+      slots: z
+        .array(
+          z.object({
+            teamId: z.string(),
+            startTime: z.string(),
+            endTime: z.string(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -40,43 +43,55 @@ export default defineEventHandler(async (event) => {
 
   // Validar body
   const body = await readBody(event);
-  const { date, isAllTeams, slotsConfig } = bodySchema.parse(body);
+  const { date, status, isAllTeams, slotsConfig } = bodySchema.parse(body);
 
-  // Validações adicionais
-  if (slotsConfig.type === "global") {
-    if (!slotsConfig.globalStartTime || !slotsConfig.globalEndTime) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Horários globais são obrigatórios quando type=global",
-      });
-    }
-  } else {
-    if (!slotsConfig.slots || slotsConfig.slots.length === 0) {
+  // Data bloqueada/pendente não configura equipes nem horários.
+  if (status === "released") {
+    if (isAllTeams === undefined || !slotsConfig) {
       throw createError({
         statusCode: 400,
         statusMessage:
-          "Slots individuais são obrigatórios quando type=individual",
+          "isAllTeams e slotsConfig são obrigatórios quando status=released",
       });
     }
-  }
 
-  if (
-    !isAllTeams &&
-    (!slotsConfig.teamIds || slotsConfig.teamIds.length === 0)
-  ) {
-    throw createError({
-      statusCode: 400,
-      statusMessage:
-        "Pelo menos um time deve ser selecionado quando isAllTeams=false",
-    });
+    if (slotsConfig.type === "global") {
+      if (!slotsConfig.globalStartTime || !slotsConfig.globalEndTime) {
+        throw createError({
+          statusCode: 400,
+          statusMessage:
+            "Horários globais são obrigatórios quando type=global",
+        });
+      }
+    } else {
+      if (!slotsConfig.slots || slotsConfig.slots.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage:
+            "Slots individuais são obrigatórios quando type=individual",
+        });
+      }
+    }
+
+    if (
+      !isAllTeams &&
+      (!slotsConfig.teamIds || slotsConfig.teamIds.length === 0)
+    ) {
+      throw createError({
+        statusCode: 400,
+        statusMessage:
+          "Pelo menos um time deve ser selecionado quando isAllTeams=false",
+      });
+    }
   }
 
   try {
     const availableDate = await createAvailableDate(
       bloodBanksLocationId,
       date,
-      isAllTeams,
-      slotsConfig
+      isAllTeams ?? false,
+      slotsConfig ?? { type: "global" },
+      status
     );
 
     return {

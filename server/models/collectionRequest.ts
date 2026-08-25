@@ -107,6 +107,27 @@ const CounterProposalSchema = new Schema(
   { _id: false }
 );
 
+// Reaproveita CounterProposalDateSchema/CounterProposalResponseSchema (mesma
+// forma) para manter a proposta de data/hora da visita técnica num campo
+// separado de counterProposal — evita colidir com confirmedSchedule, que já
+// representa a data do EVENTO.
+const VisitProposalSchema = new Schema(
+  {
+    proposedDates: {
+      type: [CounterProposalDateSchema],
+      required: true,
+    },
+    note: { type: String, required: true },
+    proposedBy: { type: String, required: true },
+    proposedAt: { type: Date, required: true },
+    response: {
+      type: CounterProposalResponseSchema,
+      required: false,
+    },
+  },
+  { _id: false }
+);
+
 const ConfirmedScheduleSchema = new Schema(
   {
     date: { type: Date, required: true },
@@ -206,6 +227,15 @@ export const CollectionRequestSchema = new Schema(
     },
     previousCounterProposals: {
       type: [CounterProposalSchema],
+      required: false,
+      default: [],
+    },
+    visitProposal: {
+      type: VisitProposalSchema,
+      required: false,
+    },
+    previousVisitProposals: {
+      type: [VisitProposalSchema],
       required: false,
       default: [],
     },

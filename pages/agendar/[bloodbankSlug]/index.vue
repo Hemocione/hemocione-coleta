@@ -194,9 +194,42 @@
                 </div>
               </Transition>
             </div>
+            <div v-if="selected.length > 1" class="text-xs text-gray-500">
+              Use as setas para ordenar da sua opção preferida para a menos
+              preferida.
+            </div>
             <div class="grid md:grid-cols-2 gap-3" v-auto-animate>
-              <UCard v-for="sd in selected" :key="sd.availableDateId">
-                <div class="font-medium">{{ formatPt(sd.date || "") }}</div>
+              <UCard v-for="(sd, index) in selected" :key="sd.availableDateId">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <UBadge color="primary" variant="subtle" size="sm">
+                      {{ priorityLabel(index) }}
+                    </UBadge>
+                    <div class="font-medium mt-1">
+                      {{ formatPt(sd.date || "") }}
+                    </div>
+                  </div>
+                  <div v-if="selected.length > 1" class="flex flex-col gap-1">
+                    <UButton
+                      icon="i-lucide-chevron-up"
+                      color="neutral"
+                      variant="ghost"
+                      size="xs"
+                      :disabled="index === 0"
+                      aria-label="Subir prioridade"
+                      @click="store.moveSelectedDate(index, 'up')"
+                    />
+                    <UButton
+                      icon="i-lucide-chevron-down"
+                      color="neutral"
+                      variant="ghost"
+                      size="xs"
+                      :disabled="index === selected.length - 1"
+                      aria-label="Descer prioridade"
+                      @click="store.moveSelectedDate(index, 'down')"
+                    />
+                  </div>
+                </div>
                 <div class="text-xs text-gray-500 mt-1" v-if="sd.date">
                   <template
                     v-if="uniqueTimeRanges(sd.availableDateId).length === 1"
@@ -542,6 +575,11 @@ const dateToAvailableMap = computed<Record<string, any>>(() => {
 // Guarda seleção opcional de horário por data selecionada
 const selectedRangeByDateId = ref<Record<string, string | undefined>>({});
 
+const priorityLabel = (index: number) => {
+  const labels = ["1ª opção preferida", "2ª opção", "3ª opção"];
+  return labels[index] || `${index + 1}ª opção`;
+};
+
 const onCalendarChange = (vals: any) => {
   // Limit to 3 selections
   if (!Array.isArray(vals)) {
@@ -559,10 +597,21 @@ const onCalendarChange = (vals: any) => {
   const selectedDatesStrings = vals
     .map(toStr)
     .filter((s) => Boolean(dateToAvailableMap.value[s]));
-  store.selectedDates = selectedDatesStrings.map((s) => ({
-    availableDateId: dateToAvailableMap.value[s]._id,
-    date: s,
-  }));
+
+  // Preserva a ordem (prioridade) das datas já selecionadas e reordenadas
+  // manualmente; novas datas escolhidas no calendário entram no fim da lista.
+  const selectedSet = new Set(selectedDatesStrings);
+  const kept = store.selectedDates.filter(
+    (d) => d.date && selectedSet.has(d.date)
+  );
+  const keptDates = new Set(kept.map((d) => d.date));
+  const added = selectedDatesStrings
+    .filter((s) => !keptDates.has(s))
+    .map((s) => ({
+      availableDateId: dateToAvailableMap.value[s]._id,
+      date: s,
+    }));
+  store.selectedDates = [...kept, ...added];
 
   // Sincronizar calendarValue com as datas válidas selecionadas
   calendarValue.value = vals.filter((v: any) => {
@@ -708,8 +757,9 @@ const submit = async () => {
   try {
     const payload = {
       bloodBanksLocationId: store.selectedBloodBank.bloodBanksLocationId,
-      requestedDates: selected.value.map((d) => ({
+      requestedDates: selected.value.map((d, index) => ({
         availableDateId: d.availableDateId,
+        priority: index + 1,
       })),
       host: {
         name: hostName.value.trim(),

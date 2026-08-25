@@ -393,6 +393,14 @@
                     Solicitado
                   </UBadge>
                   <UBadge
+                    v-if="slot.isRequested && slot.priority"
+                    color="info"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    {{ priorityLabel(slot.priority) }}
+                  </UBadge>
+                  <UBadge
                     v-if="slot.isLocked"
                     color="error"
                     variant="subtle"
@@ -967,6 +975,17 @@ const formatTimeRange = (
   const start = dayjs(startTime).tz("America/Sao_Paulo").format("HH:mm");
   const end = dayjs(endTime).tz("America/Sao_Paulo").format("HH:mm");
   return `${start} - ${end}`;
+};
+
+// Rótulo da prioridade que a instituição atribuiu a esta data (1 = a data
+// que a instituição mais prefere).
+const priorityLabel = (priority: number) => {
+  const labels: Record<number, string> = {
+    1: "1ª preferência da instituição",
+    2: "2ª preferência da instituição",
+    3: "3ª preferência da instituição",
+  };
+  return labels[priority] || `${priority}ª preferência da instituição`;
 };
 
 const initializeMap = () => {

@@ -104,6 +104,7 @@ export interface CollectionRequest {
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean;
+    priority?: number;
   }>;
   host: {
     name: string;

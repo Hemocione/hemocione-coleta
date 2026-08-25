@@ -1362,6 +1362,7 @@ export interface CollectionRequestPublicDetails {
     phone: string;
   };
   address?: StructuredAddress;
+  note?: string;
   requestedDates: Array<{
     date: string;
     startTime?: Date;
@@ -1465,6 +1466,7 @@ async function buildCollectionRequestPublicDetails(
     institutionName: institution?.name || "Instituição",
     host: request.host as CollectionRequestPublicDetails["host"],
     address: request.address as StructuredAddress | undefined,
+    note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
     rejectionReason: request.rejectionReason || undefined,

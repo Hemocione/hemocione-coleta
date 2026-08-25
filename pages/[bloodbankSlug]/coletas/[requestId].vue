@@ -161,6 +161,19 @@
           </div>
         </UCard>
 
+        <!-- Nota da instituição -->
+        <UCard v-if="currentCollectionRequest.note">
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Nota da Instituição
+            </h3>
+          </template>
+
+          <p class="text-sm text-gray-700 whitespace-pre-line">
+            {{ currentCollectionRequest.note }}
+          </p>
+        </UCard>
+
         <!-- Technical Visit History -->
         <UCard>
           <template #header>

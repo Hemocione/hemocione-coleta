@@ -130,6 +130,18 @@ export interface CollectionRequest {
     proposedBy: string;
     proposedAt: string;
   };
+  visitProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    note: string;
+    proposedBy: string;
+    proposedAt: string;
+  };
+  technicalVisitId?: string;
   status:
     | "pending"
     | "institution_needs_validation"
@@ -1217,6 +1229,49 @@ export const useBloodbankStore = defineStore("bloodbank", {
       } catch (error: any) {
         this.error = error.message || "Error sending counter proposal";
         console.error("Error sending counter proposal:", error);
+        throw error;
+      }
+    },
+
+    async proposeTechnicalVisit(
+      requestId: string,
+      data: {
+        proposedDates: Array<{
+          date: string;
+          startTime: string;
+          durationMinutes: number;
+          note: string;
+        }>;
+        note: string;
+      },
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/propose-technical-visit`,
+          {
+            method: "POST",
+            body: data,
+          }
+        );
+
+        if (response.success) {
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...this.currentCollectionRequest,
+              ...response.data,
+            };
+          }
+
+          return response.data;
+        }
+
+        throw new Error("Failed to send technical visit proposal");
+      } catch (error: any) {
+        this.error = error.message || "Error sending technical visit proposal";
+        console.error("Error sending technical visit proposal:", error);
         throw error;
       }
     },

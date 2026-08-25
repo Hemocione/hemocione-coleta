@@ -14,7 +14,10 @@ import {
   createTechnicalVisit,
   getTechnicalVisitById,
 } from "./technicalVisit";
-import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
+import {
+  notifyCollectionRequestStatusTransition,
+  type CollectionRequestNotificationTransition,
+} from "./collectionRequestNotification";
 
 export interface CollectionRequestFilters {
   status?: string;
@@ -64,6 +67,31 @@ export interface CounterProposeData {
 }
 
 export interface RespondToCounterProposalData {
+  decision: "accepted" | "declined";
+  selectedDateId: string;
+  respondedBy: string;
+}
+
+export interface VisitProposal {
+  proposedDates: CounterProposalDate[];
+  note: string;
+  proposedBy: string;
+  proposedAt: Date;
+  response?: {
+    decision: "accepted" | "declined";
+    selectedDateId: string;
+    respondedAt: Date;
+    respondedBy: string;
+  };
+}
+
+export interface ProposeTechnicalVisitData {
+  proposedDates: CounterProposalDate[];
+  note: string;
+  proposedBy: string;
+}
+
+export interface RespondToTechnicalVisitProposalData {
   decision: "accepted" | "declined";
   selectedDateId: string;
   respondedBy: string;
@@ -159,6 +187,8 @@ export interface CollectionRequestWithDetails {
   technicalVisitId?: string;
   counterProposal?: CounterProposal;
   previousCounterProposals?: CounterProposal[];
+  visitProposal?: VisitProposal;
+  previousVisitProposals?: VisitProposal[];
   confirmedSchedule?: {
     date: Date;
     startTime: string;
@@ -666,6 +696,13 @@ function getTechnicalVisitAddress(request: {
   return formattedAddress.slice(0, 500) || "Endereço não informado";
 }
 
+function combineDateAndTime(date: Date, startTime: string): Date {
+  const [hours, minutes] = startTime.split(":").map(Number);
+  const combined = new Date(date);
+  combined.setUTCHours(hours, minutes, 0, 0);
+  return combined;
+}
+
 async function getAwaitingTechnicalVisitRequest(
   requestId: string,
   bloodBanksLocationId: string
@@ -692,7 +729,11 @@ async function linkTechnicalVisitToRequest(
   technicalVisitId: string | Types.ObjectId,
   status: "awaiting_technical_visit" | "technical_visit_confirmed",
   changedByUserId: string,
-  reason: string
+  reason: string,
+  notifyOverride?: {
+    transition: CollectionRequestNotificationTransition;
+    recipientUserId?: string;
+  }
 ) {
   const updatedRequest = await CollectionRequest.findOneAndUpdate(
     {
@@ -726,9 +767,13 @@ async function linkTechnicalVisitToRequest(
     requestId,
     bloodBanksLocationId,
     transition:
-      status === "technical_visit_confirmed"
+      notifyOverride?.transition ??
+      (status === "technical_visit_confirmed"
         ? "technical_visit_confirmed"
-        : "awaiting_technical_visit",
+        : "awaiting_technical_visit"),
+    ...(notifyOverride?.recipientUserId && {
+      recipientUserId: notifyOverride.recipientUserId,
+    }),
   });
 
   return updatedRequest;
@@ -1038,6 +1083,164 @@ export async function respondToCounterProposal(
   }
 
   return updatedRequest;
+}
+
+export async function proposeTechnicalVisit(
+  requestId: string,
+  data: ProposeTechnicalVisitData,
+  bloodBanksLocationId: string
+) {
+  const visitProposal: VisitProposal = {
+    ...data,
+    proposedAt: new Date(),
+  };
+  const statusHistoryEntry = {
+    status: "awaiting_technical_visit" as const,
+    changedAt: new Date(),
+    changedBy: data.proposedBy,
+    reason: "Technical visit dates proposed by blood bank",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+      visitProposal: { $exists: false },
+      technicalVisitId: { $exists: false },
+    },
+    {
+      $set: { visitProposal },
+      $push: { statusHistory: statusHistoryEntry },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Request not found, not awaiting technical visit, or already has a visit proposal or scheduled visit"
+    );
+  }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition: "technical_visit_proposed",
+  });
+
+  return updatedRequest;
+}
+
+export async function respondToTechnicalVisitProposal(
+  requestId: string,
+  data: RespondToTechnicalVisitProposalData
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "awaiting_technical_visit",
+    deletedAt: null,
+    visitProposal: { $exists: true },
+  });
+
+  if (!request?.visitProposal) {
+    throw new Error(
+      "Request not found or not awaiting a technical visit proposal response"
+    );
+  }
+
+  const currentVisitProposal =
+    request.visitProposal as unknown as VisitProposal;
+  const bloodBanksLocationId = request.bloodBanksLocationId.toString();
+
+  let selectedDate: CounterProposalDate | undefined;
+  if (data.decision === "accepted") {
+    const selectedDateIndex = Number(data.selectedDateId);
+    selectedDate =
+      Number.isInteger(selectedDateIndex) && selectedDateIndex >= 0
+        ? currentVisitProposal.proposedDates[selectedDateIndex]
+        : undefined;
+
+    if (!selectedDate) {
+      throw new Error("Selected date is not in the technical visit proposal");
+    }
+  } else if (data.decision !== "declined") {
+    throw new Error("Invalid technical visit proposal decision");
+  }
+
+  const respondedAt = new Date();
+  const resolvedVisitProposal: VisitProposal = {
+    ...currentVisitProposal,
+    response: {
+      decision: data.decision,
+      selectedDateId: data.selectedDateId,
+      respondedAt,
+      respondedBy: data.respondedBy,
+    },
+  };
+  const statusHistoryEntry = {
+    status: "awaiting_technical_visit" as const,
+    changedAt: respondedAt,
+    changedBy: data.respondedBy,
+    reason:
+      data.decision === "accepted"
+        ? "Technical visit date accepted by institution"
+        : "Technical visit proposal declined by institution",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+      visitProposal: { $exists: true },
+    },
+    {
+      $push: {
+        previousVisitProposals: resolvedVisitProposal,
+        statusHistory: statusHistoryEntry,
+      },
+      $unset: { visitProposal: 1 },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Technical visit proposal was already responded to");
+  }
+
+  if (data.decision === "declined") {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId,
+      transition: "technical_visit_proposal_declined",
+      recipientUserId: currentVisitProposal.proposedBy,
+    });
+    return updatedRequest;
+  }
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: combineDateAndTime(selectedDate!.date, selectedDate!.startTime),
+    outcome: "pending",
+    notes: selectedDate!.note || undefined,
+    visitedBy: currentVisitProposal.proposedBy,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    bloodBanksLocationId,
+    visit._id,
+    "awaiting_technical_visit",
+    data.respondedBy,
+    "Technical visit scheduled after institution accepted proposed date",
+    {
+      transition: "technical_visit_scheduled",
+      recipientUserId: currentVisitProposal.proposedBy,
+    }
+  );
 }
 
 export async function rejectCollectionRequest(
@@ -1442,6 +1645,11 @@ export interface CollectionRequestPublicDetails {
     note: string;
     proposedAt: Date;
   };
+  visitProposal?: {
+    proposedDates: CounterProposalDate[];
+    note: string;
+    proposedAt: Date;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1535,6 +1743,15 @@ async function buildCollectionRequestPublicDetails(
         }
       : undefined;
 
+  const visitProposal: CollectionRequestPublicDetails["visitProposal"] =
+    request.visitProposal
+      ? {
+          proposedDates: request.visitProposal.proposedDates,
+          note: request.visitProposal.note,
+          proposedAt: request.visitProposal.proposedAt,
+        }
+      : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -1547,6 +1764,7 @@ async function buildCollectionRequestPublicDetails(
     requestedDates: requestedDatesInfo,
     selectedDate,
     counterProposal,
+    visitProposal,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,

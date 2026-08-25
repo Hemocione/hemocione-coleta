@@ -214,6 +214,69 @@
           </div>
         </UCard>
 
+        <!-- Technical Visit Proposal -->
+        <UCard v-if="request.visitProposal">
+          <template #header>
+            <div class="flex items-center gap-2 text-amber-700">
+              <UIcon name="i-lucide-map-pinned" class="w-5 h-5" />
+              <span class="font-semibold">Proposta de visita técnica</span>
+            </div>
+          </template>
+          <div class="space-y-3">
+            <p v-if="request.visitProposal.note" class="text-sm text-gray-700">
+              {{ request.visitProposal.note }}
+            </p>
+            <div v-if="!isLoggedIn" class="text-sm text-gray-600">
+              Faça login para responder a esta proposta de visita técnica.
+            </div>
+            <template v-else>
+              <div
+                v-for="(d, idx) in request.visitProposal.proposedDates"
+                :key="idx"
+                class="border rounded-lg p-3 flex items-center justify-between gap-3"
+                :class="{
+                  'border-primary-400 bg-primary-50':
+                    selectedTechnicalVisitProposalIndex === idx,
+                }"
+              >
+                <div>
+                  <p class="font-medium text-sm">
+                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    {{ d.durationMinutes }} minutos
+                  </p>
+                  <p v-if="d.note" class="text-xs text-gray-600 mt-1">
+                    {{ d.note }}
+                  </p>
+                </div>
+                <UButton
+                  size="sm"
+                  color="success"
+                  :loading="
+                    respondingToTechnicalVisitProposal &&
+                    selectedTechnicalVisitProposalIndex === idx
+                  "
+                  @click="
+                    selectedTechnicalVisitProposalIndex = idx;
+                    respondToTechnicalVisitProposal('accepted', idx);
+                  "
+                >
+                  Aceitar esta opção
+                </UButton>
+              </div>
+              <UButton
+                color="error"
+                variant="soft"
+                class="w-full"
+                @click="showDeclineTechnicalVisitProposalModal = true"
+              >
+                Recusar proposta
+              </UButton>
+            </template>
+          </div>
+        </UCard>
+
         <!-- Withdraw button for pending requests (requires login) -->
         <UCard v-if="request.status === 'pending' && isLoggedIn">
           <div class="flex items-center justify-between">
@@ -388,6 +451,34 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Decline Technical Visit Proposal Modal -->
+    <UModal v-model:open="showDeclineTechnicalVisitProposalModal">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Recusar proposta de visita técnica</h3>
+          <p class="text-sm text-gray-600">
+            Tem certeza que deseja recusar todas as opções de visita técnica?
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              variant="ghost"
+              @click="showDeclineTechnicalVisitProposalModal = false"
+              :disabled="respondingToTechnicalVisitProposal"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="respondToTechnicalVisitProposal('declined', null)"
+              :loading="respondingToTechnicalVisitProposal"
+            >
+              Confirmar Recusa
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -412,7 +503,9 @@ interface PublicRequestData {
     | "rejected"
     | "cancelled"
     | "counter_proposed"
-    | "counter_proposal_declined";
+    | "counter_proposal_declined"
+    | "awaiting_technical_visit"
+    | "technical_visit_confirmed";
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;
@@ -450,6 +543,16 @@ interface PublicRequestData {
     note: string;
     proposedAt: string;
   };
+  visitProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    note: string;
+    proposedAt: string;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -480,6 +583,10 @@ const statusColor = computed(() => {
       return "info" as const;
     case "counter_proposal_declined":
       return "error" as const;
+    case "awaiting_technical_visit":
+      return "warning" as const;
+    case "technical_visit_confirmed":
+      return "success" as const;
     default:
       return "neutral" as const;
   }
@@ -499,6 +606,10 @@ const statusLabel = computed(() => {
       return "Contraproposta Recebida";
     case "counter_proposal_declined":
       return "Contraproposta Recusada";
+    case "awaiting_technical_visit":
+      return "Aguardando visita técnica";
+    case "technical_visit_confirmed":
+      return "Visita técnica confirmada";
     default:
       return "";
   }
@@ -584,6 +695,10 @@ function historyDotColor(status: string) {
       return "bg-blue-400";
     case "counter_proposal_declined":
       return "bg-red-400";
+    case "awaiting_technical_visit":
+      return "bg-amber-400";
+    case "technical_visit_confirmed":
+      return "bg-green-500";
     default:
       return "bg-gray-300";
   }
@@ -603,6 +718,10 @@ function historyStatusLabel(status: string) {
       return "Banco de Sangue Propôs Outra Data";
     case "counter_proposal_declined":
       return "Contraproposta Recusada";
+    case "awaiting_technical_visit":
+      return "Aguardando visita técnica";
+    case "technical_visit_confirmed":
+      return "Visita técnica confirmada";
     default:
       return status;
   }
@@ -626,6 +745,10 @@ async function loadRequest() {
 const respondingToCounterProposal = ref(false);
 const selectedCounterProposalIndex = ref<number | null>(null);
 const showDeclineCounterProposalModal = ref(false);
+
+const respondingToTechnicalVisitProposal = ref(false);
+const selectedTechnicalVisitProposalIndex = ref<number | null>(null);
+const showDeclineTechnicalVisitProposalModal = ref(false);
 
 async function respondToCounterProposal(
   decision: "accepted" | "declined",
@@ -661,6 +784,46 @@ async function respondToCounterProposal(
   } finally {
     respondingToCounterProposal.value = false;
     selectedCounterProposalIndex.value = null;
+  }
+}
+
+async function respondToTechnicalVisitProposal(
+  decision: "accepted" | "declined",
+  selectedIndex: number | null
+) {
+  if (!request.value) return;
+  respondingToTechnicalVisitProposal.value = true;
+  try {
+    const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
+      `/api/v1/public/collection-requests/track/${accessToken}/respond-technical-visit-proposal`,
+      {
+        method: "POST",
+        body: {
+          decision,
+          selectedDateId: selectedIndex !== null ? String(selectedIndex) : "",
+        },
+        headers: {
+          Authorization: `Bearer ${userStore.token}`,
+        },
+      }
+    );
+    request.value = response.data;
+    showDeclineTechnicalVisitProposalModal.value = false;
+    toast.add({
+      title:
+        decision === "accepted"
+          ? "Visita técnica agendada com sucesso"
+          : "Proposta de visita técnica recusada",
+      color: decision === "accepted" ? "success" : "neutral",
+    });
+  } catch {
+    toast.add({
+      title: "Erro ao responder à proposta de visita técnica",
+      color: "error",
+    });
+  } finally {
+    respondingToTechnicalVisitProposal.value = false;
+    selectedTechnicalVisitProposalIndex.value = null;
   }
 }
 

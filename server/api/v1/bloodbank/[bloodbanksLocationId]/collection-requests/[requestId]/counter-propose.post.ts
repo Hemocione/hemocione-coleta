@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { assertSecretAuth } from "~/server/services/auth";
+import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 import { counterPropose } from "~/server/services/collectionRequest";
 
 const bodySchema = z.object({
-  actingAsStaffId: z.string().trim().min(1),
   proposedDates: z
     .array(
       z.object({
@@ -19,8 +18,6 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  assertSecretAuth(event);
-
   try {
     const bloodBanksLocationId = getRouterParam(event, "bloodbanksLocationId");
     const requestId = getRouterParam(event, "requestId");
@@ -32,6 +29,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    assertUserAccessToBloodBanksLocationId(
+      event.context.auth.user,
+      bloodBanksLocationId
+    );
+
     if (!requestId) {
       throw createError({
         statusCode: 400,
@@ -40,13 +42,15 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = bodySchema.parse(await readBody(event));
+    const proposedByUserId = event.context.auth.user.id;
+
     const updatedRequest = await counterPropose(
       requestId,
       {
         proposedDates: body.proposedDates,
         needsTechnicalVisit: body.needsTechnicalVisit,
         note: body.note,
-        proposedBy: body.actingAsStaffId,
+        proposedBy: proposedByUserId,
       },
       bloodBanksLocationId
     );
@@ -64,7 +68,7 @@ export default defineEventHandler(async (event) => {
     if (error.name === "ZodError") {
       throw createError({
         statusCode: 400,
-        statusMessage: "Dados inválidos; actingAsStaffId é obrigatório",
+        statusMessage: "Dados inválidos para a contraproposta",
       });
     }
 

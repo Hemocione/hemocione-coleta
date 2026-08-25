@@ -510,19 +510,64 @@
             </div>
           </div>
 
-          <!-- Reject Button -->
+          <!-- Reject / Counter-propose Buttons -->
           <div
             v-if="currentCollectionRequest.status === 'pending'"
-            class="mt-6 pt-4 border-t"
+            class="mt-6 pt-4 border-t flex gap-3"
           >
+            <UButton
+              color="info"
+              variant="outline"
+              class="flex-1 cursor-pointer"
+              @click="showCounterProposalDialog"
+            >
+              Propor Outra Data/Horário
+            </UButton>
             <UButton
               color="error"
               variant="outline"
+              class="flex-1 cursor-pointer"
               @click="showRejectDialog"
-              class="w-full cursor-pointer"
             >
               Rejeitar Solicitação
             </UButton>
+          </div>
+        </UCard>
+
+        <!-- Counter Proposal Sent (read-only) -->
+        <UCard
+          v-if="
+            currentCollectionRequest.status === 'counter_proposed' &&
+            currentCollectionRequest.counterProposal
+          "
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Contraproposta Enviada
+            </h3>
+          </template>
+          <div class="space-y-3">
+            <p
+              v-if="currentCollectionRequest.counterProposal.note"
+              class="text-sm text-gray-700"
+            >
+              {{ currentCollectionRequest.counterProposal.note }}
+            </p>
+            <div
+              v-for="(d, idx) in currentCollectionRequest.counterProposal
+                .proposedDates"
+              :key="idx"
+              class="border rounded-lg p-3 text-sm"
+            >
+              <p class="font-medium">
+                {{ formatDate(d.date) }} às {{ d.startTime }}
+              </p>
+              <p class="text-gray-500">{{ d.durationMinutes }} minutos</p>
+              <p v-if="d.note" class="text-gray-600 mt-1">{{ d.note }}</p>
+            </div>
+            <p class="text-xs text-gray-500">
+              Aguardando resposta da instituição.
+            </p>
           </div>
         </UCard>
 
@@ -800,6 +845,102 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Counter Proposal Modal -->
+    <UModal v-model:open="showCounterProposalModal">
+      <template #content>
+        <div class="p-6 max-h-[80vh] overflow-y-auto">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Propor Outra Data/Horário
+          </h3>
+
+          <div class="space-y-4">
+            <div
+              v-for="(d, idx) in counterProposalDates"
+              :key="idx"
+              class="border rounded-lg p-3 space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-700"
+                  >Opção {{ idx + 1 }}</span
+                >
+                <UButton
+                  v-if="counterProposalDates.length > 1"
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  @click="removeCounterProposalDate(idx)"
+                />
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <UFormField label="Data">
+                  <UInput v-model="d.date" type="date" class="w-full" />
+                </UFormField>
+                <UFormField label="Horário">
+                  <UInput v-model="d.startTime" type="time" class="w-full" />
+                </UFormField>
+                <UFormField label="Duração (min)">
+                  <UInput
+                    v-model.number="d.durationMinutes"
+                    type="number"
+                    min="1"
+                    class="w-full"
+                  />
+                </UFormField>
+              </div>
+              <UFormField label="Nota desta opção">
+                <UInput
+                  v-model="d.note"
+                  placeholder="Ex: sujeito a confirmação da equipe"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+
+            <UButton
+              variant="ghost"
+              icon="i-lucide-plus"
+              @click="addCounterProposalDate"
+            >
+              Adicionar outra opção de data
+            </UButton>
+
+            <UFormField label="Nota geral para a instituição">
+              <UTextarea
+                v-model="counterProposalNote"
+                placeholder="Explique o motivo da contraproposta..."
+                :rows="3"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UCheckbox
+              v-model="counterProposalNeedsTechnicalVisit"
+              label="Requer visita técnica antes da confirmação"
+            />
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton
+              variant="ghost"
+              @click="showCounterProposalModal = false"
+              :disabled="isSendingCounterProposal"
+            >
+              Cancelar
+            </UButton>
+            <UButton
+              color="info"
+              @click="confirmCounterProposal"
+              :loading="isSendingCounterProposal"
+              :disabled="!isCounterProposalValid"
+            >
+              Enviar Contraproposta
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -950,6 +1091,10 @@ const getStatusColor = (status: string) => {
       return "neutral";
     case "cancelled":
       return "neutral";
+    case "counter_proposed":
+      return "info";
+    case "counter_proposal_declined":
+      return "error";
     default:
       return "primary";
   }
@@ -967,6 +1112,10 @@ const getStatusLabel = (status: string) => {
       return "Cancelada";
     case "institution_needs_validation":
       return "Aguardando Validação";
+    case "counter_proposed":
+      return "Contraproposta Enviada";
+    case "counter_proposal_declined":
+      return "Contraproposta Recusada";
     default:
       return status;
   }
@@ -1115,6 +1264,113 @@ const confirmReject = async () => {
     });
   } finally {
     isRejecting.value = false;
+  }
+};
+
+// Counter proposal (propor outra data/horário)
+const showCounterProposalModal = ref(false);
+const isSendingCounterProposal = ref(false);
+const counterProposalNote = ref("");
+const counterProposalNeedsTechnicalVisit = ref(false);
+interface CounterProposalDateDraft {
+  date: string;
+  startTime: string;
+  durationMinutes: number;
+  note: string;
+}
+const counterProposalDates = ref<CounterProposalDateDraft[]>([
+  { date: "", startTime: "", durationMinutes: 60, note: "" },
+]);
+
+const addCounterProposalDate = () => {
+  counterProposalDates.value.push({
+    date: "",
+    startTime: "",
+    durationMinutes: 60,
+    note: "",
+  });
+};
+
+const removeCounterProposalDate = (index: number) => {
+  counterProposalDates.value.splice(index, 1);
+};
+
+const showCounterProposalDialog = () => {
+  showCounterProposalModal.value = true;
+};
+
+const isCounterProposalValid = computed(
+  () =>
+    counterProposalDates.value.length > 0 &&
+    counterProposalDates.value.every(
+      (d) => d.date && d.startTime && d.durationMinutes > 0
+    )
+);
+
+const confirmCounterProposal = async () => {
+  if (!isCounterProposalValid.value) {
+    useToast().add({
+      title: "Preencha todas as datas propostas",
+      color: "warning",
+      duration: 3000,
+    });
+    return;
+  }
+
+  isSendingCounterProposal.value = true;
+
+  try {
+    if (!bloodBanksLocationId.value) {
+      throw new Error("ID do banco de sangue não encontrado");
+    }
+
+    await bloodbankStore.counterProposeCollectionRequest(
+      requestId,
+      {
+        proposedDates: counterProposalDates.value.map((d) => ({
+          date: new Date(`${d.date}T00:00:00`).toISOString(),
+          startTime: d.startTime,
+          durationMinutes: Number(d.durationMinutes),
+          note: d.note,
+        })),
+        needsTechnicalVisit: counterProposalNeedsTechnicalVisit.value,
+        note: counterProposalNote.value,
+      },
+      bloodBanksLocationId.value
+    );
+
+    useToast().add({
+      title: "Contraproposta enviada!",
+      description: "A instituição foi notificada das novas opções de data.",
+      color: "success",
+      duration: 3000,
+    });
+
+    showCounterProposalModal.value = false;
+    counterProposalNote.value = "";
+    counterProposalNeedsTechnicalVisit.value = false;
+    counterProposalDates.value = [
+      { date: "", startTime: "", durationMinutes: 60, note: "" },
+    ];
+
+    await loadRequestDetails();
+
+    if (bloodBanksLocationId.value) {
+      await bloodbankStore.refreshCollectionRequests(
+        bloodBanksLocationId.value,
+        "pending"
+      );
+    }
+  } catch (error: any) {
+    console.error("Error sending counter proposal:", error);
+    useToast().add({
+      title: "Erro ao enviar contraproposta",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+      duration: 3000,
+    });
+  } finally {
+    isSendingCounterProposal.value = false;
   }
 };
 

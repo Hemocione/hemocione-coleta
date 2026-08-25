@@ -870,7 +870,8 @@ export async function markCollectionRequestScheduled(
 
 export async function counterPropose(
   requestId: string,
-  data: CounterProposeData
+  data: CounterProposeData,
+  bloodBanksLocationId: string
 ) {
   const counterProposal: CounterProposal = {
     ...data,
@@ -886,6 +887,7 @@ export async function counterPropose(
   const updatedRequest = await CollectionRequest.findOneAndUpdate(
     {
       _id: requestId,
+      bloodBanksLocationId,
       status: "pending",
       deletedAt: null,
       counterProposal: { $exists: false },
@@ -906,15 +908,11 @@ export async function counterPropose(
     );
   }
 
-  const notificationBloodBanksLocationId = updatedRequest.bloodBanksLocationId
-    ?.toString();
-  if (notificationBloodBanksLocationId) {
-    void notifyCollectionRequestStatusTransition({
-      requestId,
-      bloodBanksLocationId: notificationBloodBanksLocationId,
-      transition: "counter_proposed",
-    });
-  }
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition: "counter_proposed",
+  });
 
   return updatedRequest;
 }
@@ -1438,6 +1436,12 @@ export interface CollectionRequestPublicDetails {
     endTime?: Date;
     teamName?: string;
   };
+  counterProposal?: {
+    proposedDates: CounterProposalDate[];
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedAt: Date;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1521,6 +1525,16 @@ async function buildCollectionRequestPublicDetails(
     }
   }
 
+  const counterProposal: CollectionRequestPublicDetails["counterProposal"] =
+    request.counterProposal
+      ? {
+          proposedDates: request.counterProposal.proposedDates,
+          needsTechnicalVisit: request.counterProposal.needsTechnicalVisit,
+          note: request.counterProposal.note,
+          proposedAt: request.counterProposal.proposedAt,
+        }
+      : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -1532,6 +1546,7 @@ async function buildCollectionRequestPublicDetails(
     note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
+    counterProposal,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,

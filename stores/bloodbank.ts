@@ -118,12 +118,29 @@ export interface CollectionRequest {
   accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
+  counterProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedBy: string;
+    proposedAt: string;
+  };
   status:
     | "pending"
     | "institution_needs_validation"
     | "accepted"
     | "rejected"
-    | "cancelled";
+    | "cancelled"
+    | "counter_proposed"
+    | "counter_proposal_declined"
+    | "awaiting_technical_visit"
+    | "technical_visit_confirmed"
+    | "scheduled";
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1132,6 +1149,74 @@ export const useBloodbankStore = defineStore("bloodbank", {
       } catch (error: any) {
         this.error = error.message || "Error rejecting collection request";
         console.error("Error rejecting collection request:", error);
+        throw error;
+      }
+    },
+
+    async counterProposeCollectionRequest(
+      requestId: string,
+      data: {
+        proposedDates: Array<{
+          date: string;
+          startTime: string;
+          durationMinutes: number;
+          note: string;
+        }>;
+        needsTechnicalVisit: boolean;
+        note: string;
+      },
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/counter-propose`,
+          {
+            method: "POST",
+            body: data,
+          }
+        );
+
+        if (response.success) {
+          this.collectionRequests.data = this.collectionRequests.data.filter(
+            (req) => req._id !== requestId
+          );
+          this.collectionRequests.pagination.total = Math.max(
+            0,
+            this.collectionRequests.pagination.total - 1
+          );
+
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
+          }
+
+          return response.data;
+        } else {
+          throw new Error("Failed to send counter proposal");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error sending counter proposal";
+        console.error("Error sending counter proposal:", error);
         throw error;
       }
     },

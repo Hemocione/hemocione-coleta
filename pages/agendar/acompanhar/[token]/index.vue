@@ -161,6 +161,59 @@
           </div>
         </UCard>
 
+        <!-- Counter Proposal -->
+        <UCard v-if="request.status === 'counter_proposed' && request.counterProposal">
+          <template #header>
+            <div class="flex items-center gap-2 text-blue-700">
+              <UIcon name="i-lucide-calendar-sync" class="w-5 h-5" />
+              <span class="font-semibold">O Banco de Sangue Propôs Outra Data</span>
+            </div>
+          </template>
+          <div class="space-y-3">
+            <p v-if="request.counterProposal.note" class="text-sm text-gray-700">
+              {{ request.counterProposal.note }}
+            </p>
+            <div v-if="!isLoggedIn" class="text-sm text-gray-600">
+              Faça login para responder a esta contraproposta.
+            </div>
+            <template v-else>
+              <div
+                v-for="(d, idx) in request.counterProposal.proposedDates"
+                :key="idx"
+                class="border rounded-lg p-3 flex items-center justify-between gap-3"
+                :class="{ 'border-primary-400 bg-primary-50': selectedCounterProposalIndex === idx }"
+              >
+                <div>
+                  <p class="font-medium text-sm">
+                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
+                  </p>
+                  <p class="text-xs text-gray-500">{{ d.durationMinutes }} minutos</p>
+                  <p v-if="d.note" class="text-xs text-gray-600 mt-1">{{ d.note }}</p>
+                </div>
+                <UButton
+                  size="sm"
+                  color="success"
+                  :loading="respondingToCounterProposal && selectedCounterProposalIndex === idx"
+                  @click="
+                    selectedCounterProposalIndex = idx;
+                    respondToCounterProposal('accepted', idx);
+                  "
+                >
+                  Aceitar esta opção
+                </UButton>
+              </div>
+              <UButton
+                color="error"
+                variant="soft"
+                class="w-full"
+                @click="showDeclineCounterProposalModal = true"
+              >
+                Recusar Contraproposta
+              </UButton>
+            </template>
+          </div>
+        </UCard>
+
         <!-- Withdraw button for pending requests (requires login) -->
         <UCard v-if="request.status === 'pending' && isLoggedIn">
           <div class="flex items-center justify-between">
@@ -306,6 +359,35 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Decline Counter Proposal Modal -->
+    <UModal v-model:open="showDeclineCounterProposalModal">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Recusar Contraproposta</h3>
+          <p class="text-sm text-gray-600">
+            Tem certeza que deseja recusar todas as opções propostas pelo banco de
+            sangue? A solicitação ficará marcada como recusada.
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              variant="ghost"
+              @click="showDeclineCounterProposalModal = false"
+              :disabled="respondingToCounterProposal"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="respondToCounterProposal('declined', null)"
+              :loading="respondingToCounterProposal"
+            >
+              Confirmar Recusa
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -324,7 +406,13 @@ const isLoggedIn = computed(() => Boolean(user.value));
 
 interface PublicRequestData {
   _id: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  status:
+    | "pending"
+    | "accepted"
+    | "rejected"
+    | "cancelled"
+    | "counter_proposed"
+    | "counter_proposal_declined";
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;
@@ -350,6 +438,17 @@ interface PublicRequestData {
     startTime?: string;
     endTime?: string;
     teamName?: string;
+  };
+  counterProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedAt: string;
   };
   rejectionReason?: string;
   statusHistory: Array<{
@@ -377,6 +476,10 @@ const statusColor = computed(() => {
       return "error" as const;
     case "cancelled":
       return "neutral" as const;
+    case "counter_proposed":
+      return "info" as const;
+    case "counter_proposal_declined":
+      return "error" as const;
     default:
       return "neutral" as const;
   }
@@ -392,6 +495,10 @@ const statusLabel = computed(() => {
       return "Rejeitada";
     case "cancelled":
       return "Cancelada";
+    case "counter_proposed":
+      return "Contraproposta Recebida";
+    case "counter_proposal_declined":
+      return "Contraproposta Recusada";
     default:
       return "";
   }
@@ -432,6 +539,21 @@ function formatDate(dateStr: string) {
   });
 }
 
+// counterProposal.proposedDates[].date é um Date completo (com hora, em UTC),
+// diferente de requestedDates[].date/selectedDate.date que são strings
+// "YYYY-MM-DD" sem hora — por isso não pode reusar formatDate() aqui, que
+// assume "YYYY-MM-DD" e concatena "T12:00:00". Fixamos o timezone
+// explicitamente para bater com o calendário do banco de sangue.
+function formatCounterProposalDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
 function formatTime(timeStr: string) {
   const d = new Date(timeStr);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -458,6 +580,10 @@ function historyDotColor(status: string) {
       return "bg-red-500";
     case "cancelled":
       return "bg-gray-400";
+    case "counter_proposed":
+      return "bg-blue-400";
+    case "counter_proposal_declined":
+      return "bg-red-400";
     default:
       return "bg-gray-300";
   }
@@ -473,6 +599,10 @@ function historyStatusLabel(status: string) {
       return "Rejeitada pelo Banco de Sangue";
     case "cancelled":
       return "Cancelada";
+    case "counter_proposed":
+      return "Banco de Sangue Propôs Outra Data";
+    case "counter_proposal_declined":
+      return "Contraproposta Recusada";
     default:
       return status;
   }
@@ -490,6 +620,47 @@ async function loadRequest() {
     error.value = true;
   } finally {
     loading.value = false;
+  }
+}
+
+const respondingToCounterProposal = ref(false);
+const selectedCounterProposalIndex = ref<number | null>(null);
+const showDeclineCounterProposalModal = ref(false);
+
+async function respondToCounterProposal(
+  decision: "accepted" | "declined",
+  selectedIndex: number | null
+) {
+  if (!request.value) return;
+  respondingToCounterProposal.value = true;
+  try {
+    const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
+      `/api/v1/public/collection-requests/track/${accessToken}/respond-counter-proposal`,
+      {
+        method: "POST",
+        body: {
+          decision,
+          selectedDateId: selectedIndex !== null ? String(selectedIndex) : "",
+        },
+        headers: {
+          Authorization: `Bearer ${userStore.token}`,
+        },
+      }
+    );
+    request.value = response.data;
+    showDeclineCounterProposalModal.value = false;
+    toast.add({
+      title:
+        decision === "accepted"
+          ? "Data confirmada com sucesso"
+          : "Contraproposta recusada",
+      color: decision === "accepted" ? "success" : "neutral",
+    });
+  } catch {
+    toast.add({ title: "Erro ao responder à contraproposta", color: "error" });
+  } finally {
+    respondingToCounterProposal.value = false;
+    selectedCounterProposalIndex.value = null;
   }
 }
 

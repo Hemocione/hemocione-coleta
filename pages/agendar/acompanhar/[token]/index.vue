@@ -277,6 +277,41 @@
           </div>
         </UCard>
 
+        <!-- Scheduled Technical Visit -->
+        <UCard v-if="request.technicalVisit">
+          <template #header>
+            <div class="flex items-center gap-2 text-blue-700">
+              <UIcon name="i-lucide-map-pinned" class="w-5 h-5" />
+              <span class="font-semibold">Visita técnica agendada</span>
+            </div>
+          </template>
+          <div class="space-y-2">
+            <UBadge :color="technicalVisitOutcomeColor" variant="subtle">
+              {{ technicalVisitOutcomeLabel }}
+            </UBadge>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
+              <span>{{ formatTechnicalVisitDate(request.technicalVisit.visitDate) }}</span>
+            </div>
+            <div
+              v-if="request.technicalVisit.address"
+              class="flex items-start gap-2"
+            >
+              <UIcon
+                name="i-lucide-map-pin"
+                class="w-4 h-4 text-gray-400 mt-0.5 shrink-0"
+              />
+              <span>{{ request.technicalVisit.address }}</span>
+            </div>
+            <p
+              v-if="request.technicalVisit.notes"
+              class="text-sm text-gray-600 whitespace-pre-line"
+            >
+              {{ request.technicalVisit.notes }}
+            </p>
+          </div>
+        </UCard>
+
         <!-- Withdraw button for pending requests (requires login) -->
         <UCard v-if="request.status === 'pending' && isLoggedIn">
           <div class="flex items-center justify-between">
@@ -505,7 +540,8 @@ interface PublicRequestData {
     | "counter_proposed"
     | "counter_proposal_declined"
     | "awaiting_technical_visit"
-    | "technical_visit_confirmed";
+    | "technical_visit_confirmed"
+    | "scheduled";
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;
@@ -553,6 +589,13 @@ interface PublicRequestData {
     note: string;
     proposedAt: string;
   };
+  technicalVisit?: {
+    id: string;
+    visitDate: string;
+    address: string;
+    outcome: "approved" | "rejected" | "pending";
+    notes?: string;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -587,6 +630,8 @@ const statusColor = computed(() => {
       return "warning" as const;
     case "technical_visit_confirmed":
       return "success" as const;
+    case "scheduled":
+      return "success" as const;
     default:
       return "neutral" as const;
   }
@@ -610,6 +655,8 @@ const statusLabel = computed(() => {
       return "Aguardando visita técnica";
     case "technical_visit_confirmed":
       return "Visita técnica confirmada";
+    case "scheduled":
+      return "Solicitação agendada";
     default:
       return "";
   }
@@ -621,6 +668,28 @@ const cancellationReason = computed(() => {
     .reverse()
     .find((h) => h.status === "cancelled");
   return entry?.reason || null;
+});
+
+const technicalVisitOutcomeColor = computed(() => {
+  switch (request.value?.technicalVisit?.outcome) {
+    case "approved":
+      return "success" as const;
+    case "rejected":
+      return "error" as const;
+    default:
+      return "warning" as const;
+  }
+});
+
+const technicalVisitOutcomeLabel = computed(() => {
+  switch (request.value?.technicalVisit?.outcome) {
+    case "approved":
+      return "Aprovada";
+    case "rejected":
+      return "Recusada";
+    default:
+      return "Pendente";
+  }
 });
 
 const formattedAddress = computed(() => {
@@ -665,6 +734,20 @@ function formatCounterProposalDate(dateStr: string) {
   });
 }
 
+// technicalVisit.visitDate é um Date completo (data + hora, em UTC) e a visita
+// acontece na instituição, então exibimos data e hora no mesmo timezone fixo
+// usado pela proposta (America/Sao_Paulo), igual ao calendário do banco.
+function formatTechnicalVisitDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const date = formatCounterProposalDate(dateStr);
+  const time = d.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  return `${date} às ${time}`;
+}
+
 function formatTime(timeStr: string) {
   const d = new Date(timeStr);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -699,6 +782,8 @@ function historyDotColor(status: string) {
       return "bg-amber-400";
     case "technical_visit_confirmed":
       return "bg-green-500";
+    case "scheduled":
+      return "bg-green-500";
     default:
       return "bg-gray-300";
   }
@@ -722,6 +807,8 @@ function historyStatusLabel(status: string) {
       return "Aguardando visita técnica";
     case "technical_visit_confirmed":
       return "Visita técnica confirmada";
+    case "scheduled":
+      return "Solicitação agendada";
     default:
       return status;
   }

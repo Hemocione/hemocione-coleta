@@ -37,6 +37,11 @@
       <span class="ml-3 text-gray-500">Carregando disponibilidades...</span>
     </div>
 
+    <!-- Error state -->
+    <UCard v-else-if="loadError">
+      <p class="text-sm text-red-600">{{ loadError }}</p>
+    </UCard>
+
     <!-- Year grid -->
     <template v-else>
       <!-- Quick actions -->
@@ -186,12 +191,18 @@
 
 <script setup lang="ts">
 import { useBloodbankStore } from '~/stores/bloodbank'
+import { useUserStore } from '~/stores/user'
 import { storeToRefs } from 'pinia'
 import { fetchWithAuth } from '~/composables/useFetchWithAuth'
 
 const route = useRoute()
 const store = useBloodbankStore()
-const { bloodbankData, teams } = storeToRefs(store)
+const userStore = useUserStore()
+const { teams } = storeToRefs(store)
+
+// O id vem do papel do usuário (rota atual), não da store global:
+// em deep link/reload a store de bloodbank ainda não foi populada.
+const currentBloodBankRole = computed(() => userStore.currentBloodBankRole)
 
 const monthNames = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -204,6 +215,7 @@ const selectedYear = ref(currentYear)
 const selectedTeamId = ref<string | null>(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
+const loadError = ref<string | null>(null)
 const showResultsModal = ref(false)
 const bulkResult = ref<{ created: number; deleted: number; skipped: number; errors: string[] } | null>(null)
 
@@ -228,7 +240,9 @@ const teamOptions = computed(() => {
   return options
 })
 
-const bloodBanksLocationId = computed(() => bloodbankData.value?.bloodBanksLocationId || '')
+const bloodBanksLocationId = computed(
+  () => currentBloodBankRole.value?.bloodBanksLocationId || ''
+)
 
 // Helper functions
 function getDateKey(month: number, day: number): string {
@@ -445,12 +459,15 @@ async function saveBulk() {
 
 // Load data on mount
 onMounted(async () => {
-  if (bloodBanksLocationId.value) {
-    await Promise.all([
-      loadAvailableDates(),
-      store.loadTeams(bloodBanksLocationId.value, false),
-    ])
+  if (!bloodBanksLocationId.value) {
+    isLoading.value = false
+    loadError.value = 'Você não tem acesso a este banco de sangue.'
+    return
   }
+  await Promise.all([
+    loadAvailableDates(),
+    store.loadTeams(bloodBanksLocationId.value, false),
+  ])
 })
 
 // Reload when year changes

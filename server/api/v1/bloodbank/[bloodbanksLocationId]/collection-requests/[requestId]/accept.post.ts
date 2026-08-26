@@ -92,7 +92,6 @@ export default defineEventHandler(async (event) => {
           confirmedDate,
           confirmedTime,
           trackingUrl,
-          hostName: updatedRequest.host.name,
         },
       }).catch(() => {});
     }

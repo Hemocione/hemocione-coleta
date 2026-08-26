@@ -1580,9 +1580,16 @@ export async function createCollectionRequest(
   });
 
   if (existingOpenRequest) {
-    throw new Error(
-      "Esta instituição já possui uma solicitação em aberto para este banco de sangue"
-    );
+    // 409 estruturado: o client (pages/agagar/[bloodbankSlug]) faz
+    // errorMessage.includes("já possui uma solicitação em aberto") —
+    // preservar a mensagem em data.message e statusMessage.
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+      message:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+    });
   }
 
   // Validate requested dates exist and belong to this blood bank

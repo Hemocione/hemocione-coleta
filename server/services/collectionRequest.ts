@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { createError } from "h3";
 import {
   team,
   collectionRequest,
@@ -1243,12 +1244,43 @@ export async function respondToTechnicalVisitProposal(
   );
 }
 
+// Status de onde uma solicitação pode ser rejeitada pelo banco de sangue.
+// "Rejeitável" = todo status em aberto; exclui apenas estados terminais
+// (rejected, cancelled) e o estado finalizado (scheduled).
+const REJECTABLE_STATUSES: CollectionRequestStatus[] = [
+  "pending",
+  "accepted",
+  "counter_proposed",
+  "counter_proposal_declined",
+  "awaiting_technical_visit",
+  "technical_visit_confirmed",
+];
+
 export async function rejectCollectionRequest(
   requestId: string,
   rejectionReason: string,
   rejectedByUserId: string,
   bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
+  const currentRequest = await CollectionRequest.findOne({
+    _id: requestId,
+    deletedAt: null,
+    bloodBanksLocationId,
+  }).lean();
+
+  if (!currentRequest) {
+    return null;
+  }
+
+  if (!REJECTABLE_STATUSES.includes(currentRequest.status)) {
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        "Collection request cannot be rejected in its current status",
+      message: `Collection request cannot be rejected in its current status (${currentRequest.status})`,
+    });
+  }
+
   const statusHistoryEntry = {
     status: "rejected",
     changedAt: new Date(),
@@ -1259,7 +1291,7 @@ export async function rejectCollectionRequest(
   await CollectionRequest.findOneAndUpdate(
     {
       _id: requestId,
-      status: "pending",
+      status: { $in: REJECTABLE_STATUSES },
       deletedAt: null,
       bloodBanksLocationId,
     },
@@ -1548,9 +1580,16 @@ export async function createCollectionRequest(
   });
 
   if (existingOpenRequest) {
-    throw new Error(
-      "Esta instituição já possui uma solicitação em aberto para este banco de sangue"
-    );
+    // 409 estruturado: o client (pages/agagar/[bloodbankSlug]) faz
+    // errorMessage.includes("já possui uma solicitação em aberto") —
+    // preservar a mensagem em data.message e statusMessage.
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+      message:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+    });
   }
 
   // Validate requested dates exist and belong to this blood bank

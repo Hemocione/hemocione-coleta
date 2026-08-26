@@ -37,7 +37,7 @@
             v-else
             color="neutral"
             icon="i-lucide-log-out"
-            @click="onLogout"
+            @click="logoutOpen = true"
             >Sair ({{ firstName }})</UButton
           >
         </div>
@@ -83,7 +83,11 @@
       </UCard>
 
       <!-- Create Institution Modal -->
-      <UModal v-model:open="openCreate">
+      <UModal
+        v-model:open="openCreate"
+        :dismissible="!isFormDirty"
+        @close:prevent="askDiscard"
+      >
         <template #content>
           <div
             class="p-6 flex flex-col gap-3 relative overflow-auto max-h-[95dvh]"
@@ -139,7 +143,7 @@
                 </UCard>
               </div>
             </UFormField>
-            <UFormField label="CNPJ" key="cnpj">
+            <UFormField label="CNPJ" key="cnpj" :error="cnpjError">
               <UInput
                 v-maska="'##.###.###/####-##'"
                 v-model="form.document"
@@ -203,8 +207,26 @@
                 :disabled="saving || cnpjLoading || geocodeLoading"
               />
             </UFormField>
+            <div
+              v-if="discardConfirm"
+              class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              key="discard-confirm"
+            >
+              <span>Descartar os dados digitados?</span>
+              <div class="flex justify-end gap-2">
+                <UButton
+                  variant="ghost"
+                  size="sm"
+                  @click="discardConfirm = false"
+                  >Continuar editando</UButton
+                >
+                <UButton color="error" size="sm" @click="discardAndClose"
+                  >Descartar</UButton
+                >
+              </div>
+            </div>
             <div class="flex items-center justify-end gap-2 mt-2">
-              <UButton variant="ghost" @click="openCreate = false"
+              <UButton variant="ghost" @click="onCancelClick"
                 >Cancelar</UButton
               >
               <UButton
@@ -240,6 +262,26 @@
         </template>
       </UModal>
 
+      <!-- Logout Confirm Modal -->
+      <UModal v-model:open="logoutOpen">
+        <template #content>
+          <div class="p-6 space-y-3">
+            <h3 class="text-lg font-semibold">Sair da conta?</h3>
+            <p class="text-sm text-gray-600">
+              Você precisará entrar novamente para continuar.
+            </p>
+            <div class="flex justify-end gap-2 mt-2">
+              <UButton variant="ghost" @click="logoutOpen = false"
+                >Cancelar</UButton
+              >
+              <UButton color="error" icon="i-lucide-log-out" @click="doLogout"
+                >Sair</UButton
+              >
+            </div>
+          </div>
+        </template>
+      </UModal>
+
       <slot />
     </main>
   </div>
@@ -250,6 +292,7 @@ import { redirectToID } from "~/utils/redirectToID";
 import { useUserStore } from "~/stores/user";
 import { useSchedulingStore } from "~/stores/scheduling";
 import { geocodeCep } from "~/utils/geocode";
+import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
 import { vMaska } from "maska/vue";
 
 const route = useRoute();
@@ -264,6 +307,11 @@ const firstName = computed(() => user.value?.givenName || "");
 const onLogout = async () => {
   await userStore.logOut();
 };
+const logoutOpen = ref(false);
+const doLogout = async () => {
+  logoutOpen.value = false;
+  await onLogout();
+};
 
 // Institution select/create (global)
 const scheduling = useSchedulingStore();
@@ -273,6 +321,8 @@ const loginPromptOpen = ref(false);
 const saving = ref(false);
 const cnpjLoading = ref(false);
 const geocodeLoading = ref(false);
+const cnpjError = ref("");
+const discardConfirm = ref(false);
 const userInstitutions = computed(() => scheduling.userInstitutions || []);
 const institutionItems = computed(() =>
   userInstitutions.value.map((i) => ({ label: i.name, value: i.id }))
@@ -337,16 +387,23 @@ const coords = computed(() => {
   return null;
 });
 
+const isFormDirty = computed(() => {
+  return (
+    form.name.trim() !== "" ||
+    form.document.trim() !== "" ||
+    form.legalName.trim() !== "" ||
+    form.cep.trim() !== "" ||
+    form.address.trim() !== "" ||
+    form.city.trim() !== "" ||
+    form.state.trim() !== "" ||
+    form.phone.trim() !== ""
+  );
+});
+
 const isFormValid = computed(() => {
   return (
-    form.name.trim() !== "" &&
-    form.document.trim() !== "" &&
-    form.legalName.trim() !== "" &&
-    form.cep.trim() !== "" &&
-    form.address.trim() !== "" &&
-    form.city.trim() !== "" &&
-    form.state.trim() !== "" &&
-    form.phone.trim() !== "" &&
+    isFormDirty.value &&
+    isValidCnpj(form.document) &&
     form.kind.trim() !== ""
   );
 });
@@ -421,14 +478,31 @@ const geocode = async () => {
   }
 };
 
+let cnpjAbort: AbortController | null = null;
+
 const onCnpj = async () => {
-  const digits = (form.document || "").replace(/\D/g, "");
-  if (digits.length !== 14) return;
+  const digits = onlyDigits(form.document);
+  if (digits.length !== 14) {
+    cnpjError.value = "";
+    return;
+  }
+  if (!isValidCnpj(digits)) {
+    cnpjError.value = "CNPJ inválido";
+    return;
+  }
+  cnpjError.value = "";
+  cnpjAbort?.abort();
+  const controller = new AbortController();
+  cnpjAbort = controller;
+  cnpjLoading.value = true;
   try {
-    cnpjLoading.value = true;
     const data = await $fetch<any>(
-      `https://brasilapi.com.br/api/cnpj/v1/${digits}`
+      `https://brasilapi.com.br/api/cnpj/v1/${digits}`,
+      { signal: controller.signal }
     );
+    if (controller.signal.aborted || onlyDigits(form.document) !== digits) {
+      return;
+    }
     if (!form.name && (data?.nome_fantasia || data?.razao_social)) {
       form.name = data?.nome_fantasia || data?.razao_social || form.name;
     }
@@ -440,17 +514,44 @@ const onCnpj = async () => {
       await geocode();
     }
   } catch (e) {
-    // ignore errors silently
+    if (!controller.signal.aborted && onlyDigits(form.document) === digits) {
+      cnpjError.value = "Não foi possível consultar o CNPJ";
+    }
   } finally {
-    cnpjLoading.value = false;
+    if (cnpjAbort === controller) {
+      cnpjAbort = null;
+      cnpjLoading.value = false;
+    }
   }
 };
 
 // Trigger on typing as soon as reaches 14 digits (masked)
 const onCnpjInput = () => {
-  const digits = (form.document || "").replace(/\D/g, "");
+  const digits = onlyDigits(form.document);
+  if (digits.length < 14 && cnpjError.value) {
+    cnpjError.value = "";
+  }
   if (digits.length === 14 && !cnpjLoading.value) {
     onCnpj();
+  }
+};
+
+const askDiscard = () => {
+  if (isFormDirty.value) {
+    discardConfirm.value = true;
+  }
+};
+
+const discardAndClose = () => {
+  discardConfirm.value = false;
+  cnpjError.value = "";
+  openCreate.value = false;
+};
+
+const onCancelClick = () => {
+  askDiscard();
+  if (!discardConfirm.value) {
+    openCreate.value = false;
   }
 };
 
@@ -507,6 +608,7 @@ const createInst = async () => {
     useToast().add({ title: "Erro ao criar instituição", color: "error" });
   } finally {
     saving.value = false;
+    discardConfirm.value = false;
     openCreate.value = false;
   }
 };
@@ -520,6 +622,8 @@ const onCreateClick = () => {
   if (user.value?.phone && !form.phone) {
     form.phone = user.value.phone;
   }
+  discardConfirm.value = false;
+  cnpjError.value = "";
   openCreate.value = true;
 };
 </script>

@@ -57,6 +57,13 @@ export function getCollectionRequestStatusLabel(
   return STATUS_LABELS[status as CollectionRequestStatus] ?? "";
 }
 
+export function getBloodbankCollectionRequestStatusLabel(
+  status: string | null | undefined
+): string {
+  if (status === "counter_proposed") return "Contraproposta enviada";
+  return getCollectionRequestStatusLabel(status);
+}
+
 export function getCollectionRequestStatusColor(
   status: string | null | undefined
 ): UBadgeColor {

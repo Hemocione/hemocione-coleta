@@ -1063,8 +1063,8 @@ import { useUserStore } from "~/stores/user";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import {
+  getBloodbankCollectionRequestStatusLabel,
   getCollectionRequestStatusColor,
-  getCollectionRequestStatusLabel,
 } from "~/utils/collectionRequestStatus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -1200,7 +1200,7 @@ const getStatusColor = (status: string) =>
   getCollectionRequestStatusColor(status);
 
 const getStatusLabel = (status: string) =>
-  getCollectionRequestStatusLabel(status);
+  getBloodbankCollectionRequestStatusLabel(status);
 
 const formatDate = (date: string | Date) => {
   return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY");

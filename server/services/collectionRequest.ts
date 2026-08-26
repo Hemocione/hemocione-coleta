@@ -1,5 +1,8 @@
 import { Types } from "mongoose";
 import { createError } from "h3";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 import {
   team,
   collectionRequest,
@@ -19,6 +22,13 @@ import {
   notifyCollectionRequestStatusTransition,
   type CollectionRequestNotificationTransition,
 } from "./collectionRequestNotification";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// Fuso de referência para datas/horas digitadas pelo banco (mesma referência
+// do calendário e da exibição na instituição).
+const TECHNICAL_VISIT_TIMEZONE = "America/Sao_Paulo";
 
 export interface CollectionRequestFilters {
   status?: string;
@@ -698,10 +708,15 @@ function getTechnicalVisitAddress(request: {
 }
 
 function combineDateAndTime(date: Date, startTime: string): Date {
-  const [hours, minutes] = startTime.split(":").map(Number);
-  const combined = new Date(date);
-  combined.setUTCHours(hours, minutes, 0, 0);
-  return combined;
+  // `date` chega como meia-noite UTC do dia local (z.coerce.date() de
+  // "YYYY-MM-DD"). O horário digitado é hora LOCAL do banco
+  // (America/Sao_Paulo) — converte para o instante correto em UTC com
+  // dayjs.tz, no mesmo padrão de server/services/availableDate.ts.
+  const datePart = dayjs.utc(date).format("YYYY-MM-DD");
+  return dayjs
+    .tz(`${datePart}T${startTime}`, TECHNICAL_VISIT_TIMEZONE)
+    .utc()
+    .toDate();
 }
 
 async function getAwaitingTechnicalVisitRequest(

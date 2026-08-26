@@ -409,8 +409,11 @@
                 <div class="text-xs text-gray-500">
                   {{ formatDateTime(entry.changedAt) }}
                 </div>
+                <!-- Motivo: só statuses com texto escrito por humano
+                     (rejeição/cancelamento). Nos demais a reason é uma
+                     string técnica fixa em inglês já coberta pelo rótulo. -->
                 <div
-                  v-if="entry.reason && entry.status !== 'pending'"
+                  v-if="entry.reason && historyShowsReason(entry.status)"
                   class="text-xs text-gray-500 mt-0.5"
                 >
                   {{ entry.reason }}
@@ -762,6 +765,12 @@ function formatDateTime(dateStr: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function historyShowsReason(status: string) {
+  // Rejeição e cancelamento carregam texto livre do usuário (PT).
+  // Os demais statuses usam reasons fixas em inglês geradas pelo sistema.
+  return status === "rejected" || status === "cancelled";
 }
 
 function historyDotColor(status: string) {

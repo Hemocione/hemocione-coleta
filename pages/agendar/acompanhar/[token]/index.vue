@@ -161,6 +161,157 @@
           </div>
         </UCard>
 
+        <!-- Counter Proposal -->
+        <UCard v-if="request.status === 'counter_proposed' && request.counterProposal">
+          <template #header>
+            <div class="flex items-center gap-2 text-blue-700">
+              <UIcon name="i-lucide-calendar-sync" class="w-5 h-5" />
+              <span class="font-semibold">O Banco de Sangue Propôs Outra Data</span>
+            </div>
+          </template>
+          <div class="space-y-3">
+            <p v-if="request.counterProposal.note" class="text-sm text-gray-700">
+              {{ request.counterProposal.note }}
+            </p>
+            <div v-if="!isLoggedIn" class="text-sm text-gray-600">
+              Faça login para responder a esta contraproposta.
+            </div>
+            <template v-else>
+              <div
+                v-for="(d, idx) in request.counterProposal.proposedDates"
+                :key="idx"
+                class="border rounded-lg p-3 flex items-center justify-between gap-3"
+                :class="{ 'border-primary-400 bg-primary-50': selectedCounterProposalIndex === idx }"
+              >
+                <div>
+                  <p class="font-medium text-sm">
+                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
+                  </p>
+                  <p class="text-xs text-gray-500">{{ d.durationMinutes }} minutos</p>
+                  <p v-if="d.note" class="text-xs text-gray-600 mt-1">{{ d.note }}</p>
+                </div>
+                <UButton
+                  size="sm"
+                  color="success"
+                  :loading="respondingToCounterProposal && selectedCounterProposalIndex === idx"
+                  @click="
+                    selectedCounterProposalIndex = idx;
+                    respondToCounterProposal('accepted', idx);
+                  "
+                >
+                  Aceitar esta opção
+                </UButton>
+              </div>
+              <UButton
+                color="error"
+                variant="soft"
+                class="w-full"
+                @click="showDeclineCounterProposalModal = true"
+              >
+                Recusar Contraproposta
+              </UButton>
+            </template>
+          </div>
+        </UCard>
+
+        <!-- Technical Visit Proposal -->
+        <UCard v-if="request.visitProposal">
+          <template #header>
+            <div class="flex items-center gap-2 text-amber-700">
+              <UIcon name="i-lucide-map-pinned" class="w-5 h-5" />
+              <span class="font-semibold">Proposta de visita técnica</span>
+            </div>
+          </template>
+          <div class="space-y-3">
+            <p v-if="request.visitProposal.note" class="text-sm text-gray-700">
+              {{ request.visitProposal.note }}
+            </p>
+            <div v-if="!isLoggedIn" class="text-sm text-gray-600">
+              Faça login para responder a esta proposta de visita técnica.
+            </div>
+            <template v-else>
+              <div
+                v-for="(d, idx) in request.visitProposal.proposedDates"
+                :key="idx"
+                class="border rounded-lg p-3 flex items-center justify-between gap-3"
+                :class="{
+                  'border-primary-400 bg-primary-50':
+                    selectedTechnicalVisitProposalIndex === idx,
+                }"
+              >
+                <div>
+                  <p class="font-medium text-sm">
+                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    {{ d.durationMinutes }} minutos
+                  </p>
+                  <p v-if="d.note" class="text-xs text-gray-600 mt-1">
+                    {{ d.note }}
+                  </p>
+                </div>
+                <UButton
+                  size="sm"
+                  color="success"
+                  :loading="
+                    respondingToTechnicalVisitProposal &&
+                    selectedTechnicalVisitProposalIndex === idx
+                  "
+                  @click="
+                    selectedTechnicalVisitProposalIndex = idx;
+                    respondToTechnicalVisitProposal('accepted', idx);
+                  "
+                >
+                  Aceitar esta opção
+                </UButton>
+              </div>
+              <UButton
+                color="error"
+                variant="soft"
+                class="w-full"
+                @click="showDeclineTechnicalVisitProposalModal = true"
+              >
+                Recusar proposta
+              </UButton>
+            </template>
+          </div>
+        </UCard>
+
+        <!-- Scheduled Technical Visit -->
+        <UCard v-if="request.technicalVisit">
+          <template #header>
+            <div class="flex items-center gap-2 text-blue-700">
+              <UIcon name="i-lucide-map-pinned" class="w-5 h-5" />
+              <span class="font-semibold">Visita técnica agendada</span>
+            </div>
+          </template>
+          <div class="space-y-2">
+            <UBadge :color="technicalVisitOutcomeColor" variant="subtle">
+              {{ technicalVisitOutcomeLabel }}
+            </UBadge>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
+              <span>{{ formatTechnicalVisitDate(request.technicalVisit.visitDate) }}</span>
+            </div>
+            <div
+              v-if="request.technicalVisit.address"
+              class="flex items-start gap-2"
+            >
+              <UIcon
+                name="i-lucide-map-pin"
+                class="w-4 h-4 text-gray-400 mt-0.5 shrink-0"
+              />
+              <span>{{ request.technicalVisit.address }}</span>
+            </div>
+            <p
+              v-if="request.technicalVisit.notes"
+              class="text-sm text-gray-600 whitespace-pre-line"
+            >
+              {{ request.technicalVisit.notes }}
+            </p>
+          </div>
+        </UCard>
+
         <!-- Withdraw button for pending requests (requires login) -->
         <UCard v-if="request.status === 'pending' && isLoggedIn">
           <div class="flex items-center justify-between">
@@ -220,6 +371,19 @@
           <p class="text-sm text-gray-700">{{ formattedAddress }}</p>
         </UCard>
 
+        <!-- Note -->
+        <UCard v-if="request.note">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-sticky-note" class="w-5 h-5 text-gray-500" />
+              <span class="font-semibold">Nota</span>
+            </div>
+          </template>
+          <p class="text-sm text-gray-700 whitespace-pre-line">
+            {{ request.note }}
+          </p>
+        </UCard>
+
         <!-- Status Timeline -->
         <UCard>
           <template #header>
@@ -245,8 +409,11 @@
                 <div class="text-xs text-gray-500">
                   {{ formatDateTime(entry.changedAt) }}
                 </div>
+                <!-- Motivo: só statuses com texto escrito por humano
+                     (rejeição/cancelamento). Nos demais a reason é uma
+                     string técnica fixa em inglês já coberta pelo rótulo. -->
                 <div
-                  v-if="entry.reason && entry.status !== 'pending'"
+                  v-if="entry.reason && historyShowsReason(entry.status)"
                   class="text-xs text-gray-500 mt-0.5"
                 >
                   {{ entry.reason }}
@@ -293,6 +460,63 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Decline Counter Proposal Modal -->
+    <UModal v-model:open="showDeclineCounterProposalModal">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Recusar Contraproposta</h3>
+          <p class="text-sm text-gray-600">
+            Tem certeza que deseja recusar todas as opções propostas pelo banco de
+            sangue? A solicitação ficará marcada como recusada.
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              variant="ghost"
+              @click="showDeclineCounterProposalModal = false"
+              :disabled="respondingToCounterProposal"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="respondToCounterProposal('declined', null)"
+              :loading="respondingToCounterProposal"
+            >
+              Confirmar Recusa
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Decline Technical Visit Proposal Modal -->
+    <UModal v-model:open="showDeclineTechnicalVisitProposalModal">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Recusar proposta de visita técnica</h3>
+          <p class="text-sm text-gray-600">
+            Tem certeza que deseja recusar todas as opções de visita técnica?
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              variant="ghost"
+              @click="showDeclineTechnicalVisitProposalModal = false"
+              :disabled="respondingToTechnicalVisitProposal"
+            >
+              Voltar
+            </UButton>
+            <UButton
+              color="error"
+              @click="respondToTechnicalVisitProposal('declined', null)"
+              :loading="respondingToTechnicalVisitProposal"
+            >
+              Confirmar Recusa
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -311,7 +535,16 @@ const isLoggedIn = computed(() => Boolean(user.value));
 
 interface PublicRequestData {
   _id: string;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  status:
+    | "pending"
+    | "accepted"
+    | "rejected"
+    | "cancelled"
+    | "counter_proposed"
+    | "counter_proposal_declined"
+    | "awaiting_technical_visit"
+    | "technical_visit_confirmed"
+    | "scheduled";
   bloodBankName: string;
   bloodBankLogo?: string | null;
   institutionName: string;
@@ -325,6 +558,7 @@ interface PublicRequestData {
     state: string;
     zipCode: string;
   };
+  note?: string;
   requestedDates: Array<{
     date: string;
     startTime?: string;
@@ -336,6 +570,34 @@ interface PublicRequestData {
     startTime?: string;
     endTime?: string;
     teamName?: string;
+  };
+  counterProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedAt: string;
+  };
+  visitProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    note: string;
+    proposedAt: string;
+  };
+  technicalVisit?: {
+    id: string;
+    visitDate: string;
+    address: string;
+    outcome: "approved" | "rejected" | "pending";
+    notes?: string;
   };
   rejectionReason?: string;
   statusHistory: Array<{
@@ -363,6 +625,16 @@ const statusColor = computed(() => {
       return "error" as const;
     case "cancelled":
       return "neutral" as const;
+    case "counter_proposed":
+      return "info" as const;
+    case "counter_proposal_declined":
+      return "error" as const;
+    case "awaiting_technical_visit":
+      return "warning" as const;
+    case "technical_visit_confirmed":
+      return "success" as const;
+    case "scheduled":
+      return "success" as const;
     default:
       return "neutral" as const;
   }
@@ -378,6 +650,16 @@ const statusLabel = computed(() => {
       return "Rejeitada";
     case "cancelled":
       return "Cancelada";
+    case "counter_proposed":
+      return "Contraproposta Recebida";
+    case "counter_proposal_declined":
+      return "Contraproposta Recusada";
+    case "awaiting_technical_visit":
+      return "Aguardando visita técnica";
+    case "technical_visit_confirmed":
+      return "Visita técnica confirmada";
+    case "scheduled":
+      return "Solicitação agendada";
     default:
       return "";
   }
@@ -389,6 +671,28 @@ const cancellationReason = computed(() => {
     .reverse()
     .find((h) => h.status === "cancelled");
   return entry?.reason || null;
+});
+
+const technicalVisitOutcomeColor = computed(() => {
+  switch (request.value?.technicalVisit?.outcome) {
+    case "approved":
+      return "success" as const;
+    case "rejected":
+      return "error" as const;
+    default:
+      return "warning" as const;
+  }
+});
+
+const technicalVisitOutcomeLabel = computed(() => {
+  switch (request.value?.technicalVisit?.outcome) {
+    case "approved":
+      return "Aprovada";
+    case "rejected":
+      return "Recusada";
+    default:
+      return "Pendente";
+  }
 });
 
 const formattedAddress = computed(() => {
@@ -418,6 +722,35 @@ function formatDate(dateStr: string) {
   });
 }
 
+// counterProposal.proposedDates[].date é um Date completo (com hora, em UTC),
+// diferente de requestedDates[].date/selectedDate.date que são strings
+// "YYYY-MM-DD" sem hora — por isso não pode reusar formatDate() aqui, que
+// assume "YYYY-MM-DD" e concatena "T12:00:00". Fixamos o timezone
+// explicitamente para bater com o calendário do banco de sangue.
+function formatCounterProposalDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+// technicalVisit.visitDate é um Date completo (data + hora, em UTC) e a visita
+// acontece na instituição, então exibimos data e hora no mesmo timezone fixo
+// usado pela proposta (America/Sao_Paulo), igual ao calendário do banco.
+function formatTechnicalVisitDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const date = formatCounterProposalDate(dateStr);
+  const time = d.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  return `${date} às ${time}`;
+}
+
 function formatTime(timeStr: string) {
   const d = new Date(timeStr);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -434,6 +767,12 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+function historyShowsReason(status: string) {
+  // Rejeição e cancelamento carregam texto livre do usuário (PT).
+  // Os demais statuses usam reasons fixas em inglês geradas pelo sistema.
+  return status === "rejected" || status === "cancelled";
+}
+
 function historyDotColor(status: string) {
   switch (status) {
     case "pending":
@@ -444,6 +783,16 @@ function historyDotColor(status: string) {
       return "bg-red-500";
     case "cancelled":
       return "bg-gray-400";
+    case "counter_proposed":
+      return "bg-blue-400";
+    case "counter_proposal_declined":
+      return "bg-red-400";
+    case "awaiting_technical_visit":
+      return "bg-amber-400";
+    case "technical_visit_confirmed":
+      return "bg-green-500";
+    case "scheduled":
+      return "bg-green-500";
     default:
       return "bg-gray-300";
   }
@@ -459,23 +808,125 @@ function historyStatusLabel(status: string) {
       return "Rejeitada pelo Banco de Sangue";
     case "cancelled":
       return "Cancelada";
+    case "counter_proposed":
+      return "Banco de Sangue Propôs Outra Data";
+    case "counter_proposal_declined":
+      return "Contraproposta Recusada";
+    case "awaiting_technical_visit":
+      return "Aguardando visita técnica";
+    case "technical_visit_confirmed":
+      return "Visita técnica confirmada";
+    case "scheduled":
+      return "Solicitação agendada";
     default:
       return status;
   }
 }
 
-async function loadRequest() {
-  loading.value = true;
-  error.value = false;
+async function loadRequest(options: { quiet?: boolean } = {}) {
+  const { quiet = false } = options;
+  if (!quiet) {
+    loading.value = true;
+    error.value = false;
+  }
   try {
     const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
       `/api/v1/public/collection-requests/track/${accessToken}`
     );
     request.value = response.data;
   } catch {
-    error.value = true;
+    if (!quiet) {
+      error.value = true;
+    }
   } finally {
-    loading.value = false;
+    if (!quiet) {
+      loading.value = false;
+    }
+  }
+}
+
+const respondingToCounterProposal = ref(false);
+const selectedCounterProposalIndex = ref<number | null>(null);
+const showDeclineCounterProposalModal = ref(false);
+
+const respondingToTechnicalVisitProposal = ref(false);
+const selectedTechnicalVisitProposalIndex = ref<number | null>(null);
+const showDeclineTechnicalVisitProposalModal = ref(false);
+
+async function respondToCounterProposal(
+  decision: "accepted" | "declined",
+  selectedIndex: number | null
+) {
+  if (!request.value) return;
+  respondingToCounterProposal.value = true;
+  try {
+    await $fetch<{ success: boolean; data: PublicRequestData }>(
+      `/api/v1/public/collection-requests/track/${accessToken}/respond-counter-proposal`,
+      {
+        method: "POST",
+        body: {
+          decision,
+          selectedDateId: selectedIndex !== null ? String(selectedIndex) : "",
+        },
+        headers: {
+          Authorization: `Bearer ${userStore.token}`,
+        },
+      }
+    );
+    await loadRequest({ quiet: true });
+    showDeclineCounterProposalModal.value = false;
+    toast.add({
+      title:
+        decision === "accepted"
+          ? "Data confirmada com sucesso"
+          : "Contraproposta recusada",
+      color: decision === "accepted" ? "success" : "neutral",
+    });
+  } catch {
+    toast.add({ title: "Erro ao responder à contraproposta", color: "error" });
+  } finally {
+    respondingToCounterProposal.value = false;
+    selectedCounterProposalIndex.value = null;
+  }
+}
+
+async function respondToTechnicalVisitProposal(
+  decision: "accepted" | "declined",
+  selectedIndex: number | null
+) {
+  if (!request.value) return;
+  respondingToTechnicalVisitProposal.value = true;
+  try {
+    await $fetch<{ success: boolean; data: PublicRequestData }>(
+      `/api/v1/public/collection-requests/track/${accessToken}/respond-technical-visit-proposal`,
+      {
+        method: "POST",
+        body: {
+          decision,
+          selectedDateId: selectedIndex !== null ? String(selectedIndex) : "",
+        },
+        headers: {
+          Authorization: `Bearer ${userStore.token}`,
+        },
+      }
+    );
+    await loadRequest({ quiet: true });
+    showDeclineTechnicalVisitProposalModal.value = false;
+    toast.add({
+      title:
+        decision === "accepted"
+          ? "Visita técnica agendada com sucesso"
+          : "Proposta de visita técnica recusada",
+      color: decision === "accepted" ? "success" : "neutral",
+    });
+  } catch {
+    toast.add({
+      title: "Erro ao responder à proposta de visita técnica",
+      color: "error",
+    });
+  } finally {
+    respondingToTechnicalVisitProposal.value = false;
+    selectedTechnicalVisitProposalIndex.value = null;
   }
 }
 

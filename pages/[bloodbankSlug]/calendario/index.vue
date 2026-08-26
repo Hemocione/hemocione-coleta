@@ -26,7 +26,7 @@
         </UCalendar>
 
         <!-- Legenda -->
-        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500 flex-wrap">
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-green-500" />
             <span>Disponível</span>
@@ -38,6 +38,14 @@
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-red-500" />
             <span>Totalmente bloqueado</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-gray-400" />
+            <span>Bloqueado pelo banco</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-blue-400" />
+            <span>Pendente</span>
           </div>
         </div>
       </div>
@@ -63,8 +71,108 @@
       </UButton>
     </div>
 
+    <!-- Status Choice Modal -->
+    <UModal v-model:open="showStatusChoiceModal" title="O que fazer com esta data?">
+      <template #body>
+        <div class="space-y-3">
+          <p class="text-sm text-gray-600">
+            {{
+              pendingChoiceDate
+                ? `Data: ${formatCalendarDateToYYYYMMDD(pendingChoiceDate)
+                    .split("-")
+                    .reverse()
+                    .join("/")}`
+                : ""
+            }}
+          </p>
+          <UButton
+            block
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-lock"
+            @click="chooseBlocked"
+          >
+            Bloquear data
+          </UButton>
+          <UButton
+            block
+            color="info"
+            variant="outline"
+            icon="i-lucide-clock"
+            @click="choosePending"
+          >
+            Marcar como pendente
+          </UButton>
+          <p class="text-xs text-gray-400 pl-1">
+            Pendente hoje se comporta como bloqueada. Reservado para uso futuro.
+          </p>
+          <UButton
+            block
+            color="primary"
+            icon="i-lucide-check"
+            @click="chooseReleased"
+          >
+            Liberar disponibilidade
+          </UButton>
+        </div>
+      </template>
+
+      <template #footer="{ close }">
+        <div class="flex justify-end">
+          <UButton variant="ghost" @click="close">Cancelar</UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Status Detail Modal (blocked/pending) -->
+    <UModal
+      v-model:open="showStatusDetailModal"
+      :title="
+        statusDetailAvailableDate?.status === 'pending'
+          ? 'Data pendente'
+          : 'Data bloqueada'
+      "
+    >
+      <template #body>
+        <div v-if="statusDetailAvailableDate" class="space-y-4">
+          <p class="text-sm text-gray-600">
+            Data: {{ statusDetailAvailableDate.date.split("-").reverse().join("/") }}
+          </p>
+          <p class="text-sm text-gray-600">
+            {{
+              statusDetailAvailableDate.status === "pending"
+                ? "Esta data está marcada como pendente. Hoje ela se comporta como bloqueada — nenhuma equipe pode ser agendada."
+                : "Esta data está bloqueada. Nenhuma equipe pode ser agendada."
+            }}
+          </p>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="flex justify-between w-full">
+          <UButton
+            variant="ghost"
+            color="error"
+            icon="i-lucide-trash-2"
+            :loading="isUpdating"
+            @click="handleRemoveStatusMark"
+          >
+            Remover marcação
+          </UButton>
+          <UButton
+            color="primary"
+            icon="i-lucide-check"
+            :loading="isUpdating"
+            @click="handleReleaseFromStatusDetail"
+          >
+            Liberar agora
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
     <!-- Create Date Modal -->
-    <UModal v-model:open="showCreateModal" title="Criar Nova Data">
+    <UModal v-model:open="showCreateModal" title="Liberar Disponibilidade">
       <template #body>
         <UForm
           ref="form"
@@ -223,7 +331,7 @@
             :disabled="!canSubmit"
             @click="handleCreateDateSubmit"
           >
-            {{ isSubmitting ? "Criando..." : "Criar Data" }}
+            {{ isSubmitting ? "Liberando..." : "Liberar" }}
           </UButton>
         </div>
       </template>
@@ -267,33 +375,24 @@
     >
       <template #body>
         <div v-if="selectedAvailableDate" class="space-y-6">
-          <!-- Informações da data (DEBUG)-->
-          <!-- <div class="bg-gray-50 rounded-lg p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-600">Data</p>
-                <p class="font-semibold">
-                  {{ formatDateToYYYYMMDD(selectedAvailableDate.date) }}
-                </p>
-              </div>
-              <div>
-                <p class="text-sm text-gray-600">Equipes</p>
-                <p class="font-semibold">
-                  {{ selectedAvailableDate.slots.length }} equipe(s)
-                </p>
-              </div>
-              <div>
-                <p class="text-sm text-gray-600">Tipo</p>
-                <p class="font-semibold">
-                  {{
-                    selectedAvailableDate.isAllTeams
-                      ? "Todas as equipes"
-                      : "Individual"
-                  }}
-                </p>
-              </div>
+          <!-- Status da data -->
+          <div
+            class="flex items-center justify-between gap-3 bg-gray-50 rounded-lg p-3"
+          >
+            <div>
+              <p class="text-sm font-medium text-gray-700">Status da data</p>
+              <p class="text-xs text-gray-500">
+                {{ statusHint(selectedStatus) }}
+              </p>
             </div>
-          </div> -->
+            <USelect
+              v-model="selectedStatus"
+              :items="statusOptions"
+              :disabled="isUpdatingStatus"
+              class="w-48 shrink-0"
+              @update:model-value="handleStatusChange"
+            />
+          </div>
 
           <!-- Lista de slots -->
           <div class="space-y-2">
@@ -340,6 +439,10 @@
                   :style="{ color: getTeamColor(slot.teamId) }"
                 >
                   {{ getTeamName(slot.teamId) }}
+                </p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Horário:
+                  {{ formatTimeRange(slot.startTime, slot.endTime) }}
                 </p>
                 <div class="flex items-center space-x-2 mt-1">
                   <UInput
@@ -533,6 +636,10 @@ import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import type { AvailableDate } from "~/stores/bloodbank";
 import { formatDateToYYYYMMDD } from "~/utils/dateHelpers";
+import {
+  getCalendarAvailabilityColor,
+  type AvailableDateStatus,
+} from "~/utils/availableDateStatus";
 import { CalendarDate, type DateValue } from "@internationalized/date";
 
 // Define page meta
@@ -565,6 +672,10 @@ const isUpdating = ref(false);
 const isInitialized = ref(false);
 const showLockedNavigationModal = ref(false);
 const lockedCollectionRequestIds = ref<string[]>([]);
+const showStatusChoiceModal = ref(false);
+const pendingChoiceDate = ref<CalendarDate | null>(null);
+const showStatusDetailModal = ref(false);
+const statusDetailAvailableDate = ref<AvailableDate | null>(null);
 
 // Edição de horários
 const editingTimes = ref<
@@ -572,6 +683,22 @@ const editingTimes = ref<
 >({});
 const changedSlots = ref<string[]>([]);
 const savingSlots = ref<string[]>([]);
+
+// Seletor de status da data
+const isUpdatingStatus = ref(false);
+const selectedStatus = ref<AvailableDateStatus>("released");
+const statusOptions = [
+  { label: "Disponível", value: "released" },
+  { label: "Pendente", value: "pending" },
+  { label: "Bloqueado pelo banco", value: "blocked" },
+];
+const statusHint = (status: AvailableDateStatus) => {
+  if (status === "blocked")
+    return "Nenhuma equipe pode ser agendada nesta data.";
+  if (status === "pending")
+    return "Hoje se comporta como bloqueada — reservado para uso futuro.";
+  return "Equipes podem ser agendadas nos horários abaixo.";
+};
 
 // Form state for create modal
 const formState = ref({
@@ -631,12 +758,54 @@ watch(selectedDate, (newDate, oldDate) => {
   }
 });
 
-// Inicializar horários de edição quando modal abre
+// Inicializar horários de edição e status quando modal abre
 watch(showDetailModal, (isOpen) => {
   if (isOpen && selectedAvailableDate.value) {
     initializeEditingTimes();
+    selectedStatus.value = selectedAvailableDate.value.status ?? "released";
+    isUpdatingStatus.value = false;
   }
 });
+
+const handleStatusChange = async (newStatus: unknown) => {
+  if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
+
+  const status = newStatus as AvailableDateStatus;
+  const previousStatus =
+    selectedAvailableDate.value.status ?? ("released" as AvailableDateStatus);
+  if (status === previousStatus) return;
+
+  isUpdatingStatus.value = true;
+  try {
+    await bloodbankStore.updateAvailableDateStatus(
+      bloodBanksLocationId.value,
+      selectedAvailableDate.value._id,
+      status
+    );
+
+    selectedAvailableDate.value = {
+      ...selectedAvailableDate.value,
+      status,
+    };
+
+    const label = statusOptions.find((o) => o.value === status)?.label;
+    useToast().add({
+      title: "Status atualizado!",
+      description: `A data agora está como "${label}".`,
+      color: "success",
+    });
+  } catch (error: any) {
+    selectedStatus.value = previousStatus;
+    console.error("Error updating available date status:", error);
+    useToast().add({
+      title: "Erro ao atualizar status",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    isUpdatingStatus.value = false;
+  }
+};
 
 const isLoading = computed(
   () => isLoadingAvailableDates.value && !isInitialized.value
@@ -720,6 +889,12 @@ const handleDateSelect = (date: CalendarDate | null) => {
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
 
   if (availableDate) {
+    if (availableDate.status === "blocked" || availableDate.status === "pending") {
+      statusDetailAvailableDate.value = availableDate;
+      showStatusDetailModal.value = true;
+      return;
+    }
+
     // Check if any slots are locked by collection requests
     const lockedByIds = [
       ...new Set(
@@ -742,9 +917,114 @@ const handleDateSelect = (date: CalendarDate | null) => {
       showDetailModal.value = true;
     }
   } else {
-    // Abrir modal de criação - selectedDate já está definido pelo v-model
-    formState.value.date = date;
+    // Data sem registro - perguntar o que o banco quer fazer com ela
+    pendingChoiceDate.value = date;
+    showStatusChoiceModal.value = true;
+  }
+};
+
+const chooseReleased = () => {
+  const date = pendingChoiceDate.value;
+  showStatusChoiceModal.value = false;
+  pendingChoiceDate.value = null;
+
+  resetForm();
+  formState.value.date = date;
+  showCreateModal.value = true;
+};
+
+const createStatusOnlyDate = async (status: "blocked" | "pending") => {
+  if (!bloodBanksLocationId.value || !pendingChoiceDate.value) return;
+
+  const dateStr = formatCalendarDateToYYYYMMDD(pendingChoiceDate.value);
+
+  try {
+    await bloodbankStore.createAvailableDate(bloodBanksLocationId.value, {
+      date: dateStr,
+      status,
+    });
+
+    useToast().add({
+      title:
+        status === "blocked" ? "Data bloqueada!" : "Data marcada como pendente!",
+      description: "O calendário foi atualizado.",
+      color: "success",
+    });
+
+    showStatusChoiceModal.value = false;
+    pendingChoiceDate.value = null;
+  } catch (error: any) {
+    console.error("Error setting available date status:", error);
+    useToast().add({
+      title: "Erro ao atualizar data",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  }
+};
+
+const chooseBlocked = () => createStatusOnlyDate("blocked");
+const choosePending = () => createStatusOnlyDate("pending");
+
+const handleRemoveStatusMark = async () => {
+  if (!bloodBanksLocationId.value || !statusDetailAvailableDate.value) return;
+
+  isUpdating.value = true;
+  try {
+    await bloodbankStore.deleteAvailableDate(
+      bloodBanksLocationId.value,
+      statusDetailAvailableDate.value._id
+    );
+
+    useToast().add({
+      title: "Marcação removida!",
+      description: "A data voltou a ficar sem definição.",
+      color: "success",
+    });
+
+    showStatusDetailModal.value = false;
+    statusDetailAvailableDate.value = null;
+  } catch (error: any) {
+    console.error("Error removing status mark:", error);
+    useToast().add({
+      title: "Erro ao remover marcação",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
+const handleReleaseFromStatusDetail = async () => {
+  if (!bloodBanksLocationId.value || !statusDetailAvailableDate.value) return;
+
+  const [year, month, day] = statusDetailAvailableDate.value.date
+    .split("-")
+    .map(Number);
+
+  isUpdating.value = true;
+  try {
+    await bloodbankStore.deleteAvailableDate(
+      bloodBanksLocationId.value,
+      statusDetailAvailableDate.value._id
+    );
+
+    showStatusDetailModal.value = false;
+    statusDetailAvailableDate.value = null;
+
+    resetForm();
+    formState.value.date = new CalendarDate(year, month, day);
     showCreateModal.value = true;
+  } catch (error: any) {
+    console.error("Error releasing date from status detail:", error);
+    useToast().add({
+      title: "Erro ao liberar data",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    isUpdating.value = false;
   }
 };
 
@@ -1034,8 +1314,13 @@ const getTeamColor = (teamId: string) => {
 
 const formatTimeRange = (startTime: Date, endTime: Date) => {
   const formatTime = (date: Date) =>
-    date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${formatTime(startTime)} – ${formatTime(endTime)}`;
+    date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: bloodBankTimezone.value,
+    });
+  return `${formatTime(startTime)} - ${formatTime(endTime)}`;
 };
 
 const formatTimeForInput = (date: Date) => {
@@ -1327,9 +1612,7 @@ const isDateUnavailable = (day: DateValue) => {
 };
 
 // Get availability color for calendar day
-const getAvailabilityColor = (
-  day: DateValue
-): "error" | "warning" | "success" | undefined => {
+const getAvailabilityColor = (day: DateValue) => {
   // Don't show chips until data is loaded
   if (!isInitialized.value) {
     return undefined;
@@ -1337,27 +1620,7 @@ const getAvailabilityColor = (
 
   const dateStr = formatCalendarDateToYYYYMMDD(day);
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
-  if (!availableDate || !availableDate.slots.length) {
-    return undefined; // No availability data
-  }
-
-  const allSlotsLocked = availableDate.slots.every(
-    (slot) => slot.locked || slot.lockedBy
-  );
-
-  if (allSlotsLocked) {
-    return "error"; // All slots locked - red
-  }
-
-  const hasLockedSlots = availableDate.slots.some(
-    (slot) => slot.locked || slot.lockedBy
-  );
-
-  if (hasLockedSlots) {
-    return "warning"; // Some available, some locked - yellow
-  }
-
-  return "success"; // All available - green
+  return getCalendarAvailabilityColor(availableDate);
 };
 
 // Watchers

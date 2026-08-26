@@ -40,12 +40,16 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = bodySchema.parse(await readBody(event));
-    const updatedRequest = await counterPropose(requestId, {
-      proposedDates: body.proposedDates,
-      needsTechnicalVisit: body.needsTechnicalVisit,
-      note: body.note,
-      proposedBy: body.actingAsStaffId,
-    });
+    const updatedRequest = await counterPropose(
+      requestId,
+      {
+        proposedDates: body.proposedDates,
+        needsTechnicalVisit: body.needsTechnicalVisit,
+        note: body.note,
+        proposedBy: body.actingAsStaffId,
+      },
+      bloodBanksLocationId
+    );
 
     return {
       success: true,

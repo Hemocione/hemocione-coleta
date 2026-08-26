@@ -12,6 +12,9 @@ export type CollectionRequestNotificationTransition =
   | "counter_proposed"
   | "counter_proposal_declined"
   | "awaiting_technical_visit"
+  | "technical_visit_proposed"
+  | "technical_visit_scheduled"
+  | "technical_visit_proposal_declined"
   | "technical_visit_confirmed"
   | "technical_visit_verdict"
   | "scheduled";
@@ -120,6 +123,55 @@ export async function notifyCollectionRequestStatusTransition({
         params: {
           contactName,
           bloodBankName,
+          trackingUrl,
+        },
+      }).catch(() => {});
+      return;
+    }
+
+    if (transition === "technical_visit_proposed") {
+      if (!userId) return;
+
+      const proposedDate = request.visitProposal?.proposedDates?.[0];
+
+      void sendWhatsAppNotification({
+        userId,
+        templateName: "collection_request_technical_visit_proposed",
+        params: {
+          contactName,
+          bloodBankName,
+          proposedDate: formatDate(proposedDate?.date),
+          proposedTime: proposedDate?.startTime || "",
+          trackingUrl,
+        },
+      }).catch(() => {});
+      return;
+    }
+
+    if (transition === "technical_visit_scheduled") {
+      if (!userId) return;
+
+      void sendWhatsAppNotification({
+        userId,
+        templateName: "technical_visit_scheduled",
+        params: {
+          contactName: "Equipe do banco de sangue",
+          institutionName,
+          trackingUrl,
+        },
+      }).catch(() => {});
+      return;
+    }
+
+    if (transition === "technical_visit_proposal_declined") {
+      if (!userId) return;
+
+      void sendWhatsAppNotification({
+        userId,
+        templateName: "technical_visit_proposal_declined",
+        params: {
+          contactName: "Equipe do banco de sangue",
+          institutionName,
           trackingUrl,
         },
       }).catch(() => {});

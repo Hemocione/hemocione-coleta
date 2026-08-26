@@ -1,5 +1,12 @@
 import { InferSchemaType, Schema, model } from "mongoose";
 
+export const AVAILABLE_DATE_STATUSES = [
+  "blocked",
+  "pending",
+  "released",
+] as const;
+export type AvailableDateStatus = (typeof AVAILABLE_DATE_STATUSES)[number];
+
 // Slot Schema - subdocumento para cada time
 const SlotSchema = new Schema(
   {
@@ -46,6 +53,11 @@ export const AvailableDateSchema = new Schema(
     },
     year: { type: Number, required: true },
     isAllTeams: { type: Boolean, required: true },
+    status: {
+      type: String,
+      enum: AVAILABLE_DATE_STATUSES,
+      default: "released",
+    },
     slots: [SlotSchema],
     deletedAt: { type: Date, default: null },
   },

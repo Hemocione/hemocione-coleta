@@ -1,6 +1,7 @@
 import { availableDate, team } from "~/server/models";
 const { AvailableDate } = availableDate;
 const { Team } = team;
+import type { AvailableDateStatus } from "~/server/models/availableDate";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -10,12 +11,15 @@ import { Types } from "mongoose";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+export type { AvailableDateStatus };
+
 export interface AvailableDateData {
   _id: string;
   bloodBanksLocationId: string;
   date: string;
   year: number;
   isAllTeams: boolean;
+  status: AvailableDateStatus;
   slots: Array<{
     _id: string;
     teamId: string;
@@ -48,12 +52,19 @@ export async function getAvailableDatesByBloodBank(
     end?: string;
     monthsAhead?: number;
     year?: number;
+    excludeStatuses?: AvailableDateStatus[];
   }
 ): Promise<AvailableDateData[]> {
   const query: Record<string, any> = {
     bloodBanksLocationId,
     deletedAt: null,
   };
+
+  if (options?.excludeStatuses?.length) {
+    // Registros legados sem o campo status equivalem a "released" e não
+    // devem ser afetados por este filtro: $nin não casa com campo ausente.
+    query.status = { $nin: options.excludeStatuses };
+  }
 
   const today = dayjs();
   // Começar a partir de 3 dias no futuro
@@ -105,18 +116,28 @@ export async function getAvailableDateByDate(
   return availableDate as AvailableDateData | null;
 }
 
+export async function updateAvailableDateStatus(
+  availableDateId: string,
+  bloodBanksLocationId: string,
+  status: AvailableDateStatus
+): Promise<AvailableDateData | null> {
+  // Escopo por bloodBanksLocationId garante que a data pertence ao banco.
+  const updated = await AvailableDate.findOneAndUpdate(
+    { _id: availableDateId, bloodBanksLocationId, deletedAt: null },
+    { $set: { status } },
+    { new: true, lean: true }
+  );
+
+  return updated as AvailableDateData | null;
+}
+
 export async function createAvailableDate(
   bloodBanksLocationId: string,
   date: string,
   isAllTeams: boolean,
-  slotsConfig: SlotConfig
+  slotsConfig: SlotConfig,
+  status: AvailableDateStatus = "released"
 ): Promise<AvailableDateData> {
-  // Obter timezone do banco de sangue
-  const bloodBank = await getBloodBankByBloodBanksLocationId(
-    bloodBanksLocationId
-  );
-  const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
-
   // Extract year from date string for indexing
   const year = parseInt(date.split("-")[0]);
 
@@ -129,6 +150,34 @@ export async function createAvailableDate(
   if (existingDate) {
     throw new Error("Já existe uma data cadastrada para este dia");
   }
+
+  // Bloqueada/pendente não tem equipes nem horários — apenas marca a data.
+  if (status !== "released") {
+    const blockedOrPendingDate = new AvailableDate({
+      bloodBanksLocationId,
+      date,
+      year,
+      isAllTeams: false,
+      status,
+      slots: [],
+    });
+
+    try {
+      const savedAvailableDate = await blockedOrPendingDate.save();
+      return savedAvailableDate.toObject() as unknown as AvailableDateData;
+    } catch (error: any) {
+      if (error.code === 11000) {
+        throw new Error("Já existe uma data cadastrada para este dia");
+      }
+      throw error;
+    }
+  }
+
+  // Obter timezone do banco de sangue
+  const bloodBank = await getBloodBankByBloodBanksLocationId(
+    bloodBanksLocationId
+  );
+  const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
 
   let teamIds: string[] = [];
 
@@ -232,6 +281,7 @@ export async function createAvailableDate(
     date: date,
     year,
     isAllTeams,
+    status: "released",
     slots,
   });
 

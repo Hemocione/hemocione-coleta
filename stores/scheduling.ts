@@ -102,6 +102,22 @@ export const useSchedulingStore = defineStore("scheduling", {
       }
     },
 
+    // A posição no array define a prioridade (índice 0 = 1ª opção
+    // preferida). Troca a data em `index` com a vizinha na direção pedida.
+    moveSelectedDate(index: number, direction: "up" | "down") {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (
+        index < 0 ||
+        index >= this.selectedDates.length ||
+        targetIndex < 0 ||
+        targetIndex >= this.selectedDates.length
+      ) {
+        return;
+      }
+      const dates = this.selectedDates;
+      [dates[index], dates[targetIndex]] = [dates[targetIndex], dates[index]];
+    },
+
     async loadUserInstitutions() {
       this.isLoadingInstitutions = true;
       try {

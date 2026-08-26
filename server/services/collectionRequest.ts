@@ -1,4 +1,8 @@
 import { Types } from "mongoose";
+import { createError } from "h3";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 import {
   team,
   collectionRequest,
@@ -14,7 +18,17 @@ import {
   createTechnicalVisit,
   getTechnicalVisitById,
 } from "./technicalVisit";
-import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
+import {
+  notifyCollectionRequestStatusTransition,
+  type CollectionRequestNotificationTransition,
+} from "./collectionRequestNotification";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// Fuso de referência para datas/horas digitadas pelo banco (mesma referência
+// do calendário e da exibição na instituição).
+const TECHNICAL_VISIT_TIMEZONE = "America/Sao_Paulo";
 
 export interface CollectionRequestFilters {
   status?: string;
@@ -64,6 +78,31 @@ export interface CounterProposeData {
 }
 
 export interface RespondToCounterProposalData {
+  decision: "accepted" | "declined";
+  selectedDateId: string;
+  respondedBy: string;
+}
+
+export interface VisitProposal {
+  proposedDates: CounterProposalDate[];
+  note: string;
+  proposedBy: string;
+  proposedAt: Date;
+  response?: {
+    decision: "accepted" | "declined";
+    selectedDateId: string;
+    respondedAt: Date;
+    respondedBy: string;
+  };
+}
+
+export interface ProposeTechnicalVisitData {
+  proposedDates: CounterProposalDate[];
+  note: string;
+  proposedBy: string;
+}
+
+export interface RespondToTechnicalVisitProposalData {
   decision: "accepted" | "declined";
   selectedDateId: string;
   respondedBy: string;
@@ -132,6 +171,8 @@ export interface CollectionRequestWithDetails {
   institutionBanner?: string;
   requestedByUserId: string;
   bloodBanksLocationId: string;
+  bloodBankName?: string;
+  bloodBankLogo?: string | null;
   availableSlotOptions: Array<{
     availableDateId: string;
     slotId: string;
@@ -142,6 +183,7 @@ export interface CollectionRequestWithDetails {
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
+    priority?: number; // Prioridade que a instituição atribuiu à data solicitada
   }>;
   host: {
     name: string;
@@ -156,6 +198,8 @@ export interface CollectionRequestWithDetails {
   technicalVisitId?: string;
   counterProposal?: CounterProposal;
   previousCounterProposals?: CounterProposal[];
+  visitProposal?: VisitProposal;
+  previousVisitProposals?: VisitProposal[];
   confirmedSchedule?: {
     date: Date;
     startTime: string;
@@ -172,6 +216,17 @@ export interface CollectionRequestWithDetails {
   }>;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Ordena as datas solicitadas pela prioridade que a instituição atribuiu
+// (1 = preferida), para que o banco de sangue veja as opções mais
+// desejadas primeiro.
+function sortRequestedDatesByPriority<T extends { priority?: number }>(
+  requestedDates: T[]
+): T[] {
+  return [...requestedDates].sort(
+    (a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER)
+  );
 }
 
 async function getCollectionRequestsByScope(
@@ -230,10 +285,17 @@ async function getCollectionRequestsByScope(
     )
   );
 
-  // Parallelize institution and availableDates calls
-  const [institutions, availableDates] = await Promise.all([
+  const bloodBankIds = Array.from(
+    new Set(requests.map((r) => r.bloodBanksLocationId))
+  );
+
+  // Parallelize institution, bloodBank and availableDates calls
+  const [institutions, bloodBanks, availableDates] = await Promise.all([
     institutionIds.length > 0
       ? getInstitutionsByIds(institutionIds)
+      : Promise.resolve([]),
+    bloodBankIds.length > 0
+      ? BloodBank.find({ bloodBanksLocationId: { $in: bloodBankIds } }).lean()
       : Promise.resolve([]),
     AvailableDate.find({
       _id: { $in: allRequestedDateIds },
@@ -244,6 +306,10 @@ async function getCollectionRequestsByScope(
   ]);
   // Create institution lookup map
   const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
+
+  const bloodBankMap = new Map(
+    bloodBanks.map((bb) => [bb.bloodBanksLocationId, bb])
+  );
 
   const availableDateMap = new Map(
     availableDates.map((ad) => [ad._id.toString(), ad])
@@ -258,6 +324,8 @@ async function getCollectionRequestsByScope(
         return null;
       }
 
+      const bloodBankDoc = bloodBankMap.get(request.bloodBanksLocationId);
+
       // Build available slot options for this request
       const availableSlotOptions: Array<{
         availableDateId: string;
@@ -269,6 +337,7 @@ async function getCollectionRequestsByScope(
         teamColor?: string;
         isLocked?: boolean;
         isRequested?: boolean;
+        priority?: number;
       }> = [];
 
       // Create a set of requested slot IDs for quick lookup
@@ -281,8 +350,9 @@ async function getCollectionRequestsByScope(
         }
       });
 
-      // Process each requested date and extract all available slots
-      request.requestedDates.forEach((rd) => {
+      // Process each requested date (da mais preferida para a menos) e
+      // extrair todos os slots disponíveis
+      sortRequestedDatesByPriority(request.requestedDates).forEach((rd) => {
         const availableDate = availableDateMap.get(
           rd.availableDateId.toString()
         );
@@ -310,6 +380,7 @@ async function getCollectionRequestsByScope(
                 teamColor: (slot.teamId as any)?.color || "#3B82F6",
                 isLocked: slot.locked || false,
                 isRequested: requestedSlotIds.has(slot._id.toString()),
+                priority: rd.priority,
               });
             }
           });
@@ -330,6 +401,8 @@ async function getCollectionRequestsByScope(
         institutionLogo: institution.logo,
         institutionBanner: institution.banner,
         institutionStatus: institution.status,
+        bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
+        bloodBankLogo: bloodBankDoc?.logo,
         availableSlotOptions,
       };
     })
@@ -435,10 +508,12 @@ export async function getCollectionRequestById(
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean;
+    priority?: number;
   }> = [];
 
-  // Process each requested date and extract all available slots
-  request.requestedDates.forEach((rd) => {
+  // Process each requested date (da mais preferida para a menos) e extrair
+  // todos os slots disponíveis
+  sortRequestedDatesByPriority(request.requestedDates).forEach((rd) => {
     const availableDate = availableDateMap.get(rd.availableDateId.toString());
     const requestedSlotIds = new Set<string>();
 
@@ -466,6 +541,7 @@ export async function getCollectionRequestById(
             teamColor: (slot.teamId as { color?: string })?.color || "#3B82F6",
             isLocked: slot.locked || false,
             isRequested: requestedSlotIds.has(slot._id.toString()),
+            priority: rd.priority,
           });
         }
       });
@@ -631,6 +707,18 @@ function getTechnicalVisitAddress(request: {
   return formattedAddress.slice(0, 500) || "Endereço não informado";
 }
 
+function combineDateAndTime(date: Date, startTime: string): Date {
+  // `date` chega como meia-noite UTC do dia local (z.coerce.date() de
+  // "YYYY-MM-DD"). O horário digitado é hora LOCAL do banco
+  // (America/Sao_Paulo) — converte para o instante correto em UTC com
+  // dayjs.tz, no mesmo padrão de server/services/availableDate.ts.
+  const datePart = dayjs.utc(date).format("YYYY-MM-DD");
+  return dayjs
+    .tz(`${datePart}T${startTime}`, TECHNICAL_VISIT_TIMEZONE)
+    .utc()
+    .toDate();
+}
+
 async function getAwaitingTechnicalVisitRequest(
   requestId: string,
   bloodBanksLocationId: string
@@ -657,7 +745,11 @@ async function linkTechnicalVisitToRequest(
   technicalVisitId: string | Types.ObjectId,
   status: "awaiting_technical_visit" | "technical_visit_confirmed",
   changedByUserId: string,
-  reason: string
+  reason: string,
+  notifyOverride?: {
+    transition: CollectionRequestNotificationTransition;
+    recipientUserId?: string;
+  }
 ) {
   const updatedRequest = await CollectionRequest.findOneAndUpdate(
     {
@@ -691,9 +783,13 @@ async function linkTechnicalVisitToRequest(
     requestId,
     bloodBanksLocationId,
     transition:
-      status === "technical_visit_confirmed"
+      notifyOverride?.transition ??
+      (status === "technical_visit_confirmed"
         ? "technical_visit_confirmed"
-        : "awaiting_technical_visit",
+        : "awaiting_technical_visit"),
+    ...(notifyOverride?.recipientUserId && {
+      recipientUserId: notifyOverride.recipientUserId,
+    }),
   });
 
   return updatedRequest;
@@ -835,7 +931,8 @@ export async function markCollectionRequestScheduled(
 
 export async function counterPropose(
   requestId: string,
-  data: CounterProposeData
+  data: CounterProposeData,
+  bloodBanksLocationId: string
 ) {
   const counterProposal: CounterProposal = {
     ...data,
@@ -851,6 +948,7 @@ export async function counterPropose(
   const updatedRequest = await CollectionRequest.findOneAndUpdate(
     {
       _id: requestId,
+      bloodBanksLocationId,
       status: "pending",
       deletedAt: null,
       counterProposal: { $exists: false },
@@ -871,15 +969,11 @@ export async function counterPropose(
     );
   }
 
-  const notificationBloodBanksLocationId = updatedRequest.bloodBanksLocationId
-    ?.toString();
-  if (notificationBloodBanksLocationId) {
-    void notifyCollectionRequestStatusTransition({
-      requestId,
-      bloodBanksLocationId: notificationBloodBanksLocationId,
-      transition: "counter_proposed",
-    });
-  }
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition: "counter_proposed",
+  });
 
   return updatedRequest;
 }
@@ -1007,12 +1101,201 @@ export async function respondToCounterProposal(
   return updatedRequest;
 }
 
+export async function proposeTechnicalVisit(
+  requestId: string,
+  data: ProposeTechnicalVisitData,
+  bloodBanksLocationId: string
+) {
+  const visitProposal: VisitProposal = {
+    ...data,
+    proposedAt: new Date(),
+  };
+  const statusHistoryEntry = {
+    status: "awaiting_technical_visit" as const,
+    changedAt: new Date(),
+    changedBy: data.proposedBy,
+    reason: "Technical visit dates proposed by blood bank",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+      visitProposal: { $exists: false },
+      technicalVisitId: { $exists: false },
+    },
+    {
+      $set: { visitProposal },
+      $push: { statusHistory: statusHistoryEntry },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Request not found, not awaiting technical visit, or already has a visit proposal or scheduled visit"
+    );
+  }
+
+  void notifyCollectionRequestStatusTransition({
+    requestId,
+    bloodBanksLocationId,
+    transition: "technical_visit_proposed",
+  });
+
+  return updatedRequest;
+}
+
+export async function respondToTechnicalVisitProposal(
+  requestId: string,
+  data: RespondToTechnicalVisitProposalData
+) {
+  const request = await CollectionRequest.findOne({
+    _id: requestId,
+    status: "awaiting_technical_visit",
+    deletedAt: null,
+    visitProposal: { $exists: true },
+  });
+
+  if (!request?.visitProposal) {
+    throw new Error(
+      "Request not found or not awaiting a technical visit proposal response"
+    );
+  }
+
+  const currentVisitProposal =
+    request.visitProposal as unknown as VisitProposal;
+  const bloodBanksLocationId = request.bloodBanksLocationId.toString();
+
+  let selectedDate: CounterProposalDate | undefined;
+  if (data.decision === "accepted") {
+    const selectedDateIndex = Number(data.selectedDateId);
+    selectedDate =
+      Number.isInteger(selectedDateIndex) && selectedDateIndex >= 0
+        ? currentVisitProposal.proposedDates[selectedDateIndex]
+        : undefined;
+
+    if (!selectedDate) {
+      throw new Error("Selected date is not in the technical visit proposal");
+    }
+  } else if (data.decision !== "declined") {
+    throw new Error("Invalid technical visit proposal decision");
+  }
+
+  const respondedAt = new Date();
+  const resolvedVisitProposal: VisitProposal = {
+    ...currentVisitProposal,
+    response: {
+      decision: data.decision,
+      selectedDateId: data.selectedDateId,
+      respondedAt,
+      respondedBy: data.respondedBy,
+    },
+  };
+  const statusHistoryEntry = {
+    status: "awaiting_technical_visit" as const,
+    changedAt: respondedAt,
+    changedBy: data.respondedBy,
+    reason:
+      data.decision === "accepted"
+        ? "Technical visit date accepted by institution"
+        : "Technical visit proposal declined by institution",
+  };
+
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      status: "awaiting_technical_visit",
+      deletedAt: null,
+      visitProposal: { $exists: true },
+    },
+    {
+      $push: {
+        previousVisitProposals: resolvedVisitProposal,
+        statusHistory: statusHistoryEntry,
+      },
+      $unset: { visitProposal: 1 },
+    },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Technical visit proposal was already responded to");
+  }
+
+  if (data.decision === "declined") {
+    void notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId,
+      transition: "technical_visit_proposal_declined",
+      recipientUserId: currentVisitProposal.proposedBy,
+    });
+    return updatedRequest;
+  }
+
+  const visit = await createTechnicalVisit({
+    bloodBanksLocationId,
+    institutionId: request.institutionId.toString(),
+    address: getTechnicalVisitAddress(request),
+    visitDate: combineDateAndTime(selectedDate!.date, selectedDate!.startTime),
+    outcome: "pending",
+    notes: selectedDate!.note || undefined,
+    visitedBy: currentVisitProposal.proposedBy,
+  });
+
+  return linkTechnicalVisitToRequest(
+    requestId,
+    bloodBanksLocationId,
+    visit._id,
+    "awaiting_technical_visit",
+    data.respondedBy,
+    "Technical visit scheduled after institution accepted proposed date",
+    {
+      transition: "technical_visit_scheduled",
+      recipientUserId: currentVisitProposal.proposedBy,
+    }
+  );
+}
+
+// Status de onde uma solicitação pode ser rejeitada pelo banco de sangue.
+// "Rejeitável" = todo status em aberto; exclui apenas estados terminais
+// (rejected, cancelled) e o estado finalizado (scheduled).
+const REJECTABLE_STATUSES: CollectionRequestStatus[] = [
+  "pending",
+  "accepted",
+  "counter_proposed",
+  "counter_proposal_declined",
+  "awaiting_technical_visit",
+  "technical_visit_confirmed",
+];
+
 export async function rejectCollectionRequest(
   requestId: string,
   rejectionReason: string,
   rejectedByUserId: string,
   bloodBanksLocationId: string
 ): Promise<CollectionRequestWithDetails | null> {
+  const currentRequest = await CollectionRequest.findOne({
+    _id: requestId,
+    deletedAt: null,
+    bloodBanksLocationId,
+  }).lean();
+
+  if (!currentRequest) {
+    return null;
+  }
+
+  if (!REJECTABLE_STATUSES.includes(currentRequest.status)) {
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        "Collection request cannot be rejected in its current status",
+      message: `Collection request cannot be rejected in its current status (${currentRequest.status})`,
+    });
+  }
+
   const statusHistoryEntry = {
     status: "rejected",
     changedAt: new Date(),
@@ -1023,7 +1306,7 @@ export async function rejectCollectionRequest(
   await CollectionRequest.findOneAndUpdate(
     {
       _id: requestId,
-      status: "pending",
+      status: { $in: REJECTABLE_STATUSES },
       deletedAt: null,
       bloodBanksLocationId,
     },
@@ -1245,6 +1528,7 @@ export interface CreateCollectionRequestData {
     availableDateId: string;
     slotIds?: string[];
     startTime?: string;
+    priority?: number;
   }>;
   host: {
     name: string;
@@ -1253,6 +1537,29 @@ export interface CreateCollectionRequestData {
   };
   address?: StructuredAddress;
   note?: string;
+}
+
+// Preenche priority sequencialmente pela posição no array quando o chamador
+// não informa uma prioridade explícita para cada data. Mistura entre
+// datas com e sem priority não é permitida: se qualquer uma vier sem
+// priority, todas são renumeradas pela posição, para nunca gerar
+// prioridades duplicadas ou parciais.
+function normalizeRequestedDatesPriority(
+  requestedDates: CreateCollectionRequestData["requestedDates"]
+): Array<{
+  availableDateId: string;
+  slotIds?: string[];
+  startTime?: string;
+  priority: number;
+}> {
+  const hasExplicitPriority = requestedDates.every(
+    (rd) => typeof rd.priority === "number"
+  );
+
+  return requestedDates.map((rd, index) => ({
+    ...rd,
+    priority: hasExplicitPriority ? (rd.priority as number) : index + 1,
+  }));
 }
 
 export async function createCollectionRequest(
@@ -1288,9 +1595,16 @@ export async function createCollectionRequest(
   });
 
   if (existingOpenRequest) {
-    throw new Error(
-      "Esta instituição já possui uma solicitação em aberto para este banco de sangue"
-    );
+    // 409 estruturado: o client (pages/agagar/[bloodbankSlug]) faz
+    // errorMessage.includes("já possui uma solicitação em aberto") —
+    // preservar a mensagem em data.message e statusMessage.
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+      message:
+        "Esta instituição já possui uma solicitação em aberto para este banco de sangue",
+    });
   }
 
   // Validate requested dates exist and belong to this blood bank
@@ -1308,14 +1622,18 @@ export async function createCollectionRequest(
   }
 
   // Create the collection request
+  const normalizedRequestedDates = normalizeRequestedDatesPriority(
+    data.requestedDates
+  );
   const collectionRequest = new CollectionRequest({
     institutionId: data.institutionId,
     requestedByUserId: data.requestedByUserId,
     bloodBanksLocationId,
-    requestedDates: data.requestedDates.map((rd) => ({
+    requestedDates: normalizedRequestedDates.map((rd) => ({
       availableDateId: new Types.ObjectId(rd.availableDateId),
       slotIds: rd.slotIds?.map((id) => new Types.ObjectId(id)),
       startTime: rd.startTime,
+      priority: rd.priority,
     })),
     note: data.note,
     host: data.host,
@@ -1362,6 +1680,7 @@ export interface CollectionRequestPublicDetails {
     phone: string;
   };
   address?: StructuredAddress;
+  note?: string;
   requestedDates: Array<{
     date: string;
     startTime?: Date;
@@ -1373,6 +1692,24 @@ export interface CollectionRequestPublicDetails {
     startTime?: Date;
     endTime?: Date;
     teamName?: string;
+  };
+  counterProposal?: {
+    proposedDates: CounterProposalDate[];
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedAt: Date;
+  };
+  visitProposal?: {
+    proposedDates: CounterProposalDate[];
+    note: string;
+    proposedAt: Date;
+  };
+  technicalVisit?: {
+    id: string;
+    visitDate: Date;
+    address: string;
+    outcome: "approved" | "rejected" | "pending";
+    notes?: string;
   };
   rejectionReason?: string;
   statusHistory: Array<{
@@ -1402,16 +1739,23 @@ export async function getCollectionRequestPublicByToken(
 async function buildCollectionRequestPublicDetails(
   request: any
 ): Promise<CollectionRequestPublicDetails> {
-  const [institutions, bloodBankDoc, availableDates] = await Promise.all([
-    getInstitutionsByIds([request.institutionId.toString()]),
-    BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
-    AvailableDate.find({
-      _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
-      deletedAt: null,
-    })
-      .populate({ path: "slots.teamId", select: "name", model: Team })
-      .lean(),
-  ]);
+  const [institutions, bloodBankDoc, availableDates, technicalVisitDoc] =
+    await Promise.all([
+      getInstitutionsByIds([request.institutionId.toString()]),
+      BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
+      AvailableDate.find({
+        _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
+        deletedAt: null,
+      })
+        .populate({ path: "slots.teamId", select: "name", model: Team })
+        .lean(),
+      request.technicalVisitId
+        ? getTechnicalVisitById(
+            request.bloodBanksLocationId,
+            request.technicalVisitId.toString()
+          )
+        : Promise.resolve(null),
+    ]);
 
   const institution = institutions[0];
   const availableDateMap = new Map(
@@ -1457,6 +1801,36 @@ async function buildCollectionRequestPublicDetails(
     }
   }
 
+  const counterProposal: CollectionRequestPublicDetails["counterProposal"] =
+    request.counterProposal
+      ? {
+          proposedDates: request.counterProposal.proposedDates,
+          needsTechnicalVisit: request.counterProposal.needsTechnicalVisit,
+          note: request.counterProposal.note,
+          proposedAt: request.counterProposal.proposedAt,
+        }
+      : undefined;
+
+  const visitProposal: CollectionRequestPublicDetails["visitProposal"] =
+    request.visitProposal
+      ? {
+          proposedDates: request.visitProposal.proposedDates,
+          note: request.visitProposal.note,
+          proposedAt: request.visitProposal.proposedAt,
+        }
+      : undefined;
+
+  const technicalVisit: CollectionRequestPublicDetails["technicalVisit"] =
+    technicalVisitDoc
+      ? {
+          id: technicalVisitDoc._id.toString(),
+          visitDate: technicalVisitDoc.visitDate,
+          address: technicalVisitDoc.address,
+          outcome: technicalVisitDoc.outcome as "approved" | "rejected" | "pending",
+          ...(technicalVisitDoc.notes && { notes: technicalVisitDoc.notes }),
+        }
+      : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -1465,8 +1839,12 @@ async function buildCollectionRequestPublicDetails(
     institutionName: institution?.name || "Instituição",
     host: request.host as CollectionRequestPublicDetails["host"],
     address: request.address as StructuredAddress | undefined,
+    note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
+    counterProposal,
+    visitProposal,
+    technicalVisit,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,

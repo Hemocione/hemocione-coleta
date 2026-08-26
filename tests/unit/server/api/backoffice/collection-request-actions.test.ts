@@ -203,19 +203,23 @@ describe("ações de collection request no backoffice", () => {
       data: { id: requestId },
       message: "Counter proposal created successfully",
     });
-    expect(mocks.counterPropose).toHaveBeenCalledWith(requestId, {
-      proposedDates: [
-        {
-          date: new Date("2026-09-10T00:00:00.000Z"),
-          startTime: "09:00",
-          durationMinutes: 60,
-          note: "Horário alternativo",
-        },
-      ],
-      needsTechnicalVisit: false,
-      note: "Podemos atender nesta data",
-      proposedBy: actingAsStaffId,
-    });
+    expect(mocks.counterPropose).toHaveBeenCalledWith(
+      requestId,
+      {
+        proposedDates: [
+          {
+            date: new Date("2026-09-10T00:00:00.000Z"),
+            startTime: "09:00",
+            durationMinutes: 60,
+            note: "Horário alternativo",
+          },
+        ],
+        needsTechnicalVisit: false,
+        note: "Podemos atender nesta data",
+        proposedBy: actingAsStaffId,
+      },
+      bloodBanksLocationId
+    );
   });
 
   it.each(Object.keys(validBodies) as Action[])(

@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
+import type { AvailableDateStatus } from "~/utils/availableDateStatus";
 
 // Types
 export interface BloodbankData {
@@ -64,6 +65,7 @@ export interface AvailableDate {
   date: string;
   year: number;
   isAllTeams: boolean;
+  status?: AvailableDateStatus;
   slots: Slot[];
   allSlotsLocked?: boolean; // virtual
   deletedAt?: Date;
@@ -104,6 +106,7 @@ export interface CollectionRequest {
     teamColor?: string;
     isLocked?: boolean;
     isRequested?: boolean;
+    priority?: number;
   }>;
   host: {
     name: string;
@@ -111,15 +114,45 @@ export interface CollectionRequest {
     phone: string;
   };
   address?: StructuredAddress;
+  note?: string;
   accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
+  counterProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    needsTechnicalVisit: boolean;
+    note: string;
+    proposedBy: string;
+    proposedAt: string;
+  };
+  visitProposal?: {
+    proposedDates: Array<{
+      date: string;
+      startTime: string;
+      durationMinutes: number;
+      note: string;
+    }>;
+    note: string;
+    proposedBy: string;
+    proposedAt: string;
+  };
+  technicalVisitId?: string;
   status:
     | "pending"
     | "institution_needs_validation"
     | "accepted"
     | "rejected"
-    | "cancelled";
+    | "cancelled"
+    | "counter_proposed"
+    | "counter_proposal_declined"
+    | "awaiting_technical_visit"
+    | "technical_visit_confirmed"
+    | "scheduled";
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -870,6 +903,52 @@ export const useBloodbankStore = defineStore("bloodbank", {
       }
     },
 
+    async updateAvailableDateStatus(
+      bloodBanksLocationId: string,
+      availableDateId: string,
+      status: AvailableDateStatus
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/available-dates/${availableDateId}`,
+          {
+            method: "PATCH",
+            body: { status },
+          }
+        );
+
+        if (response.success) {
+          const availableDateIndex = this.availableDates.findIndex(
+            (ad) => ad._id === availableDateId
+          );
+          if (availableDateIndex !== -1) {
+            this.availableDates[availableDateIndex] = {
+              ...response.data,
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : undefined,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              slots: response.data.slots.map((slot: any) => ({
+                ...slot,
+                startTime: new Date(slot.startTime),
+                endTime: new Date(slot.endTime),
+              })),
+            };
+          }
+          return response.data;
+        } else {
+          throw new Error("Failed to update available date status");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error updating available date status";
+        console.error("Error updating available date status:", error);
+        throw error;
+      }
+    },
+
     async deleteAvailableDate(
       bloodBanksLocationId: string,
       availableDateId: string
@@ -1128,6 +1207,117 @@ export const useBloodbankStore = defineStore("bloodbank", {
       } catch (error: any) {
         this.error = error.message || "Error rejecting collection request";
         console.error("Error rejecting collection request:", error);
+        throw error;
+      }
+    },
+
+    async counterProposeCollectionRequest(
+      requestId: string,
+      data: {
+        proposedDates: Array<{
+          date: string;
+          startTime: string;
+          durationMinutes: number;
+          note: string;
+        }>;
+        needsTechnicalVisit: boolean;
+        note: string;
+      },
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/counter-propose`,
+          {
+            method: "POST",
+            body: data,
+          }
+        );
+
+        if (response.success) {
+          this.collectionRequests.data = this.collectionRequests.data.filter(
+            (req) => req._id !== requestId
+          );
+          this.collectionRequests.pagination.total = Math.max(
+            0,
+            this.collectionRequests.pagination.total - 1
+          );
+
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...response.data,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              availableSlotOptions: response.data.availableSlotOptions.map(
+                (slot: any) => ({
+                  ...slot,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                })
+              ),
+              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                ...sh,
+                changedAt: new Date(sh.changedAt),
+              })),
+            };
+          }
+
+          if (this.dashboardData && this.dashboardData.pendingRequestsCount > 0) {
+            this.dashboardData.pendingRequestsCount--;
+          }
+
+          return response.data;
+        } else {
+          throw new Error("Failed to send counter proposal");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error sending counter proposal";
+        console.error("Error sending counter proposal:", error);
+        throw error;
+      }
+    },
+
+    async proposeTechnicalVisit(
+      requestId: string,
+      data: {
+        proposedDates: Array<{
+          date: string;
+          startTime: string;
+          durationMinutes: number;
+          note: string;
+        }>;
+        note: string;
+      },
+      bloodBanksLocationId: string
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests/${requestId}/propose-technical-visit`,
+          {
+            method: "POST",
+            body: data,
+          }
+        );
+
+        if (response.success) {
+          if (this.currentCollectionRequest?._id === requestId) {
+            this.currentCollectionRequest = {
+              ...this.currentCollectionRequest,
+              ...response.data,
+            };
+          }
+
+          return response.data;
+        }
+
+        throw new Error("Failed to send technical visit proposal");
+      } catch (error: any) {
+        this.error = error.message || "Error sending technical visit proposal";
+        console.error("Error sending technical visit proposal:", error);
         throw error;
       }
     },

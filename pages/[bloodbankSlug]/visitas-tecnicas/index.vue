@@ -119,6 +119,20 @@
                   </UButton>
                 </div>
 
+                <!-- Registrar visita realizada (solicitação vinculada em aberto) -->
+                <UButton
+                  v-if="getLinkedOpenRequest(visit)"
+                  variant="soft"
+                  color="success"
+                  size="sm"
+                  icon="i-lucide-clipboard-check"
+                  block
+                  @click.stop="openRegisterVisitModal(visit)"
+                  class="cursor-pointer"
+                >
+                  Registrar visita realizada
+                </UButton>
+
                 <!-- Notes (truncated) -->
                 <p
                   v-if="visit.notes"
@@ -230,6 +244,59 @@
         </div>
       </template>
     </UModal>
+    <!-- Register Performed Visit Modal (request-scoped) -->
+    <UModal v-model:open="showRegisterModal">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-1">
+            Registrar visita realizada
+          </h3>
+          <p v-if="registerContext" class="text-sm text-gray-500 mb-4">
+            Solicitação de {{ registerContext.institutionName }} será avançada
+            para "Visita técnica confirmada".
+          </p>
+
+          <div class="space-y-4">
+            <UFormField label="Data da Visita" required>
+              <UInput
+                v-model="registerFormData.visitDate"
+                type="date"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField label="Observacoes">
+              <UTextarea
+                v-model="registerFormData.note"
+                placeholder="Observacoes sobre a visita realizada..."
+                :rows="4"
+                :maxlength="2000"
+                class="w-full resize-y"
+              />
+            </UFormField>
+          </div>
+
+          <div class="flex justify-end space-x-3 mt-6">
+            <UButton
+              variant="ghost"
+              @click="showRegisterModal = false"
+              class="cursor-pointer"
+            >
+              Cancelar
+            </UButton>
+            <UButton
+              color="primary"
+              :disabled="!registerFormData.visitDate"
+              :loading="isRegistering"
+              @click="submitRegisterVisit"
+              class="cursor-pointer"
+            >
+              Confirmar visita realizada
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -271,6 +338,12 @@ interface TechnicalVisit {
   updatedAt: string;
 }
 
+interface OpenCollectionRequest {
+  _id: string;
+  institutionName: string;
+  technicalVisitId?: string;
+}
+
 // State
 const selectedFilter = ref("all");
 const currentPage = ref(1);
@@ -287,6 +360,14 @@ const formData = ref({
   outcome: "pending" as "approved" | "rejected" | "pending",
   notes: "",
 });
+
+// Solicitações aguardando visita técnica (para o registro vinculado)
+const openRequests = ref<OpenCollectionRequest[]>([]);
+const showRegisterModal = ref(false);
+const isRegistering = ref(false);
+const registerTargetVisit = ref<TechnicalVisit | null>(null);
+const registerContext = ref<OpenCollectionRequest | null>(null);
+const registerFormData = ref({ visitDate: "", note: "" });
 
 const filterTabs = [
   { value: "all", label: "Todas" },
@@ -306,6 +387,30 @@ const isFormValid = computed(() => {
 });
 
 // Methods
+const loadOpenRequests = async () => {
+  if (!bloodBanksLocationId.value) return;
+
+  try {
+    const response = await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/collection-requests?status=awaiting_technical_visit&limit=100`
+    ) as any;
+
+    if (response.success) {
+      openRequests.value = response.data;
+    }
+  } catch (error) {
+    console.error("Error loading awaiting technical visit requests:", error);
+  }
+};
+
+const getLinkedOpenRequest = (visit: TechnicalVisit) => {
+  return (
+    openRequests.value.find(
+      (request) => request.technicalVisitId === visit._id
+    ) || null
+  );
+};
+
 const loadVisits = async () => {
   if (!bloodBanksLocationId.value) return;
   isLoading.value = true;
@@ -403,6 +508,59 @@ const submitForm = async () => {
     });
   } finally {
     isSaving.value = false;
+  }
+};
+
+const openRegisterVisitModal = (visit: TechnicalVisit) => {
+  const request = getLinkedOpenRequest(visit);
+  if (!request) return;
+
+  registerTargetVisit.value = visit;
+  registerContext.value = request;
+  registerFormData.value = {
+    visitDate: dayjs().format("YYYY-MM-DD"),
+    note: "",
+  };
+  showRegisterModal.value = true;
+};
+
+const submitRegisterVisit = async () => {
+  if (
+    !bloodBanksLocationId.value ||
+    !registerContext.value ||
+    !registerFormData.value.visitDate
+  ) {
+    return;
+  }
+  isRegistering.value = true;
+
+  try {
+    await fetchWithAuth(
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/collection-requests/${registerContext.value._id}/register-retroactive-visit`,
+      {
+        method: "POST",
+        body: {
+          visitDate: registerFormData.value.visitDate,
+          note: registerFormData.value.note?.trim() || undefined,
+        },
+      }
+    );
+    useToast().add({
+      title: "Visita registrada!",
+      description: "Solicitação avançada para visita técnica confirmada.",
+      color: "success",
+    });
+    showRegisterModal.value = false;
+    await Promise.all([loadVisits(), loadOpenRequests()]);
+  } catch (error: any) {
+    console.error("Error registering performed visit:", error);
+    useToast().add({
+      title: "Erro ao registrar visita",
+      description: error.message || "Tente novamente.",
+      color: "error",
+    });
+  } finally {
+    isRegistering.value = false;
   }
 };
 
@@ -514,5 +672,6 @@ watch(selectedFilter, () => {
 // Lifecycle
 onMounted(() => {
   loadVisits();
+  loadOpenRequests();
 });
 </script>

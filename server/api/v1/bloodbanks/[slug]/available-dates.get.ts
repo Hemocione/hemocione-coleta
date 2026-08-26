@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
     start,
     end,
     monthsAhead: monthsAhead ?? 12,
+    // Doador só pode ver/agendar datas liberadas.
+    excludeStatuses: ["blocked", "pending"],
   });
 
   // Strip sensitive fields if any (none currently)

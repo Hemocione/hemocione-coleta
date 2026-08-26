@@ -55,6 +55,12 @@ const RequestedDateSchema = new Schema(
       type: String,
       required: false,
     },
+    priority: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 3,
+    },
   },
   { _id: false }
 );
@@ -90,6 +96,27 @@ const CounterProposalSchema = new Schema(
       required: true,
     },
     needsTechnicalVisit: { type: Boolean, required: true },
+    note: { type: String, required: true },
+    proposedBy: { type: String, required: true },
+    proposedAt: { type: Date, required: true },
+    response: {
+      type: CounterProposalResponseSchema,
+      required: false,
+    },
+  },
+  { _id: false }
+);
+
+// Reaproveita CounterProposalDateSchema/CounterProposalResponseSchema (mesma
+// forma) para manter a proposta de data/hora da visita técnica num campo
+// separado de counterProposal — evita colidir com confirmedSchedule, que já
+// representa a data do EVENTO.
+const VisitProposalSchema = new Schema(
+  {
+    proposedDates: {
+      type: [CounterProposalDateSchema],
+      required: true,
+    },
     note: { type: String, required: true },
     proposedBy: { type: String, required: true },
     proposedAt: { type: Date, required: true },
@@ -167,9 +194,14 @@ export const CollectionRequestSchema = new Schema(
       required: true,
       validate: {
         validator: function (dates: any[]) {
-          return dates.length >= 1 && dates.length <= 3;
+          if (dates.length < 1 || dates.length > 3) return false;
+          const priorities = dates.map((d) => d.priority);
+          const uniquePriorities = new Set(priorities);
+          if (uniquePriorities.size !== dates.length) return false;
+          return priorities.every((p) => p >= 1 && p <= dates.length);
         },
-        message: "Must have between 1 and 3 requested dates",
+        message:
+          "Must have between 1 and 3 requested dates with unique priorities from 1 to the number of dates",
       },
     },
     selectedAvailableDateId: {
@@ -195,6 +227,15 @@ export const CollectionRequestSchema = new Schema(
     },
     previousCounterProposals: {
       type: [CounterProposalSchema],
+      required: false,
+      default: [],
+    },
+    visitProposal: {
+      type: VisitProposalSchema,
+      required: false,
+    },
+    previousVisitProposals: {
+      type: [VisitProposalSchema],
       required: false,
       default: [],
     },

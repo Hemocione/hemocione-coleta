@@ -37,6 +37,12 @@ const bodySchema = z.object({
               .regex(/^[0-9a-fA-F]{24}$/, "slotId deve ser um ObjectId válido")
           )
           .optional(),
+        priority: z
+          .number()
+          .int("priority deve ser um número inteiro")
+          .min(1, "priority deve ser entre 1 e 3")
+          .max(3, "priority deve ser entre 1 e 3")
+          .optional(),
       })
     )
     .min(1, "Pelo menos uma data deve ser solicitada")

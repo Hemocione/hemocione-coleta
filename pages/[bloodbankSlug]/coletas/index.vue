@@ -228,6 +228,10 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
+import {
+  getCollectionRequestStatusColor,
+  getCollectionRequestStatusLabel,
+} from "~/utils/collectionRequestStatus";
 
 // Define page meta
 definePageMeta({
@@ -285,35 +289,11 @@ const loadRequests = async () => {
   }
 };
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "warning";
-    case "accepted":
-      return "success";
-    case "rejected":
-      return "neutral";
-    case "cancelled":
-      return "neutral";
-    default:
-      return "neutral";
-  }
-};
+const getStatusColor = (status: string) =>
+  getCollectionRequestStatusColor(status);
 
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "Pendente";
-    case "accepted":
-      return "Aceita";
-    case "rejected":
-      return "Rejeitada";
-    case "cancelled":
-      return "Cancelada";
-    default:
-      return status;
-  }
-};
+const getStatusLabel = (status: string) =>
+  getCollectionRequestStatusLabel(status);
 
 const formatStringDate = (date: string) => {
   // Espera o formato "YYYY-MM-DD" e retorna "DD/MM/YYYY"

@@ -395,7 +395,11 @@
                     class="font-medium"
                     :class="slot.isLocked ? 'text-gray-500' : 'text-gray-900'"
                   >
-                    Opção {{ index + 1 }}
+                    {{
+                      slot.priority
+                        ? priorityLabel(slot.priority)
+                        : `Opção ${index + 1}`
+                    }}
                   </h4>
                   <UBadge
                     v-if="slot.isRequested"
@@ -404,14 +408,6 @@
                     size="sm"
                   >
                     Solicitado
-                  </UBadge>
-                  <UBadge
-                    v-if="slot.isRequested && slot.priority"
-                    color="info"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ priorityLabel(slot.priority) }}
                   </UBadge>
                   <UBadge
                     v-if="slot.isLocked"
@@ -1066,6 +1062,10 @@ import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import type { CollectionRequest } from "~/stores/bloodbank";
+import {
+  getCollectionRequestStatusColor,
+  getCollectionRequestStatusLabel,
+} from "~/utils/collectionRequestStatus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -1196,45 +1196,11 @@ const formatCep = (cep: string) => {
   return digits;
 };
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "warning";
-    case "accepted":
-      return "success";
-    case "rejected":
-      return "neutral";
-    case "cancelled":
-      return "neutral";
-    case "counter_proposed":
-      return "info";
-    case "counter_proposal_declined":
-      return "error";
-    default:
-      return "primary";
-  }
-};
+const getStatusColor = (status: string) =>
+  getCollectionRequestStatusColor(status);
 
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "Pendente";
-    case "accepted":
-      return "Aceita";
-    case "rejected":
-      return "Rejeitada";
-    case "cancelled":
-      return "Cancelada";
-    case "institution_needs_validation":
-      return "Aguardando Validação";
-    case "counter_proposed":
-      return "Contraproposta Enviada";
-    case "counter_proposal_declined":
-      return "Contraproposta Recusada";
-    default:
-      return status;
-  }
-};
+const getStatusLabel = (status: string) =>
+  getCollectionRequestStatusLabel(status);
 
 const formatDate = (date: string | Date) => {
   return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY");
@@ -1254,15 +1220,12 @@ const formatTimeRange = (
   return `${start} - ${end}`;
 };
 
-// Rótulo da prioridade que a instituição atribuiu a esta data (1 = a data
-// que a instituição mais prefere).
+// Rótulo da prioridade que a instituição atribuiu a esta data (índice 0 =
+// a data que a instituição mais prefere). Texto alinhado à página de
+// agendamento (pages/agendar/[bloodbankSlug]/index.vue).
 const priorityLabel = (priority: number) => {
-  const labels: Record<number, string> = {
-    1: "1ª preferência da instituição",
-    2: "2ª preferência da instituição",
-    3: "3ª preferência da instituição",
-  };
-  return labels[priority] || `${priority}ª preferência da instituição`;
+  const labels = ["1ª opção preferida", "2ª opção", "3ª opção"];
+  return labels[priority - 1] || `${priority}ª opção`;
 };
 
 const initializeMap = () => {

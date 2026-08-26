@@ -232,12 +232,13 @@ describe("respondToTechnicalVisitProposal", () => {
     });
     expect(resolveUpdate.$unset).toEqual({ visitProposal: 1 });
 
-    // Technical visit created from the selected proposed date (index 1)
+    // Technical visit created from the selected proposed date (index 1).
+    // "14:00" é hora local do banco (America/Sao_Paulo) → 17:00Z em UTC.
     expect(mocks.createTechnicalVisit).toHaveBeenCalledWith({
       bloodBanksLocationId,
       institutionId: "institution-a",
       address: "Rua A, 10, Centro, São Paulo - SP, 01000000",
-      visitDate: new Date("2026-09-11T14:00:00.000Z"),
+      visitDate: new Date("2026-09-11T17:00:00.000Z"),
       outcome: "pending",
       notes: "Segunda opção",
       visitedBy: bankUserId,
@@ -263,6 +264,53 @@ describe("respondToTechnicalVisitProposal", () => {
       transition: "technical_visit_scheduled",
       recipientUserId: bankUserId,
     });
+  });
+
+  it("interpreta o horário proposto como hora local de America/Sao_Paulo", async () => {
+    mocks.collectionRequestFindOne.mockResolvedValue({
+      _id: requestId,
+      status: "awaiting_technical_visit",
+      bloodBanksLocationId,
+      institutionId: "institution-a",
+      address: {
+        street: "Rua A",
+        number: "10",
+        neighborhood: "Centro",
+        city: "São Paulo",
+        state: "SP",
+        zipCode: "01000000",
+      },
+      visitProposal: {
+        ...visitProposal,
+        proposedDates: [
+          {
+            // Meia-noite UTC do dia local (padrão do z.coerce.date())
+            date: new Date("2026-09-30T00:00:00.000Z"),
+            startTime: "14:00",
+            durationMinutes: 60,
+            note: "",
+          },
+        ],
+      },
+    });
+    mocks.collectionRequestFindOneAndUpdate.mockResolvedValue({
+      _id: requestId,
+      status: "awaiting_technical_visit",
+    });
+    mocks.createTechnicalVisit.mockResolvedValue({ _id: "visit-new" });
+
+    await respondToTechnicalVisitProposal(requestId, {
+      decision: "accepted",
+      selectedDateId: "0",
+      respondedBy: institutionUserId,
+    });
+
+    // 14:00 BRT (UTC-3) → 17:00Z; proposta e card exibem o mesmo horário.
+    expect(mocks.createTechnicalVisit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visitDate: new Date("2026-09-30T17:00:00.000Z"),
+      })
+    );
   });
 
   it("rejeita quando a data selecionada não existe na proposta", async () => {

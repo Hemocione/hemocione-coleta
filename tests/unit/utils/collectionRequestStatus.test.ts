@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COLLECTION_REQUEST_STATUSES,
+  getBloodbankCollectionRequestStatusLabel,
   getCollectionRequestStatusColor,
   getCollectionRequestStatusLabel,
 } from "~/utils/collectionRequestStatus";
@@ -82,5 +83,20 @@ describe("getCollectionRequestStatusColor", () => {
 
   it("returns neutral for unknown status", () => {
     expect(getCollectionRequestStatusColor("some_new_status")).toBe("neutral");
+  });
+});
+
+describe("getBloodbankCollectionRequestStatusLabel", () => {
+  it("descreve counter_proposed como uma contraproposta enviada pelo banco", () => {
+    expect(getBloodbankCollectionRequestStatusLabel("counter_proposed")).toBe(
+      "Contraproposta enviada"
+    );
+  });
+
+  it("preserva o rótulo público da instituição para os demais status", () => {
+    expect(getBloodbankCollectionRequestStatusLabel("pending")).toBe(
+      "Pendente"
+    );
+    expect(getBloodbankCollectionRequestStatusLabel("accepted")).toBe("Aceita");
   });
 });

@@ -250,7 +250,12 @@ async function getCollectionRequestsByScope(
   };
 
   if (filters.status) {
-    query.status = filters.status;
+    const statuses = filters.status
+      .split(",")
+      .map((status) => status.trim())
+      .filter(Boolean);
+
+    query.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
   }
 
   if (filters.institutionId) {

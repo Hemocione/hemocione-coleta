@@ -169,6 +169,14 @@
                     {{ formatDate(request.createdAt) }}
                   </span>
                 </div>
+                <p
+                  v-if="request.status === 'counter_proposed'"
+                  class="flex items-center gap-2 text-sm text-blue-700"
+                  data-testid="counter-proposal-pending"
+                >
+                  <UIcon name="i-lucide-clock-3" class="w-4 h-4 shrink-0" />
+                  Aguardando resposta da instituição
+                </p>
 
                 <!-- Available Dates -->
                 <div>
@@ -229,8 +237,8 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import {
+  getBloodbankCollectionRequestStatusLabel,
   getCollectionRequestStatusColor,
-  getCollectionRequestStatusLabel,
 } from "~/utils/collectionRequestStatus";
 
 // Define page meta
@@ -270,7 +278,10 @@ const loadRequests = async () => {
   if (!bloodBanksLocationId.value) return;
 
   const filters: any = {
-    status: selectedFilter.value,
+    status:
+      selectedFilter.value === "pending"
+        ? "pending,counter_proposed"
+        : selectedFilter.value,
   };
 
   try {
@@ -293,7 +304,7 @@ const getStatusColor = (status: string) =>
   getCollectionRequestStatusColor(status);
 
 const getStatusLabel = (status: string) =>
-  getCollectionRequestStatusLabel(status);
+  getBloodbankCollectionRequestStatusLabel(status);
 
 const formatStringDate = (date: string) => {
   // Espera o formato "YYYY-MM-DD" e retorna "DD/MM/YYYY"

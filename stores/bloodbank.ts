@@ -903,6 +903,52 @@ export const useBloodbankStore = defineStore("bloodbank", {
       }
     },
 
+    async updateAvailableDateStatus(
+      bloodBanksLocationId: string,
+      availableDateId: string,
+      status: AvailableDateStatus
+    ) {
+      this.error = null;
+
+      try {
+        const response = await fetchWithAuth(
+          `/api/v1/bloodbank/${bloodBanksLocationId}/available-dates/${availableDateId}`,
+          {
+            method: "PATCH",
+            body: { status },
+          }
+        );
+
+        if (response.success) {
+          const availableDateIndex = this.availableDates.findIndex(
+            (ad) => ad._id === availableDateId
+          );
+          if (availableDateIndex !== -1) {
+            this.availableDates[availableDateIndex] = {
+              ...response.data,
+              deletedAt: response.data.deletedAt
+                ? new Date(response.data.deletedAt)
+                : undefined,
+              createdAt: new Date(response.data.createdAt),
+              updatedAt: new Date(response.data.updatedAt),
+              slots: response.data.slots.map((slot: any) => ({
+                ...slot,
+                startTime: new Date(slot.startTime),
+                endTime: new Date(slot.endTime),
+              })),
+            };
+          }
+          return response.data;
+        } else {
+          throw new Error("Failed to update available date status");
+        }
+      } catch (error: any) {
+        this.error = error.message || "Error updating available date status";
+        console.error("Error updating available date status:", error);
+        throw error;
+      }
+    },
+
     async deleteAvailableDate(
       bloodBanksLocationId: string,
       availableDateId: string

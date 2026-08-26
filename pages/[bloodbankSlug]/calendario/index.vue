@@ -375,33 +375,24 @@
     >
       <template #body>
         <div v-if="selectedAvailableDate" class="space-y-6">
-          <!-- Informações da data (DEBUG)-->
-          <!-- <div class="bg-gray-50 rounded-lg p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-600">Data</p>
-                <p class="font-semibold">
-                  {{ formatDateToYYYYMMDD(selectedAvailableDate.date) }}
-                </p>
-              </div>
-              <div>
-                <p class="text-sm text-gray-600">Equipes</p>
-                <p class="font-semibold">
-                  {{ selectedAvailableDate.slots.length }} equipe(s)
-                </p>
-              </div>
-              <div>
-                <p class="text-sm text-gray-600">Tipo</p>
-                <p class="font-semibold">
-                  {{
-                    selectedAvailableDate.isAllTeams
-                      ? "Todas as equipes"
-                      : "Individual"
-                  }}
-                </p>
-              </div>
+          <!-- Status da data -->
+          <div
+            class="flex items-center justify-between gap-3 bg-gray-50 rounded-lg p-3"
+          >
+            <div>
+              <p class="text-sm font-medium text-gray-700">Status da data</p>
+              <p class="text-xs text-gray-500">
+                {{ statusHint(selectedStatus) }}
+              </p>
             </div>
-          </div> -->
+            <USelect
+              v-model="selectedStatus"
+              :items="statusOptions"
+              :disabled="isUpdatingStatus"
+              class="w-48 shrink-0"
+              @update:model-value="handleStatusChange"
+            />
+          </div>
 
           <!-- Lista de slots -->
           <div class="space-y-2">
@@ -448,6 +439,10 @@
                   :style="{ color: getTeamColor(slot.teamId) }"
                 >
                   {{ getTeamName(slot.teamId) }}
+                </p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Horário:
+                  {{ formatTimeRange(slot.startTime, slot.endTime) }}
                 </p>
                 <div class="flex items-center space-x-2 mt-1">
                   <UInput
@@ -641,7 +636,10 @@ import { useUserStore } from "~/stores/user";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import type { AvailableDate } from "~/stores/bloodbank";
 import { formatDateToYYYYMMDD } from "~/utils/dateHelpers";
-import { getCalendarAvailabilityColor } from "~/utils/availableDateStatus";
+import {
+  getCalendarAvailabilityColor,
+  type AvailableDateStatus,
+} from "~/utils/availableDateStatus";
 import { CalendarDate, type DateValue } from "@internationalized/date";
 
 // Define page meta
@@ -685,6 +683,22 @@ const editingTimes = ref<
 >({});
 const changedSlots = ref<string[]>([]);
 const savingSlots = ref<string[]>([]);
+
+// Seletor de status da data
+const isUpdatingStatus = ref(false);
+const selectedStatus = ref<AvailableDateStatus>("released");
+const statusOptions = [
+  { label: "Disponível", value: "released" },
+  { label: "Pendente", value: "pending" },
+  { label: "Bloqueado pelo banco", value: "blocked" },
+];
+const statusHint = (status: AvailableDateStatus) => {
+  if (status === "blocked")
+    return "Nenhuma equipe pode ser agendada nesta data.";
+  if (status === "pending")
+    return "Hoje se comporta como bloqueada — reservado para uso futuro.";
+  return "Equipes podem ser agendadas nos horários abaixo.";
+};
 
 // Form state for create modal
 const formState = ref({
@@ -744,12 +758,54 @@ watch(selectedDate, (newDate, oldDate) => {
   }
 });
 
-// Inicializar horários de edição quando modal abre
+// Inicializar horários de edição e status quando modal abre
 watch(showDetailModal, (isOpen) => {
   if (isOpen && selectedAvailableDate.value) {
     initializeEditingTimes();
+    selectedStatus.value = selectedAvailableDate.value.status ?? "released";
+    isUpdatingStatus.value = false;
   }
 });
+
+const handleStatusChange = async (newStatus: unknown) => {
+  if (!bloodBanksLocationId.value || !selectedAvailableDate.value) return;
+
+  const status = newStatus as AvailableDateStatus;
+  const previousStatus =
+    selectedAvailableDate.value.status ?? ("released" as AvailableDateStatus);
+  if (status === previousStatus) return;
+
+  isUpdatingStatus.value = true;
+  try {
+    await bloodbankStore.updateAvailableDateStatus(
+      bloodBanksLocationId.value,
+      selectedAvailableDate.value._id,
+      status
+    );
+
+    selectedAvailableDate.value = {
+      ...selectedAvailableDate.value,
+      status,
+    };
+
+    const label = statusOptions.find((o) => o.value === status)?.label;
+    useToast().add({
+      title: "Status atualizado!",
+      description: `A data agora está como "${label}".`,
+      color: "success",
+    });
+  } catch (error: any) {
+    selectedStatus.value = previousStatus;
+    console.error("Error updating available date status:", error);
+    useToast().add({
+      title: "Erro ao atualizar status",
+      description: error.message || "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    isUpdatingStatus.value = false;
+  }
+};
 
 const isLoading = computed(
   () => isLoadingAvailableDates.value && !isInitialized.value
@@ -1258,8 +1314,13 @@ const getTeamColor = (teamId: string) => {
 
 const formatTimeRange = (startTime: Date, endTime: Date) => {
   const formatTime = (date: Date) =>
-    date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${formatTime(startTime)} – ${formatTime(endTime)}`;
+    date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: bloodBankTimezone.value,
+    });
+  return `${formatTime(startTime)} - ${formatTime(endTime)}`;
 };
 
 const formatTimeForInput = (date: Date) => {

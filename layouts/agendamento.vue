@@ -16,31 +16,12 @@
           <img src="/logo.svg" alt="Hemocione Coleta" class="w-8 h-8" />
           <span class="font-semibold">Agendar Coleta</span>
         </div>
-        <div class="flex items-center gap-2">
-          <NuxtLink v-if="isLoggedIn" to="/agendar/meus-agendamentos">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              icon="i-lucide-calendar-clock"
-            >
-              Meus Agendamentos
-            </UButton>
-          </NuxtLink>
-          <UButton
-            v-if="!isLoggedIn"
-            color="primary"
-            icon="i-lucide-log-in"
-            @click="onLogin"
-            >Entrar</UButton
-          >
-          <UButton
-            v-else
-            color="neutral"
-            icon="i-lucide-log-out"
-            @click="logoutOpen = true"
-            >Sair ({{ firstName }})</UButton
-          >
-        </div>
+        <AgendamentoNavigation
+          :is-logged-in="isLoggedIn"
+          :first-name="firstName"
+          @login="onLogin"
+          @logout="logoutOpen = true"
+        />
       </div>
     </header>
 

@@ -32,6 +32,21 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     return;
   }
 
+  // A rota raiz e prerenderizada e servida estatica na edge, entao o
+  // middleware server-side de redirect nunca roda para ela. Sem este guard,
+  // usuario de instituicao logado em "/" era mandado pro Hemocione ID
+  // (loop do dogfood ISSUE-004).
+  if (to.path === "/") {
+    if (!isLoggedIn) {
+      await redirectToID(to.fullPath);
+      return;
+    }
+    const rootTarget = useUserStore().firstBloodBankSlug
+      ? `/${useUserStore().firstBloodBankSlug}`
+      : "/agendar";
+    return navigateTo(rootTarget, { replace: true });
+  }
+
   if (!isLoggedIn) {
     await redirectToID(to.fullPath);
     return;

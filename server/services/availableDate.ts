@@ -116,6 +116,21 @@ export async function getAvailableDateByDate(
   return availableDate as AvailableDateData | null;
 }
 
+export async function updateAvailableDateStatus(
+  availableDateId: string,
+  bloodBanksLocationId: string,
+  status: AvailableDateStatus
+): Promise<AvailableDateData | null> {
+  // Escopo por bloodBanksLocationId garante que a data pertence ao banco.
+  const updated = await AvailableDate.findOneAndUpdate(
+    { _id: availableDateId, bloodBanksLocationId, deletedAt: null },
+    { $set: { status } },
+    { new: true, lean: true }
+  );
+
+  return updated as AvailableDateData | null;
+}
+
 export async function createAvailableDate(
   bloodBanksLocationId: string,
   date: string,

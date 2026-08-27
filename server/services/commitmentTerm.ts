@@ -32,6 +32,8 @@ export interface CommitmentTermData {
   technicalVisitId?: string | Types.ObjectId | null;
   generatedContent: string;
   sentTo: string;
+  signedByName?: string | null;
+  signedAt?: Date | null;
   sentAt?: Date | null;
   status: "draft" | "sent" | "acknowledged";
   acknowledgedAt?: Date | null;
@@ -46,6 +48,8 @@ export interface CreateCommitmentTermData {
   technicalVisitId?: string | null;
   generatedContent: string;
   sentTo: string;
+  signedByName?: string | null;
+  signedAt?: Date | null;
   status?: "draft" | "sent" | "acknowledged";
 }
 
@@ -75,6 +79,7 @@ export async function createCommitmentTerm(
   const term = new CommitmentTerm({
     ...data,
     generatedContent: normalizeCommitmentTermTemplate(data.generatedContent),
+    signedAt: data.signedByName ? data.signedAt || new Date() : null,
   });
   const saved = await term.save();
   return saved.toObject() as unknown as CommitmentTermData;

@@ -108,6 +108,16 @@ export interface CollectionRequest {
     isRequested?: boolean;
     priority?: number;
   }>;
+  availableCounterProposalOptions?: Array<{
+    availableDateId: string;
+    slotId: string;
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+    teamColor?: string;
+    isLocked?: boolean;
+  }>;
   host: {
     name: string;
     email: string;
@@ -1074,6 +1084,16 @@ export const useBloodbankStore = defineStore("bloodbank", {
                 endTime: slot.endTime ? new Date(slot.endTime) : undefined,
               })
             ),
+            availableCounterProposalOptions:
+              response.data.availableCounterProposalOptions?.map(
+                (slot: any) => ({
+                  ...slot,
+                  startTime: slot.startTime
+                    ? new Date(slot.startTime)
+                    : undefined,
+                  endTime: slot.endTime ? new Date(slot.endTime) : undefined,
+                })
+              ),
             statusHistory: response.data.statusHistory.map((sh: any) => ({
               ...sh,
               changedAt: new Date(sh.changedAt),
@@ -1126,8 +1146,12 @@ export const useBloodbankStore = defineStore("bloodbank", {
           if (this.currentCollectionRequest?._id === requestId) {
             this.currentCollectionRequest = {
               ...response.data,
-              createdAt: new Date(response.data.createdAt),
-              updatedAt: new Date(response.data.updatedAt),
+              createdAt: response.data.createdAt
+                ? new Date(response.data.createdAt)
+                : this.currentCollectionRequest.createdAt,
+              updatedAt: response.data.updatedAt
+                ? new Date(response.data.updatedAt)
+                : this.currentCollectionRequest.updatedAt,
               availableSlotOptions: response.data.availableSlotOptions.map(
                 (slot: any) => ({
                   ...slot,
@@ -1188,18 +1212,25 @@ export const useBloodbankStore = defineStore("bloodbank", {
 
           // Update current collection request if it's the same
           if (this.currentCollectionRequest?._id === requestId) {
+            const availableSlotOptions =
+              response.data.availableSlotOptions ||
+              this.currentCollectionRequest.availableSlotOptions;
+            const statusHistory =
+              response.data.statusHistory ||
+              this.currentCollectionRequest.statusHistory;
+
             this.currentCollectionRequest = {
               ...response.data,
               createdAt: new Date(response.data.createdAt),
               updatedAt: new Date(response.data.updatedAt),
-              availableSlotOptions: response.data.availableSlotOptions.map(
+              availableSlotOptions: availableSlotOptions.map(
                 (slot: any) => ({
                   ...slot,
                   startTime: slot.startTime,
                   endTime: slot.endTime,
                 })
               ),
-              statusHistory: response.data.statusHistory.map((sh: any) => ({
+              statusHistory: statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
               })),
@@ -1227,6 +1258,8 @@ export const useBloodbankStore = defineStore("bloodbank", {
       data: {
         proposedDates: Array<{
           date: string;
+          availableDateId: string;
+          slotId: string;
           startTime: string;
           endTime?: string;
           durationMinutes: number;
@@ -1259,18 +1292,37 @@ export const useBloodbankStore = defineStore("bloodbank", {
           );
 
           if (this.currentCollectionRequest?._id === requestId) {
+            const availableSlotOptions =
+              response.data.availableSlotOptions ||
+              this.currentCollectionRequest.availableSlotOptions;
+            const availableCounterProposalOptions =
+              response.data.availableCounterProposalOptions ||
+              this.currentCollectionRequest.availableCounterProposalOptions;
+            const statusHistory =
+              response.data.statusHistory ||
+              this.currentCollectionRequest.statusHistory;
+
             this.currentCollectionRequest = {
+              ...this.currentCollectionRequest,
               ...response.data,
-              createdAt: new Date(response.data.createdAt),
-              updatedAt: new Date(response.data.updatedAt),
-              availableSlotOptions: response.data.availableSlotOptions.map(
-                (slot: any) => ({
+              createdAt: response.data.createdAt
+                ? new Date(response.data.createdAt)
+                : this.currentCollectionRequest.createdAt,
+              updatedAt: response.data.updatedAt
+                ? new Date(response.data.updatedAt)
+                : this.currentCollectionRequest.updatedAt,
+              availableSlotOptions: availableSlotOptions.map((slot: any) => ({
+                ...slot,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+              })),
+              availableCounterProposalOptions:
+                availableCounterProposalOptions?.map((slot: any) => ({
                   ...slot,
                   startTime: slot.startTime,
                   endTime: slot.endTime,
-                })
-              ),
-              statusHistory: response.data.statusHistory.map((sh: any) => ({
+                })),
+              statusHistory: statusHistory.map((sh: any) => ({
                 ...sh,
                 changedAt: new Date(sh.changedAt),
               })),

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getInstitutionsByIds: vi.fn(),
   bloodBankFindOne: vi.fn(),
   availableDateFind: vi.fn(),
+  commitmentTermFindOne: vi.fn(),
 }));
 
 vi.mock("~/server/models", () => ({
@@ -26,7 +27,11 @@ vi.mock("~/server/models", () => ({
   },
   team: { Team: {} },
   technicalVisit: { TechnicalVisit: {} },
-  commitmentTerm: { CommitmentTerm: {} },
+  commitmentTerm: {
+    CommitmentTerm: {
+      findOne: (...args: unknown[]) => mocks.commitmentTermFindOne(...args),
+    },
+  },
 }));
 
 vi.mock("~/server/services/hemocioneId", () => ({
@@ -47,11 +52,17 @@ beforeEach(() => {
   mocks.getInstitutionsByIds.mockReset();
   mocks.bloodBankFindOne.mockReset();
   mocks.availableDateFind.mockReset();
+  mocks.commitmentTermFindOne.mockReset();
 
   mocks.getInstitutionsByIds.mockResolvedValue([{ id: "institution-a", name: "Instituição A" }]);
   mocks.bloodBankFindOne.mockReturnValue({ lean: () => Promise.resolve({ name: "Banco A" }) });
   mocks.availableDateFind.mockReturnValue({
     populate: () => ({ lean: () => Promise.resolve([]) }),
+  });
+  mocks.commitmentTermFindOne.mockReturnValue({
+    sort: () => ({
+      select: () => ({ lean: () => Promise.resolve(null) }),
+    }),
   });
 });
 

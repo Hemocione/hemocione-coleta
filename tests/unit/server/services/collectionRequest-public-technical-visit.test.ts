@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCollectionRequestPublicByToken } from "~/server/services/collectionRequest";
+import {
+  getCollectionRequestPublic,
+  getCollectionRequestPublicByToken,
+} from "~/server/services/collectionRequest";
 
 const mocks = vi.hoisted(() => ({
   collectionRequestFindOne: vi.fn(),
@@ -7,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   bloodBankFindOne: vi.fn(),
   availableDateFind: vi.fn(),
   getTechnicalVisitById: vi.fn(),
+  commitmentTermFindOne: vi.fn(),
 }));
 
 vi.mock("~/server/models", () => ({
@@ -27,7 +31,11 @@ vi.mock("~/server/models", () => ({
   },
   team: { Team: {} },
   technicalVisit: { TechnicalVisit: {} },
-  commitmentTerm: { CommitmentTerm: {} },
+  commitmentTerm: {
+    CommitmentTerm: {
+      findOne: (...args: unknown[]) => mocks.commitmentTermFindOne(...args),
+    },
+  },
 }));
 
 vi.mock("~/server/services/hemocioneId", () => ({
@@ -81,9 +89,55 @@ beforeEach(() => {
   mocks.availableDateFind.mockReturnValue({
     populate: () => ({ lean: () => Promise.resolve([]) }),
   });
+  mocks.commitmentTermFindOne.mockReturnValue({
+    sort: () => ({
+      select: () => ({ lean: () => Promise.resolve(null) }),
+    }),
+  });
 });
 
 describe("getCollectionRequestPublicByToken - visita técnica agendada", () => {
+  it("expõe cada data solicitada uma única vez quando há vários slots na mesma data", async () => {
+    mockRequest({
+      requestedDates: [
+        {
+          availableDateId: "available-date-a",
+          slotIds: ["slot-a", "slot-b"],
+          priority: 1,
+        },
+      ],
+    });
+    mocks.availableDateFind.mockReturnValue({
+      populate: () => ({
+        lean: () =>
+          Promise.resolve([
+            {
+              _id: "available-date-a",
+              date: "2026-09-03",
+              slots: [
+                {
+                  _id: "slot-a",
+                  startTime: "08:00",
+                  endTime: "17:00",
+                  teamId: { name: "Equipe A" },
+                },
+                {
+                  _id: "slot-b",
+                  startTime: "08:00",
+                  endTime: "17:00",
+                  teamId: { name: "Equipe B" },
+                },
+              ],
+            },
+          ]),
+      }),
+    });
+
+    const result = await getCollectionRequestPublicByToken("token-a");
+
+    expect(result?.requestedDates).toEqual([{ date: "2026-09-03" }]);
+  });
+
   it("expõe id/visitDate/address/outcome/notes sem vazar dados internos da visita", async () => {
     mockRequest({ technicalVisitId: "visit-a" });
     mocks.getTechnicalVisitById.mockResolvedValue(technicalVisitDoc);
@@ -147,5 +201,96 @@ describe("getCollectionRequestPublicByToken - visita técnica agendada", () => {
     expect(
       (await getCollectionRequestPublicByToken("token-a"))?.technicalVisit
     ).toBeUndefined();
+  });
+
+  it("expõe a assinatura pública do termo mais recente da solicitação", async () => {
+    mockRequest();
+    mocks.commitmentTermFindOne.mockReturnValue({
+      sort: () => ({
+        select: () => ({
+          lean: () =>
+            Promise.resolve({
+              accessToken: "term-public-token",
+              status: "sent",
+              createdAt: new Date("2026-08-27T12:00:00.000Z"),
+              signedByName: "Maria da Silva",
+              signedAt: new Date("2026-08-27T12:00:00.000Z"),
+              sentTo: "sensitive@example.com",
+            }),
+        }),
+      }),
+    });
+
+    const result = await getCollectionRequestPublicByToken("token-a");
+
+    expect(result?.commitmentTerm).toEqual({
+      accessToken: "term-public-token",
+      status: "sent",
+      createdAt: new Date("2026-08-27T12:00:00.000Z"),
+      signedByName: "Maria da Silva",
+      signedAt: new Date("2026-08-27T12:00:00.000Z"),
+    });
+    expect(result?.commitmentTerm).not.toHaveProperty("sentTo");
+  });
+
+  it("projeta somente os campos públicos do termo mais recente", async () => {
+    mockRequest();
+    const query = {
+      sort: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      lean: vi.fn().mockResolvedValue({
+        accessToken: "term-public-token",
+        status: "sent",
+        createdAt: new Date("2026-08-27T13:00:00.000Z"),
+        signedByName: "Ana Silva",
+        signedAt: new Date("2026-08-27T13:05:00.000Z"),
+        _id: "internal-term-id",
+        generatedContent: "sensitive content",
+      }),
+    };
+    mocks.commitmentTermFindOne.mockReturnValue(query);
+
+    const result = await getCollectionRequestPublicByToken("token-a");
+
+    expect(mocks.commitmentTermFindOne).toHaveBeenCalledWith({
+      bloodBanksLocationId: "blood-bank-a",
+      collectionRequestId: "request-a",
+    });
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: -1 });
+    expect(query.select).toHaveBeenCalledWith(
+      "accessToken createdAt status signedByName signedAt"
+    );
+    expect(result?.commitmentTerm).toEqual({
+      accessToken: "term-public-token",
+      status: "sent",
+      createdAt: new Date("2026-08-27T13:00:00.000Z"),
+      signedByName: "Ana Silva",
+      signedAt: new Date("2026-08-27T13:05:00.000Z"),
+    });
+    expect(result?.commitmentTerm).not.toHaveProperty("_id");
+    expect(result?.commitmentTerm).not.toHaveProperty("generatedContent");
+  });
+
+  it("não expõe o token do termo na consulta pública por id", async () => {
+    mockRequest();
+    mocks.commitmentTermFindOne.mockReturnValue({
+      sort: () => ({
+        select: () => ({
+          lean: () =>
+            Promise.resolve({
+              accessToken: "term-public-token",
+              status: "sent",
+              createdAt: new Date("2026-08-27T13:00:00.000Z"),
+              signedByName: "Ana Silva",
+              signedAt: new Date("2026-08-27T13:05:00.000Z"),
+            }),
+        }),
+      }),
+    });
+
+    const result = await getCollectionRequestPublic("request-a");
+
+    expect(result?.commitmentTerm).toMatchObject({ signedByName: "Ana Silva" });
+    expect(result?.commitmentTerm).not.toHaveProperty("accessToken");
   });
 });

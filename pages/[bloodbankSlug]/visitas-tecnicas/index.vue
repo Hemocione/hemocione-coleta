@@ -232,6 +232,7 @@
                 placeholder="Selecione uma instituição"
                 class="w-full"
                 data-testid="technical-visit-institution-select"
+                @update:model-value="handleInstitutionSelection"
               />
               <p class="text-xs text-gray-500 mt-1">
                 Vincule a visita à instituição da coleta ou selecione uma instituição relacionada.
@@ -244,6 +245,7 @@
                 placeholder="Endereco do local visitado"
                 class="w-full"
                 :maxlength="500"
+                :readonly="isAddressDerived"
               />
             </UFormField>
 
@@ -504,6 +506,18 @@ const isFormValid = computed(() => {
   );
 });
 
+const isAddressDerived = computed(() => {
+  if (editingVisit.value) return false;
+  if (formData.value.requestId) return true;
+  if (!formData.value.institutionId) return false;
+
+  return Boolean(
+    institutionOptions.value.find(
+      (institution) => institution.id === formData.value.institutionId
+    )?.address
+  );
+});
+
 // Methods
 const loadOpenRequests = async () => {
   if (!bloodBanksLocationId.value) return;
@@ -571,8 +585,17 @@ const handleRequestSelection = (value: string | null) => {
   formData.value.institutionId = request?.institutionId || null;
   if (request) {
     const requestAddress = getRequestAddress(request);
-    if (requestAddress) formData.value.address = requestAddress;
+    formData.value.address = requestAddress;
   }
+};
+
+const handleInstitutionSelection = (value: string | null) => {
+  if (formData.value.requestId) return;
+
+  const institution = institutionOptions.value.find(
+    (candidate) => candidate.id === value
+  );
+  formData.value.address = institution?.address || "";
 };
 
 const loadVisits = async () => {
@@ -809,6 +832,7 @@ const generateTermForVisit = async (visit: TechnicalVisit) => {
       {
         method: "POST",
         body: {
+          collectionRequestId: visit.collectionRequest?._id,
           technicalVisitId: visit._id,
           sentTo: visit.address,
           templateParams: {

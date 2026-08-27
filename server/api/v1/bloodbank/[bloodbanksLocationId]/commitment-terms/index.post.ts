@@ -65,6 +65,10 @@ export default defineEventHandler(async (event) => {
       technicalVisitId: parsed.data.technicalVisitId ?? undefined,
       generatedContent,
       sentTo: parsed.data.sentTo,
+      signedByName:
+        [user.givenName, user.surName].filter(Boolean).join(" ") ||
+        user.email,
+      signedAt: new Date(),
       status: parsed.data.status,
     });
 

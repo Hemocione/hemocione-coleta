@@ -74,6 +74,21 @@
 
         <!-- Term content (print-friendly) -->
         <div class="term-content prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed">{{ term.generatedContent }}</div>
+
+        <div
+          v-if="term.signedByName"
+          class="mt-10 border-t border-gray-200 pt-6 print:mt-8"
+        >
+          <div class="font-serif text-2xl italic text-gray-800">
+            {{ term.signedByName }}
+          </div>
+          <div class="mt-1 text-sm text-gray-600">
+            Assinado por {{ term.signedByName }}
+            <span v-if="term.signedAt">
+              em {{ new Date(term.signedAt).toLocaleDateString("pt-BR") }}
+            </span>
+          </div>
+        </div>
       </template>
     </main>
   </div>
@@ -95,6 +110,8 @@ const term = ref<{
   status: "draft" | "sent" | "acknowledged";
   sentAt?: string | null;
   acknowledgedAt?: string | null;
+  signedByName?: string | null;
+  signedAt?: string | null;
   createdAt: string;
 } | null>(null);
 

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCollectionRequestsByInstitution } from "~/server/services/collectionRequest";
+import {
+  getCollectionRequestsByBloodBank,
+  getCollectionRequestsByInstitution,
+} from "~/server/services/collectionRequest";
 
 const mocks = vi.hoisted(() => ({
   collectionRequestCountDocuments: vi.fn(),
@@ -165,5 +168,56 @@ describe("getCollectionRequestsByInstitution — dados do banco de sangue", () =
       bloodBankName: "Banco de Sangue",
       bloodBankLogo: undefined,
     });
+  });
+});
+
+describe("getCollectionRequestsByBloodBank — filtros de status", () => {
+  it("inclui pending e counter_proposed no mesmo resultado paginado", async () => {
+    mocks.collectionRequestCountDocuments.mockResolvedValue(2);
+    mocks.collectionRequestFind.mockReturnValue(
+      chainable([
+        {
+          _id: "request-pending",
+          institutionId: "institution-a",
+          bloodBanksLocationId: "blood-bank-a",
+          requestedDates: [],
+          host: baseHost,
+          status: "pending",
+          statusHistory: [],
+        },
+        {
+          _id: "request-counter-proposed",
+          institutionId: "institution-a",
+          bloodBanksLocationId: "blood-bank-a",
+          requestedDates: [],
+          host: baseHost,
+          status: "counter_proposed",
+          statusHistory: [],
+        },
+      ])
+    );
+    mocks.bloodBankFind.mockReturnValue(chainable([]));
+
+    const result = await getCollectionRequestsByBloodBank(
+      "blood-bank-a",
+      { status: "pending,counter_proposed" },
+      { page: 1, limit: 20 }
+    );
+
+    expect(result.data.map((request) => request.status)).toEqual([
+      "pending",
+      "counter_proposed",
+    ]);
+    expect(mocks.collectionRequestCountDocuments).toHaveBeenCalledWith({
+      bloodBanksLocationId: "blood-bank-a",
+      deletedAt: null,
+      status: { $in: ["pending", "counter_proposed"] },
+    });
+    expect(mocks.collectionRequestFind).toHaveBeenCalledWith({
+      bloodBanksLocationId: "blood-bank-a",
+      deletedAt: null,
+      status: { $in: ["pending", "counter_proposed"] },
+    });
+    expect(mocks.collectionRequestFind).toHaveBeenCalledTimes(1);
   });
 });

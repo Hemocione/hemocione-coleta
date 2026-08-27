@@ -3,6 +3,7 @@ import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank"
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
 import { buildPublicUrl } from "~/utils/publicUrl";
+import { formatWhatsAppDate } from "~/server/utils/formatWhatsAppDate";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -78,7 +79,7 @@ export default defineEventHandler(async (event) => {
         const selectedSlotOption = updatedRequest.availableSlotOptions.find(
           (slot) => slot.slotId === selectedSlotId
         );
-        const confirmedDate = selectedSlotOption?.date || "";
+        const confirmedDate = formatWhatsAppDate(selectedSlotOption?.date);
         const confirmedTime = selectedSlotOption?.startTime
           ? new Date(selectedSlotOption.startTime).toLocaleTimeString("pt-BR", {
               hour: "2-digit",

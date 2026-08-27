@@ -214,6 +214,7 @@
               <USelect
                 v-model="formData.requestId"
                 :items="requestOptions"
+                placeholder="Selecione uma solicitação (opcional)"
                 class="w-full"
                 data-testid="technical-visit-request-select"
                 @update:model-value="handleRequestSelection"
@@ -479,7 +480,6 @@ const outcomeOptions = [
 ];
 
 const requestOptions = computed(() => [
-  { label: "Sem solicitação vinculada", value: "" },
   ...openRequests.value
     .filter((request) => !request.technicalVisitId)
     .map((request) => ({

@@ -6,6 +6,7 @@ import {
   sendWhatsAppNotificationToPhone,
 } from "./notification";
 import { buildPublicUrl } from "~/utils/publicUrl";
+import { formatWhatsAppDate } from "~/server/utils/formatWhatsAppDate";
 
 const { CollectionRequest } = collectionRequest;
 
@@ -32,15 +33,6 @@ function getCollectionRequestTrackingUrl(accessToken?: unknown): string {
   if (!accessToken) return "";
 
   return buildPublicUrl(`/agendar/acompanhar/${accessToken}`);
-}
-
-function formatDate(value: unknown): string {
-  if (!value) return "";
-
-  const date = new Date(value as string | number | Date);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(date);
 }
 
 function getUserId(value: unknown): string | undefined {
@@ -136,7 +128,7 @@ export async function notifyCollectionRequestStatusTransition({
         params: {
           contactName,
           bloodBankName,
-          proposedDate: formatDate(proposedDate?.date),
+          proposedDate: formatWhatsAppDate(proposedDate?.date),
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
@@ -185,7 +177,7 @@ export async function notifyCollectionRequestStatusTransition({
         params: {
           contactName,
           bloodBankName,
-          proposedDate: formatDate(proposedDate?.date),
+          proposedDate: formatWhatsAppDate(proposedDate?.date),
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
@@ -244,7 +236,7 @@ export async function notifyCollectionRequestStatusTransition({
 
     if (transition === "scheduled") {
       const confirmedDateTime = request.confirmedSchedule
-        ? `${formatDate(request.confirmedSchedule.date)} ${request.confirmedSchedule.startTime}`.trim()
+        ? `${formatWhatsAppDate(request.confirmedSchedule.date)} ${request.confirmedSchedule.startTime}`.trim()
         : "";
       const eventLink = request.eventSlug
         ? `https://eventos.hemocione.com.br/event/${request.eventSlug}`

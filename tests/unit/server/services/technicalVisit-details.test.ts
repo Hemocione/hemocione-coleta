@@ -77,6 +77,11 @@ beforeEach(() => {
         institutionId: "institution-a",
         status: "scheduled",
         eventSlug: "campanha-a",
+        host: {
+          name: "Ana Silva",
+          email: "ana@example.com",
+          phone: "5511999999999",
+        },
       },
     ])
   );
@@ -103,6 +108,11 @@ describe("detalhes de visitas técnicas", () => {
           institutionId: "institution-a",
           status: "scheduled",
           eventSlug: "campanha-a",
+          host: {
+            name: "Ana Silva",
+            email: "ana@example.com",
+            phone: "5511999999999",
+          },
         },
       })
     );

@@ -90,4 +90,67 @@ describe("visitas técnicas", () => {
     expect((wrapper.vm as any).institutionSelectOptions).toEqual([]);
     expect((wrapper.vm as any).requestOptions).toEqual([]);
   });
+
+  it("envia instituição e ponto focal ao gerar termo pela visita vinculada", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    mocks.fetchWithAuth.mockImplementation((url: string) => {
+      if (url.includes("commitment-terms")) {
+        return Promise.resolve({
+          success: true,
+          data: { accessToken: "term-token" },
+        });
+      }
+
+      if (url.includes("technical-visits?")) {
+        return Promise.resolve({
+          success: true,
+          data: [],
+          pagination: { total: 0, page: 1, limit: 20, totalPages: 0 },
+        });
+      }
+
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    const wrapper = mount(TechnicalVisitsPage, {
+      global: {
+        stubs: globalStubs,
+        directives: { "auto-animate": {} },
+      },
+    });
+    await flushPromises();
+
+    await (wrapper.vm as any).generateTermForVisit({
+      _id: "visit-a",
+      address: "Rua A, 1",
+      institutionName: "Instituição A",
+      collectionRequest: {
+        _id: "request-a",
+        institutionId: "institution-a",
+        status: "scheduled",
+        host: {
+          name: "Ana Silva",
+          email: "ana@example.com",
+          phone: "5511999999999",
+        },
+      },
+    });
+
+    const termCall = mocks.fetchWithAuth.mock.calls.find(([url]) =>
+      String(url).includes("commitment-terms")
+    );
+    expect(termCall?.[1]?.body).toMatchObject({
+      collectionRequestId: "request-a",
+      sentTo: "5511999999999",
+      templateParams: {
+        institutionName: "Instituição A",
+        hostName: "Ana Silva",
+      },
+    });
+    expect(open).toHaveBeenCalledWith(
+      expect.stringContaining("/termo/term-token"),
+      "_blank"
+    );
+    open.mockRestore();
+  });
 });

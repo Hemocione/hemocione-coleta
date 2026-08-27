@@ -122,7 +122,9 @@ export interface CollectionRequest {
     proposedDates: Array<{
       date: string;
       startTime: string;
-      durationMinutes: number;
+      endTime?: string;
+      durationMinutes?: number;
+      teamName?: string;
       note: string;
     }>;
     needsTechnicalVisit: boolean;
@@ -130,11 +132,20 @@ export interface CollectionRequest {
     proposedBy: string;
     proposedAt: string;
   };
+  confirmedSchedule?: {
+    date: string | Date;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+    teamName?: string;
+  };
   visitProposal?: {
     proposedDates: Array<{
       date: string;
       startTime: string;
-      durationMinutes: number;
+      endTime?: string;
+      durationMinutes?: number;
+      teamName?: string;
       note: string;
     }>;
     note: string;
@@ -1217,7 +1228,9 @@ export const useBloodbankStore = defineStore("bloodbank", {
         proposedDates: Array<{
           date: string;
           startTime: string;
+          endTime?: string;
           durationMinutes: number;
+          teamName?: string;
           note: string;
         }>;
         needsTechnicalVisit: boolean;
@@ -1285,7 +1298,9 @@ export const useBloodbankStore = defineStore("bloodbank", {
         proposedDates: Array<{
           date: string;
           startTime: string;
+          endTime?: string;
           durationMinutes: number;
+          teamName?: string;
           note: string;
         }>;
         note: string;

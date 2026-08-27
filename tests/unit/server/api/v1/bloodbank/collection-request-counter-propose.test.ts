@@ -45,7 +45,7 @@ const validBody = {
     {
       date: "2026-09-10T00:00:00.000Z",
       startTime: "09:00",
-      durationMinutes: 60,
+      endTime: "10:00",
       note: "Horário alternativo",
     },
   ],
@@ -98,6 +98,7 @@ describe("POST self-service counter-propose", () => {
           {
             date: new Date("2026-09-10T00:00:00.000Z"),
             startTime: "09:00",
+            endTime: "10:00",
             durationMinutes: 60,
             note: "Horário alternativo",
           },
@@ -115,6 +116,49 @@ describe("POST self-service counter-propose", () => {
       handler(makeEvent({ ...validBody, proposedDates: [] }))
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(mocks.counterPropose).not.toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando o horário final não é posterior ao inicial", async () => {
+    await expect(
+      handler(
+        makeEvent({
+          ...validBody,
+          proposedDates: [{ ...validBody.proposedDates[0], endTime: "09:00" }],
+        })
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+
+    expect(mocks.counterPropose).not.toHaveBeenCalled();
+  });
+
+  it("aceita duração sem endTime para clientes legados", async () => {
+    await handler(
+      makeEvent({
+        ...validBody,
+        proposedDates: [
+          {
+            date: validBody.proposedDates[0].date,
+            startTime: "09:00",
+            durationMinutes: 60,
+            note: "Formato legado",
+          },
+        ],
+      })
+    );
+
+    expect(mocks.counterPropose).toHaveBeenCalledWith(
+      requestId,
+      expect.objectContaining({
+        proposedDates: [
+          expect.objectContaining({
+            startTime: "09:00",
+            durationMinutes: 60,
+            note: "Formato legado",
+          }),
+        ],
+      }),
+      bloodBanksLocationId
+    );
   });
 
   it("propaga erro de permissão do guard de bloodbank", async () => {

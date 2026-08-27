@@ -133,6 +133,38 @@ describe("notificações das transições de collection request", () => {
     });
   });
 
+  it.each([
+    { label: "retorna false", result: false },
+    { label: "rejeita com erro da API", result: new Error("API indisponível") },
+  ])(
+    "aguarda e registra a falha da notificação quando $label",
+    async ({ result }) => {
+      if (result instanceof Error) {
+        mocks.sendWhatsAppNotification.mockRejectedValue(result);
+      } else {
+        mocks.sendWhatsAppNotification.mockResolvedValue(result);
+      }
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(
+        notifyCollectionRequestStatusTransition({
+          requestId,
+          bloodBanksLocationId,
+          transition: "awaiting_technical_visit",
+        })
+      ).resolves.toBeUndefined();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("WhatsApp notification"),
+        expect.objectContaining({
+          requestId,
+          transition: "awaiting_technical_visit",
+        })
+      );
+      errorSpy.mockRestore();
+    }
+  );
+
   it("notifica o resultado reprovado da visita técnica", async () => {
     await notifyCollectionRequestStatusTransition({
       requestId,

@@ -29,6 +29,8 @@ const bodySchema = z.object({
       z.object({
         availableDateId: z.string(),
         slotIds: z.array(z.string()).optional(),
+        startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+        endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
         priority: z.number().int().min(1).max(3).optional(),
       })
     )
@@ -67,34 +69,26 @@ export default defineEventHandler(async (event) => {
     note,
   });
 
-  // Fire-and-forget WhatsApp notification to blood bank responsible person
-  (async () => {
-    try {
-      const responsibleUserId = await getBloodBankLastAcceptorUserId(
-        bloodBanksLocationId
-      );
-      if (!responsibleUserId) {
-        console.log(
-          "[notification] No responsible person found for blood bank, skipping notification"
-        );
-        return;
-      }
-
+  try {
+    const recipientUserId = await getBloodBankLastAcceptorUserId(
+      bloodBanksLocationId
+    );
+    if (recipientUserId) {
       const bloodBankDoc =
         await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
       const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
       const bloodBankSlug = bloodBankDoc?.slug || "";
 
       const requestedDatesStr = result.availableSlotOptions
-        .filter((s) => s.isRequested)
-        .map((s) => s.date)
-        .filter((d, i, arr) => arr.indexOf(d) === i)
+        .filter((slot) => slot.isRequested)
+        .map((slot) => slot.date)
+        .filter((date, index, dates) => dates.indexOf(date) === index)
         .join(", ");
 
       const backofficeUrl = `${process.env.NUXT_PUBLIC_BASE_URL || ""}/${bloodBankSlug}/coletas/${result._id}`;
 
-      await sendWhatsAppNotification({
-        userId: responsibleUserId,
+      const delivered = await sendWhatsAppNotification({
+        userId: recipientUserId,
         templateName: "collection_request_created",
         params: {
           bloodBankName,
@@ -103,10 +97,24 @@ export default defineEventHandler(async (event) => {
           backofficeUrl,
         },
       });
-    } catch (err) {
-      // Notification failure should never block the response
+
+      if (!delivered) {
+        console.error(
+          "[notification] Collection request created notification failed",
+          { requestId: result._id }
+        );
+      }
+    } else {
+      console.log(
+        "[notification] No accepted blood bank user found, skipping notification"
+      );
     }
-  })();
+  } catch (error) {
+    console.error(
+      "[notification] Collection request created notification failed",
+      error
+    );
+  }
 
   return {
     success: true,

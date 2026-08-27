@@ -67,33 +67,51 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Fire-and-forget WhatsApp notification to institution's host
     if (updatedRequest.host?.phone) {
-      const bloodBankDoc = await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
-      const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
+      try {
+        const bloodBankDoc = await getBloodBankByBloodBanksLocationId(
+          bloodBanksLocationId
+        );
+        const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
 
-      const selectedSlotOption = updatedRequest.availableSlotOptions.find(
-        (s) => s.slotId === selectedSlotId
-      );
-      const confirmedDate = selectedSlotOption?.date || "";
-      const confirmedTime = selectedSlotOption?.startTime
-        ? new Date(selectedSlotOption.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-        : "";
+        const selectedSlotOption = updatedRequest.availableSlotOptions.find(
+          (slot) => slot.slotId === selectedSlotId
+        );
+        const confirmedDate = selectedSlotOption?.date || "";
+        const confirmedTime = selectedSlotOption?.startTime
+          ? new Date(selectedSlotOption.startTime).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "";
 
-      const trackingUrl = updatedRequest.accessToken
-        ? `${process.env.NUXT_PUBLIC_BASE_URL || ""}/agendar/acompanhar/${updatedRequest.accessToken}`
-        : "";
+        const trackingUrl = updatedRequest.accessToken
+          ? `${process.env.NUXT_PUBLIC_BASE_URL || ""}/agendar/acompanhar/${updatedRequest.accessToken}`
+          : "";
 
-      sendWhatsAppNotificationToPhone({
-        phone: updatedRequest.host.phone,
-        templateName: "collection_request_accepted",
-        params: {
-          bloodBankName,
-          confirmedDate,
-          confirmedTime,
-          trackingUrl,
-        },
-      }).catch(() => {});
+        const delivered = await sendWhatsAppNotificationToPhone({
+          phone: updatedRequest.host.phone,
+          templateName: "collection_request_accepted",
+          params: {
+            bloodBankName,
+            confirmedDate,
+            confirmedTime,
+            trackingUrl,
+          },
+        });
+
+        if (!delivered) {
+          console.error(
+            "[notification] Collection request acceptance notification failed",
+            { requestId }
+          );
+        }
+      } catch (error) {
+        console.error(
+          "[notification] Collection request acceptance notification failed",
+          error
+        );
+      }
     }
 
     return {

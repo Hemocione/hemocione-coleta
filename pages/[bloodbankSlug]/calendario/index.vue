@@ -29,23 +29,23 @@
         <div class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500 flex-wrap">
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-green-500" />
-            <span>Disponível</span>
+            <span>Disponibilidade total</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-yellow-500" />
-            <span>Parcialmente bloqueado</span>
+            <span>Disponibilidade parcial</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-red-500" />
-            <span>Totalmente bloqueado</span>
+            <span>Bloqueio total por coleta</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-gray-400" />
-            <span>Bloqueado pelo banco</span>
+            <span>Bloqueio total pelo banco</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="inline-block w-2 h-2 rounded-full bg-blue-400" />
-            <span>Pendente</span>
+            <span>Pendente de configuração</span>
           </div>
         </div>
       </div>
@@ -722,20 +722,25 @@ const bloodBanksLocationId = computed(
   () => currentBloodBankRole.value?.bloodBanksLocationId
 );
 
+const createDefaultTeamTimes = (
+  currentTimes: Record<string, { startTime: string; endTime: string }> = {}
+) => {
+  return Object.fromEntries(
+    teams.value.map((team) => [
+      team._id,
+      currentTimes[team._id] || { startTime: "08:00", endTime: "17:00" },
+    ])
+  ) as Record<string, { startTime: string; endTime: string }>;
+};
+
 // Watch teams to initialize team times
 watch(
   teams,
   (newTeams) => {
     if (newTeams.length > 0) {
-      const teamTimes: Record<string, { startTime: string; endTime: string }> =
-        {};
-      newTeams.forEach((team) => {
-        teamTimes[team._id] = {
-          startTime: "08:00",
-          endTime: "17:00",
-        };
-      });
-      formState.value.teamTimes = teamTimes;
+      formState.value.teamTimes = createDefaultTeamTimes(
+        formState.value.teamTimes
+      );
     }
   },
   { immediate: true }
@@ -1279,7 +1284,7 @@ const resetForm = () => {
     date: null,
     isAllTeams: true,
     selectedTeamIds: [],
-    teamTimes: {},
+    teamTimes: createDefaultTeamTimes(),
     globalStartTime: "08:00",
     globalEndTime: "17:00",
   };
@@ -1328,6 +1333,7 @@ const formatTimeForInput = (date: Date) => {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: bloodBankTimezone.value,
   });
 };
 
@@ -1372,18 +1378,6 @@ const saveSlotTime = async (slotId: string) => {
   try {
     const editingTime = editingTimes.value[slotId];
     if (!editingTime) return;
-
-    // Converter strings HH:MM para Date
-    const [startHours, startMinutes] = editingTime.startTime
-      .split(":")
-      .map(Number);
-    const [endHours, endMinutes] = editingTime.endTime.split(":").map(Number);
-
-    const startTime = new Date();
-    startTime.setHours(startHours, startMinutes, 0, 0);
-
-    const endTime = new Date();
-    endTime.setHours(endHours, endMinutes, 0, 0);
 
     const updates = {
       startTime: editingTime.startTime,
@@ -1622,16 +1616,6 @@ const getAvailabilityColor = (day: DateValue) => {
   const availableDate = bloodbankStore.getAvailableDateByDate(dateStr);
   return getCalendarAvailabilityColor(availableDate);
 };
-
-// Watchers
-watch(
-  () => formState.value.isAllTeams,
-  (newValue) => {
-    if (newValue) {
-      formState.value.selectedTeamIds = [];
-    }
-  }
-);
 
 // Lifecycle
 onMounted(async () => {

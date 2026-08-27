@@ -11,6 +11,7 @@ import { pt_br } from "@nuxt/ui/locale";
 
 useHead({
   title: "Hemocione Coleta",
+  htmlAttrs: { lang: "pt-BR" },
   meta: [{ name: "description", content: "Hemocione Coleta" }],
 });
 </script>

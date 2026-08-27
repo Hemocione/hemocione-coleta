@@ -55,6 +55,10 @@ const RequestedDateSchema = new Schema(
       type: String,
       required: false,
     },
+    endTime: {
+      type: String,
+      required: false,
+    },
     priority: {
       type: Number,
       required: true,
@@ -69,7 +73,9 @@ const CounterProposalDateSchema = new Schema(
   {
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
-    durationMinutes: { type: Number, required: true },
+    endTime: { type: String, required: false },
+    durationMinutes: { type: Number, required: false },
+    teamName: { type: String, required: false, maxlength: 100, trim: true },
     note: { type: String, required: true },
   },
   { _id: false }
@@ -132,7 +138,11 @@ const ConfirmedScheduleSchema = new Schema(
   {
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
+    // Optional for records created before confirmed counter-proposal schedules
+    // stored the calculated end time.
+    endTime: { type: String, required: false },
     durationMinutes: { type: Number, required: true },
+    teamName: { type: String, required: false, maxlength: 100, trim: true },
   },
   { _id: false }
 );
@@ -311,11 +321,6 @@ CollectionRequestSchema.index(
 CollectionRequestSchema.index(
   { requestedByUserId: 1 },
   { partialFilterExpression: { deletedAt: null } }
-);
-
-CollectionRequestSchema.index(
-  { accessToken: 1 },
-  { unique: true }
 );
 
 export type CollectionRequestSchema = InferSchemaType<

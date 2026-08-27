@@ -109,4 +109,34 @@ describe("getCollectionRequestPublicByToken - contraproposta", () => {
 
     expect(result?.counterProposal).toBeUndefined();
   });
+
+  it("expõe a data e o intervalo confirmado após aceitar uma contraproposta", async () => {
+    mocks.collectionRequestFindOne.mockReturnValue({
+      lean: () =>
+        Promise.resolve({
+          _id: "request-a",
+          status: "accepted",
+          institutionId: "institution-a",
+          bloodBanksLocationId: "blood-bank-a",
+          host: { name: "Fulano", email: "a@a.com", phone: "11999999999" },
+          requestedDates: [],
+          statusHistory: [],
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+          confirmedSchedule: {
+            date: new Date("2026-09-11T00:00:00.000Z"),
+            startTime: "14:00",
+            durationMinutes: 60,
+          },
+        }),
+    });
+
+    const result = await getCollectionRequestPublicByToken("token-a");
+
+    expect(result?.confirmedSchedule).toEqual({
+      date: new Date("2026-09-11T00:00:00.000Z"),
+      startTime: "14:00",
+      endTime: "15:00",
+      durationMinutes: 60,
+    });
+  });
 });

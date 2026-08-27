@@ -33,16 +33,24 @@ export interface EnrichedMe extends Me {
 export interface Institution {
   id: string;
   name: string;
-  latitude: number;
-  longitude: number;
+  legalName?: string | null;
+  document?: string | null;
+  kind?: "company" | "ngo" | "school" | "university" | string;
+  latitude?: number | null;
+  longitude?: number | null;
   address?: string;
-  logo?: string;
-  banner?: string;
-  status: "pending" | "validated" | "rejected";
+  logo?: string | null;
+  banner?: string | null;
+  phone?: string | null;
+  city?: string;
+  state?: string;
+  status?: "pending" | "validated" | "rejected";
+  membershipRole?: "admin" | "staff";
 }
 
 export interface InstitutionListResponseItem {
   institution: Institution;
+  role?: "admin" | "staff";
 }
 export type InstitutionListResponse = InstitutionListResponseItem[];
 
@@ -164,6 +172,47 @@ export async function getUserInstitutions(
       },
     }
   );
-  const institutions = response?.map((data) => data.institution) || [];
+  const institutions =
+    response?.map((data) => ({
+      ...data.institution,
+      membershipRole: data.role,
+    })) || [];
   return institutions;
+}
+
+export async function getInstitutionProfile(
+  token: string,
+  institutionId: string
+): Promise<Institution> {
+  const config = useRuntimeConfig();
+  const response = await $fetch<{ institution: Institution }>(
+    `${config.public.hemocioneIdApiUrl}/institutions/${institutionId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: token.startsWith("Bearer") ? token : `Bearer ${token}`,
+      },
+    }
+  );
+  return response.institution;
+}
+
+export async function updateInstitutionProfile(
+  token: string,
+  institutionId: string,
+  payload: Record<string, unknown>
+): Promise<Institution> {
+  const config = useRuntimeConfig();
+  const response = await $fetch<{ institution: Institution }>(
+    `${config.public.hemocioneIdApiUrl}/institutions/${institutionId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: token.startsWith("Bearer") ? token : `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    }
+  );
+  return response.institution;
 }

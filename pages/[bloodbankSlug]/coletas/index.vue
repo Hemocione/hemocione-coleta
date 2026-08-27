@@ -68,7 +68,7 @@
           </div>
           <!-- Empty State -->
           <div
-            v-else-if="collectionRequests.data.length === 0"
+            v-else-if="visibleRequests.length === 0"
             class="text-center py-12"
           >
             <UIcon
@@ -89,7 +89,7 @@
             class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             <UCard
-              v-for="request in collectionRequests.data"
+              v-for="request in visibleRequests"
               :key="request._id"
               class="hover:shadow-lg transition-shadow duration-200"
               data-testid="collection-request-card"
@@ -240,6 +240,12 @@ import {
   getBloodbankCollectionRequestStatusLabel,
   getCollectionRequestStatusColor,
 } from "~/utils/collectionRequestStatus";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Define page meta
 definePageMeta({
@@ -270,8 +276,67 @@ const isLoading = computed(() => isLoadingCollectionRequests.value);
 const filterTabs = [
   { value: "pending", label: "Pendentes" },
   { value: "accepted", label: "Aceitas" },
+  { value: "scheduled", label: "Agendadas" },
+  { value: "completed", label: "Concluídas" },
   { value: "rejected", label: "Rejeitadas" },
 ];
+
+const getRequestScheduleDate = (request: any): string | Date | null => {
+  if (request.confirmedSchedule?.date) {
+    return request.confirmedSchedule.date;
+  }
+
+  const selectedSlot = request.availableSlotOptions?.find(
+    (slot: any) => slot.slotId === request.selectedSlotId
+  );
+  return selectedSlot?.date || request.availableSlotOptions?.[0]?.date || null;
+};
+
+const isRequestPast = (request: any): boolean => {
+  const scheduleDate = getRequestScheduleDate(request);
+  if (!scheduleDate) return false;
+
+  return dayjs(scheduleDate)
+    .tz("America/Sao_Paulo")
+    .startOf("day")
+    .isBefore(dayjs().tz("America/Sao_Paulo").startOf("day"));
+};
+
+const visibleRequests = computed(() => {
+  const requests = collectionRequests.value.data;
+
+  if (selectedFilter.value === "accepted") {
+    return requests.filter((request) =>
+      ["accepted", "technical_visit_confirmed"].includes(request.status)
+    );
+  }
+
+  if (selectedFilter.value === "scheduled") {
+    return requests.filter(
+      (request) => request.status === "scheduled" && !isRequestPast(request)
+    );
+  }
+
+  if (selectedFilter.value === "completed") {
+    return requests.filter(
+      (request) => request.status === "scheduled" && isRequestPast(request)
+    );
+  }
+
+  if (selectedFilter.value === "rejected") {
+    return requests.filter((request) =>
+      ["rejected", "cancelled", "counter_proposal_declined"].includes(
+        request.status
+      )
+    );
+  }
+
+  return requests.filter((request) =>
+    ["pending", "counter_proposed", "awaiting_technical_visit"].includes(
+      request.status
+    )
+  );
+});
 
 // Methods
 const loadRequests = async () => {
@@ -280,8 +345,15 @@ const loadRequests = async () => {
   const filters: any = {
     status:
       selectedFilter.value === "pending"
-        ? "pending,counter_proposed"
-        : selectedFilter.value,
+        ? "pending,counter_proposed,awaiting_technical_visit"
+        : selectedFilter.value === "accepted"
+          ? "accepted,technical_visit_confirmed"
+          : selectedFilter.value === "scheduled" ||
+              selectedFilter.value === "completed"
+            ? "scheduled"
+            : selectedFilter.value === "rejected"
+              ? "rejected,cancelled,counter_proposal_declined"
+              : selectedFilter.value,
   };
 
   try {
@@ -315,8 +387,7 @@ const formatStringDate = (date: string) => {
 };
 
 const formatDate = (date: string | Date) => {
-  const d = new Date(date);
-  return d.toLocaleDateString("pt-BR");
+  return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY");
 };
 
 const formatTimeRange = (startTime: Date | string, endTime: Date | string) => {

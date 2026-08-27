@@ -53,7 +53,7 @@
             variant="outline"
             @click="selectAllWeekdays"
           >
-            Marcar dias úteis
+            Marcar dias úteis do ano
           </UButton>
           <UButton
             size="sm"
@@ -82,6 +82,13 @@
               @click="toggleMonth(month)"
             >
               {{ isMonthFullySelected(month) ? 'Desmarcar' : 'Marcar' }} mês
+            </UButton>
+            <UButton
+              size="xs"
+              variant="outline"
+              @click="selectWeekdays(month)"
+            >
+              Marcar dias úteis
             </UButton>
           </div>
 
@@ -194,6 +201,12 @@ import { useBloodbankStore } from '~/stores/bloodbank'
 import { useUserStore } from '~/stores/user'
 import { storeToRefs } from 'pinia'
 import { fetchWithAuth } from '~/composables/useFetchWithAuth'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const route = useRoute()
 const store = useBloodbankStore()
@@ -219,12 +232,57 @@ const loadError = ref<string | null>(null)
 const showResultsModal = ref(false)
 const bulkResult = ref<{ created: number; deleted: number; skipped: number; errors: string[] } | null>(null)
 
-// Map of "YYYY-MM-DD" -> boolean (selected/available)
-const daySelections = ref<Map<string, boolean>>(new Map())
-// Track which dates are already in the database
-const existingDates = ref<Set<string>>(new Set())
-// Track which dates have locked slots
-const lockedDates = ref<Set<string>>(new Set())
+type TeamAvailabilityState = {
+  daySelections: Map<string, boolean>
+  existingDates: Set<string>
+  lockedDates: Set<string>
+}
+
+const allTeamsKey = '__all__'
+const loadedAvailableDates = ref<any[]>([])
+const teamStates = ref<Record<string, TeamAvailabilityState>>({})
+
+function createAvailabilityState(
+  records: any[],
+  teamId: string | null
+): TeamAvailabilityState {
+  const existingDates = new Set<string>()
+  const lockedDates = new Set<string>()
+
+  for (const availableDate of records) {
+    const matchingSlots = teamId
+      ? (availableDate.slots || []).filter(
+          (slot: any) => slot.teamId?.toString() === teamId
+        )
+      : availableDate.slots || []
+
+    if (!teamId || matchingSlots.length > 0) {
+      existingDates.add(availableDate.date)
+    }
+    if (matchingSlots.some((slot: any) => slot.locked || slot.lockedBy)) {
+      lockedDates.add(availableDate.date)
+    }
+  }
+
+  const daySelections = new Map<string, boolean>()
+  for (let month = 1; month <= 12; month++) {
+    const days = new Date(selectedYear.value, month, 0).getDate()
+    for (let day = 1; day <= days; day++) {
+      const key = `${selectedYear.value}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      daySelections.set(key, existingDates.has(key))
+    }
+  }
+
+  return { daySelections, existingDates, lockedDates }
+}
+
+const emptyAvailabilityState = createAvailabilityState([], null)
+const activeState = computed(
+  () => teamStates.value[selectedTeamId.value || allTeamsKey] || emptyAvailabilityState
+)
+const daySelections = computed(() => activeState.value.daySelections)
+const existingDates = computed(() => activeState.value.existingDates)
+const lockedDates = computed(() => activeState.value.lockedDates)
 
 const yearOptions = computed(() => {
   return [currentYear, currentYear + 1].map(y => ({ label: String(y), value: y }))
@@ -258,10 +316,9 @@ function getMonthStartOffset(month: number): number {
 }
 
 function isDayPast(month: number, day: number): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const date = new Date(selectedYear.value, month - 1, day)
-  return date < today
+  const today = dayjs().tz('America/Sao_Paulo').startOf('day')
+  const date = dayjs.tz(getDateKey(month, day), 'America/Sao_Paulo')
+  return date.isBefore(today)
 }
 
 function isDayLocked(month: number, day: number): boolean {
@@ -334,6 +391,16 @@ function selectAllWeekdays() {
   }
 }
 
+function selectWeekdays(month: number) {
+  const days = getDaysInMonth(month)
+  for (let day = 1; day <= days; day++) {
+    if (!isWeekday(month, day) || isDayPast(month, day) || isDayLocked(month, day)) {
+      continue
+    }
+    daySelections.value.set(getDateKey(month, day), true)
+  }
+}
+
 function deselectAll() {
   for (let month = 1; month <= 12; month++) {
     const days = getDaysInMonth(month)
@@ -371,6 +438,29 @@ const hasChanges = computed(() => {
   return changesCount.value.toCreate > 0 || changesCount.value.toDelete > 0
 })
 
+function rebuildTeamStates(records: any[]) {
+  const states: Record<string, TeamAvailabilityState> = {
+    [allTeamsKey]: createAvailabilityState(records, null),
+  }
+
+  for (const team of teams.value) {
+    states[team._id] = createAvailabilityState(records, team._id)
+  }
+
+  teamStates.value = states
+}
+
+function ensureTeamStates() {
+  for (const team of teams.value) {
+    if (!teamStates.value[team._id]) {
+      teamStates.value[team._id] = createAvailabilityState(
+        loadedAvailableDates.value,
+        team._id
+      )
+    }
+  }
+}
+
 async function loadAvailableDates() {
   isLoading.value = true
   try {
@@ -378,28 +468,12 @@ async function loadAvailableDates() {
       `/api/v1/bloodbank/${bloodBanksLocationId.value}/available-dates?year=${selectedYear.value}`
     )
 
-    existingDates.value.clear()
-    lockedDates.value.clear()
-    daySelections.value.clear()
-
     if (response.success) {
-      for (const ad of response.data as any[]) {
-        const dateStr = ad.date as string
-        const hasLockedSlot = ad.slots?.some((s: any) => s.locked || s.lockedBy)
-        if (hasLockedSlot) {
-          lockedDates.value.add(dateStr)
-        }
-        existingDates.value.add(dateStr)
-      }
-    }
-
-    // Initialize selections: existing dates are selected, rest are not
-    for (let month = 1; month <= 12; month++) {
-      const days = getDaysInMonth(month)
-      for (let day = 1; day <= days; day++) {
-        const key = getDateKey(month, day)
-        daySelections.value.set(key, existingDates.value.has(key))
-      }
+      loadedAvailableDates.value = response.data as any[]
+      rebuildTeamStates(loadedAvailableDates.value)
+    } else {
+      loadedAvailableDates.value = []
+      rebuildTeamStates([])
     }
   } catch (error) {
     console.error('Error loading available dates:', error)
@@ -430,6 +504,7 @@ async function saveBulk() {
         entries.push({
           date: key,
           isAvailable: false,
+          teamId: selectedTeamId.value,
         })
       }
     }
@@ -469,6 +544,8 @@ onMounted(async () => {
     store.loadTeams(bloodBanksLocationId.value, false),
   ])
 })
+
+watch(teams, ensureTeamStates, { immediate: true })
 
 // Reload when year changes
 watch(selectedYear, () => {

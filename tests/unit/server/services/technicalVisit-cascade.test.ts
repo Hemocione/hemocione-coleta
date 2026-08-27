@@ -29,6 +29,10 @@ vi.mock("~/server/services/collectionRequestNotification", () => ({
     mocks.notifyCollectionRequestStatusTransition(...args),
 }));
 
+vi.mock("~/server/services/hemocioneId", () => ({
+  getInstitutionsByIds: vi.fn(),
+}));
+
 const bloodBanksLocationId = "blood-bank-a";
 const visitId = "visit-a";
 const actorId = "blood-bank-user";

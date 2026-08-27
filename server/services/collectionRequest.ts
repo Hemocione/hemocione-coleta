@@ -52,7 +52,9 @@ export type CollectionRequestStatus =
 export interface CounterProposalDate {
   date: Date;
   startTime: string;
-  durationMinutes: number;
+  endTime?: string;
+  durationMinutes?: number;
+  teamName?: string;
   note: string;
 }
 
@@ -81,6 +83,22 @@ export interface RespondToCounterProposalData {
   decision: "accepted" | "declined";
   selectedDateId: string;
   respondedBy: string;
+}
+
+interface StoredConfirmedSchedule {
+  date: Date;
+  startTime: string;
+  endTime?: string;
+  durationMinutes: number;
+  teamName?: string;
+}
+
+export interface ConfirmedSchedule {
+  date: Date;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  teamName?: string;
 }
 
 export interface VisitProposal {
@@ -200,11 +218,7 @@ export interface CollectionRequestWithDetails {
   previousCounterProposals?: CounterProposal[];
   visitProposal?: VisitProposal;
   previousVisitProposals?: VisitProposal[];
-  confirmedSchedule?: {
-    date: Date;
-    startTime: string;
-    durationMinutes: number;
-  };
+  confirmedSchedule?: ConfirmedSchedule;
   eventSlug?: string;
   status: CollectionRequestStatus;
   rejectionReason?: string;
@@ -345,14 +359,19 @@ async function getCollectionRequestsByScope(
         priority?: number;
       }> = [];
 
-      // Create a set of requested slot IDs for quick lookup
-      const requestedSlotIds = new Set<string>();
+      const requestedSlotIdsByDate = new Map<string, Set<string>>();
+      const wildcardRequestedDateIds = new Set<string>();
       request.requestedDates.forEach((rd) => {
-        if (rd.slotIds) {
-          rd.slotIds.forEach((slotId) => {
-            requestedSlotIds.add(slotId.toString());
-          });
+        const dateId = rd.availableDateId.toString();
+        if (!rd.slotIds || rd.slotIds.length === 0) {
+          wildcardRequestedDateIds.add(dateId);
+          return;
         }
+
+        requestedSlotIdsByDate.set(
+          dateId,
+          new Set(rd.slotIds.map((slotId) => slotId.toString()))
+        );
       });
 
       // Process each requested date (da mais preferida para a menos) e
@@ -375,8 +394,9 @@ async function getCollectionRequestsByScope(
               );
 
             if (shouldIncludeSlot) {
+              const dateId = rd.availableDateId.toString();
               availableSlotOptions.push({
-                availableDateId: rd.availableDateId.toString(),
+                availableDateId: dateId,
                 slotId: slot._id.toString(),
                 date: availableDate.date,
                 startTime: slot.startTime,
@@ -384,7 +404,12 @@ async function getCollectionRequestsByScope(
                 teamName: (slot.teamId as any)?.name || "Equipe não definida",
                 teamColor: (slot.teamId as any)?.color || "#3B82F6",
                 isLocked: slot.locked || false,
-                isRequested: requestedSlotIds.has(slot._id.toString()),
+                isRequested:
+                  wildcardRequestedDateIds.has(dateId) ||
+                  requestedSlotIdsByDate
+                    .get(dateId)
+                    ?.has(slot._id.toString()) ||
+                  false,
                 priority: rd.priority,
               });
             }
@@ -520,7 +545,9 @@ export async function getCollectionRequestById(
   // todos os slots disponíveis
   sortRequestedDatesByPriority(request.requestedDates).forEach((rd) => {
     const availableDate = availableDateMap.get(rd.availableDateId.toString());
-    const requestedSlotIds = new Set<string>();
+    const requestedSlotIds = new Set(
+      (rd.slotIds || []).map((slotId) => slotId.toString())
+    );
 
     if (availableDate && availableDate.slots) {
       availableDate.slots.forEach((slot) => {
@@ -545,7 +572,10 @@ export async function getCollectionRequestById(
               (slot.teamId as { name?: string })?.name || "Equipe não definida",
             teamColor: (slot.teamId as { color?: string })?.color || "#3B82F6",
             isLocked: slot.locked || false,
-            isRequested: requestedSlotIds.has(slot._id.toString()),
+            isRequested:
+              !rd.slotIds ||
+              rd.slotIds.length === 0 ||
+              requestedSlotIds.has(slot._id.toString()),
             priority: rd.priority,
           });
         }
@@ -555,6 +585,9 @@ export async function getCollectionRequestById(
 
   const requestWithDetails = {
     ...request,
+    ...(request.confirmedSchedule && {
+      confirmedSchedule: normalizeConfirmedSchedule(request.confirmedSchedule),
+    }),
     institutionName: institution?.name || "Instituição não encontrada",
     institutionLocation:
       institution?.latitude && institution?.longitude
@@ -678,11 +711,18 @@ export async function acceptCollectionRequest(
     });
 
     if (nextStatus === "awaiting_technical_visit") {
-      void notifyCollectionRequestStatusTransition({
-        requestId,
-        bloodBanksLocationId,
-        transition: "awaiting_technical_visit",
-      });
+      try {
+        await notifyCollectionRequestStatusTransition({
+          requestId,
+          bloodBanksLocationId,
+          transition: "awaiting_technical_visit",
+        });
+      } catch (error) {
+        console.error(
+          "[notification] Collection request technical visit notification failed",
+          error
+        );
+      }
     }
 
     return await getCollectionRequestById(requestId, bloodBanksLocationId);
@@ -712,6 +752,42 @@ function getTechnicalVisitAddress(request: {
   return formattedAddress.slice(0, 500) || "Endereço não informado";
 }
 
+function calculateScheduleEndTime(
+  date: Date,
+  startTime: string,
+  durationMinutes: number
+): string {
+  const datePart = dayjs.utc(date).format("YYYY-MM-DD");
+  const startAt = dayjs.tz(
+    `${datePart}T${startTime}`,
+    TECHNICAL_VISIT_TIMEZONE
+  );
+
+  if (!startAt.isValid()) {
+    throw new Error("Invalid confirmed schedule start time");
+  }
+
+  return startAt.add(durationMinutes, "minute").format("HH:mm");
+}
+
+function normalizeConfirmedSchedule(
+  schedule: StoredConfirmedSchedule
+): ConfirmedSchedule {
+  return {
+    date: schedule.date,
+    startTime: schedule.startTime,
+    endTime:
+      schedule.endTime ??
+      calculateScheduleEndTime(
+        schedule.date,
+        schedule.startTime,
+        schedule.durationMinutes
+      ),
+    durationMinutes: schedule.durationMinutes,
+    teamName: schedule.teamName,
+  };
+}
+
 function combineDateAndTime(date: Date, startTime: string): Date {
   // `date` chega como meia-noite UTC do dia local (z.coerce.date() de
   // "YYYY-MM-DD"). O horário digitado é hora LOCAL do banco
@@ -722,6 +798,48 @@ function combineDateAndTime(date: Date, startTime: string): Date {
     .tz(`${datePart}T${startTime}`, TECHNICAL_VISIT_TIMEZONE)
     .utc()
     .toDate();
+}
+
+function timeToMinutes(time: string): number | null {
+  if (!/^\d{2}:\d{2}$/.test(time)) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function getProposalDurationMinutes(proposal: CounterProposalDate): number {
+  if (proposal.durationMinutes && proposal.durationMinutes > 0) {
+    return proposal.durationMinutes;
+  }
+
+  const startMinutes = timeToMinutes(proposal.startTime);
+  const endMinutes = proposal.endTime
+    ? timeToMinutes(proposal.endTime)
+    : null;
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    throw new Error("Invalid proposal time range");
+  }
+
+  return endMinutes - startMinutes;
+}
+
+function normalizeProposalDates(
+  proposals: CounterProposalDate[]
+): CounterProposalDate[] {
+  return proposals.map((proposal) => {
+    const durationMinutes = getProposalDurationMinutes(proposal);
+    return {
+      ...proposal,
+      durationMinutes,
+      endTime:
+        proposal.endTime ??
+        calculateScheduleEndTime(
+          proposal.date,
+          proposal.startTime,
+          durationMinutes
+        ),
+    };
+  });
 }
 
 async function getAwaitingTechnicalVisitRequest(
@@ -941,6 +1059,7 @@ export async function counterPropose(
 ) {
   const counterProposal: CounterProposal = {
     ...data,
+    proposedDates: normalizeProposalDates(data.proposedDates),
     proposedAt: new Date(),
   };
   const statusHistoryEntry = {
@@ -1001,11 +1120,7 @@ export async function respondToCounterProposal(
   const currentCounterProposal = request.counterProposal as unknown as CounterProposal;
   let nextStatus: CollectionRequestStatus;
   let confirmedSchedule:
-    | {
-        date: Date;
-        startTime: string;
-        durationMinutes: number;
-      }
+    | ConfirmedSchedule
     | undefined;
 
   if (data.decision === "accepted") {
@@ -1022,7 +1137,15 @@ export async function respondToCounterProposal(
     confirmedSchedule = {
       date: selectedDate.date,
       startTime: selectedDate.startTime,
-      durationMinutes: selectedDate.durationMinutes,
+      endTime:
+        selectedDate.endTime ??
+        calculateScheduleEndTime(
+          selectedDate.date,
+          selectedDate.startTime,
+          getProposalDurationMinutes(selectedDate)
+        ),
+      durationMinutes: getProposalDurationMinutes(selectedDate),
+      teamName: selectedDate.teamName,
     };
     nextStatus = currentCounterProposal.needsTechnicalVisit
       ? "awaiting_technical_visit"
@@ -1113,6 +1236,7 @@ export async function proposeTechnicalVisit(
 ) {
   const visitProposal: VisitProposal = {
     ...data,
+    proposedDates: normalizeProposalDates(data.proposedDates),
     proposedAt: new Date(),
   };
   const statusHistoryEntry = {
@@ -1395,49 +1519,14 @@ export async function cancelCollectionRequest(
 
 export async function validateInstitutionDateUniqueness(
   institutionId: string,
-  requestedDates: Array<{ availableDateId: string; slotIds?: string[] }>
+  requestedDates: Array<{ availableDateId: string; slotIds?: string[] }>,
+  bloodBanksLocationId?: string
 ): Promise<string[] | null> {
-  // Get all active requests for this institution (not rejected/cancelled)
-  const activeRequests = await CollectionRequest.find({
+  const conflictingDates = await findRequestedDateConflicts(
     institutionId,
-    status: { $nin: ["rejected", "cancelled"] },
-    deletedAt: null,
-  }).lean();
-
-  // Extract dates from requested dates
-  const requestedDateIds = requestedDates.map((rd) => rd.availableDateId);
-
-  // Get available dates to check actual dates
-  const availableDates = await AvailableDate.find({
-    _id: { $in: requestedDateIds },
-    deletedAt: null,
-  }).lean();
-
-  const requestedActualDates = availableDates.map((ad) => ad.date);
-
-  // Check for conflicts
-  const conflictingDates: string[] = [];
-
-  for (const activeRequest of activeRequests) {
-    const activeRequestDateIds = activeRequest.requestedDates.map((rd) =>
-      rd.availableDateId.toString()
-    );
-
-    // Get the actual dates for active request
-    const activeAvailableDates = await AvailableDate.find({
-      _id: { $in: activeRequestDateIds },
-      deletedAt: null,
-    }).lean();
-
-    const activeActualDates = activeAvailableDates.map((ad) => ad.date);
-
-    // Check for date conflicts
-    for (const requestedDate of requestedActualDates) {
-      if (activeActualDates.includes(requestedDate)) {
-        conflictingDates.push(requestedDate);
-      }
-    }
-  }
+    requestedDates,
+    bloodBanksLocationId
+  );
 
   return conflictingDates.length > 0 ? conflictingDates : null;
 }
@@ -1544,6 +1633,94 @@ export interface CreateCollectionRequestData {
   note?: string;
 }
 
+const OPEN_COLLECTION_REQUEST_STATUSES: CollectionRequestStatus[] = [
+  "pending",
+  "counter_proposed",
+  "awaiting_technical_visit",
+  "technical_visit_confirmed",
+  "accepted",
+];
+
+type RequestedDateSelection = {
+  availableDateId: string | Types.ObjectId;
+  slotIds?: Array<string | Types.ObjectId>;
+};
+
+async function findRequestedDateConflicts(
+  institutionId: string,
+  requestedDates: RequestedDateSelection[],
+  bloodBanksLocationId?: string
+): Promise<string[]> {
+  const openRequests = await CollectionRequest.find({
+    institutionId,
+    ...(bloodBanksLocationId && { bloodBanksLocationId }),
+    status: { $in: OPEN_COLLECTION_REQUEST_STATUSES },
+    deletedAt: null,
+  }).lean();
+
+  if (openRequests.length === 0) {
+    return [];
+  }
+
+  const availableDateIds = new Set(
+    requestedDates
+      .concat(
+        openRequests.flatMap((request: any) => request.requestedDates || [])
+      )
+      .map((requestedDate) => requestedDate.availableDateId.toString())
+  );
+  const availableDates = await AvailableDate.find({
+    _id: { $in: [...availableDateIds] },
+    deletedAt: null,
+  }).lean();
+  const actualDateById = new Map(
+    availableDates.map((availableDate) => [
+      availableDate._id.toString(),
+      availableDate.date,
+    ])
+  );
+
+  const conflictingDates = new Set<string>();
+
+  for (const requestedDate of requestedDates) {
+    const requestedActualDate = actualDateById.get(
+      requestedDate.availableDateId.toString()
+    );
+    if (!requestedActualDate) continue;
+
+    const requestedSlotIds = new Set(
+      (requestedDate.slotIds || []).map((slotId) => slotId.toString())
+    );
+
+    for (const openRequest of openRequests) {
+      for (const openRequestedDate of openRequest.requestedDates || []) {
+        if (
+          actualDateById.get(openRequestedDate.availableDateId.toString()) !==
+          requestedActualDate
+        ) {
+          continue;
+        }
+
+        const openSlotIds = new Set(
+          (openRequestedDate.slotIds || []).map((slotId: any) =>
+            slotId.toString()
+          )
+        );
+
+        if (
+          requestedSlotIds.size === 0 ||
+          openSlotIds.size === 0 ||
+          [...requestedSlotIds].some((slotId) => openSlotIds.has(slotId))
+        ) {
+          conflictingDates.add(requestedActualDate);
+        }
+      }
+    }
+  }
+
+  return [...conflictingDates];
+}
+
 // Preenche priority sequencialmente pela posição no array quando o chamador
 // não informa uma prioridade explícita para cada data. Mistura entre
 // datas com e sem priority não é permitida: se qualquer uma vier sem
@@ -1583,23 +1760,13 @@ export async function createCollectionRequest(
     );
   }
 
-  // Check if institution already has an open request for this blood bank
-  const existingOpenRequest = await CollectionRequest.findOne({
-    institutionId: data.institutionId,
-    bloodBanksLocationId,
-    status: {
-      $in: [
-        "pending",
-        "counter_proposed",
-        "awaiting_technical_visit",
-        "technical_visit_confirmed",
-        "accepted",
-      ],
-    },
-    deletedAt: null,
-  });
+  const conflictingDates = await findRequestedDateConflicts(
+    data.institutionId,
+    data.requestedDates,
+    bloodBanksLocationId
+  );
 
-  if (existingOpenRequest) {
+  if (conflictingDates.length > 0) {
     // 409 estruturado: o client (pages/agagar/[bloodbankSlug]) faz
     // errorMessage.includes("já possui uma solicitação em aberto") —
     // preservar a mensagem em data.message e statusMessage.
@@ -1688,16 +1855,17 @@ export interface CollectionRequestPublicDetails {
   note?: string;
   requestedDates: Array<{
     date: string;
-    startTime?: Date;
-    endTime?: Date;
+    startTime?: string | Date;
+    endTime?: string | Date;
     teamName?: string;
   }>;
   selectedDate?: {
     date: string;
-    startTime?: Date;
-    endTime?: Date;
+    startTime?: string | Date;
+    endTime?: string | Date;
     teamName?: string;
   };
+  confirmedSchedule?: ConfirmedSchedule;
   counterProposal?: {
     proposedDates: CounterProposalDate[];
     needsTechnicalVisit: boolean;
@@ -1784,7 +1952,11 @@ async function buildCollectionRequestPublicDetails(
         }
       });
     } else {
-      requestedDatesInfo.push({ date: ad.date });
+      requestedDatesInfo.push({
+        date: ad.date,
+        startTime: rd.startTime,
+        endTime: rd.endTime,
+      });
     }
   });
 
@@ -1825,6 +1997,11 @@ async function buildCollectionRequestPublicDetails(
         }
       : undefined;
 
+  const confirmedSchedule: CollectionRequestPublicDetails["confirmedSchedule"] =
+    request.confirmedSchedule
+      ? normalizeConfirmedSchedule(request.confirmedSchedule)
+      : undefined;
+
   const technicalVisit: CollectionRequestPublicDetails["technicalVisit"] =
     technicalVisitDoc
       ? {
@@ -1847,6 +2024,7 @@ async function buildCollectionRequestPublicDetails(
     note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
+    confirmedSchedule,
     counterProposal,
     visitProposal,
     technicalVisit,
@@ -1924,4 +2102,72 @@ export async function withdrawCollectionRequest(
   );
 
   return await getCollectionRequestPublic(requestId);
+}
+
+export async function cancelCollectionRequestByInstitution(
+  requestId: string,
+  institutionUserId: string,
+  reason?: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const session = await CollectionRequest.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const request = await CollectionRequest.findOne({
+        _id: requestId,
+        requestedByUserId: institutionUserId,
+        status: { $in: ["pending", "accepted"] },
+        deletedAt: null,
+      }).session(session);
+
+      if (!request) {
+        throw new Error("Request not found or cannot be cancelled");
+      }
+
+      if (
+        request.status === "accepted" &&
+        request.selectedAvailableDateId &&
+        request.selectedSlotId
+      ) {
+        await AvailableDate.findOneAndUpdate(
+          {
+            _id: request.selectedAvailableDateId,
+            "slots._id": request.selectedSlotId,
+          },
+          {
+            $set: {
+              "slots.$.locked": false,
+              "slots.$.lockedBy": null,
+            },
+          },
+          { session }
+        );
+      }
+
+      await CollectionRequest.findOneAndUpdate(
+        {
+          _id: requestId,
+          requestedByUserId: institutionUserId,
+          status: { $in: ["pending", "accepted"] },
+          deletedAt: null,
+        },
+        {
+          $set: { status: "cancelled" },
+          $push: {
+            statusHistory: {
+              status: "cancelled",
+              changedAt: new Date(),
+              changedBy: institutionUserId,
+              reason: reason || "Cancelado pela instituição",
+            },
+          },
+        },
+        { session }
+      );
+    });
+
+    return await getCollectionRequestPublic(requestId);
+  } finally {
+    await session.endSession();
+  }
 }

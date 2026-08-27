@@ -5,6 +5,7 @@ import {
 } from "~/server/services/collectionRequest";
 
 const mocks = vi.hoisted(() => ({
+  collectionRequestFind: vi.fn(),
   collectionRequestFindOne: vi.fn(),
   collectionRequestSave: vi.fn(),
   bloodBankFindOne: vi.fn(),
@@ -45,6 +46,8 @@ vi.mock("~/server/models", () => {
   }
   (FakeCollectionRequest as any).findOne = (...args: unknown[]) =>
     mocks.collectionRequestFindOne(...args);
+  (FakeCollectionRequest as any).find = (...args: unknown[]) =>
+    mocks.collectionRequestFind(...args);
 
   return {
     collectionRequest: { CollectionRequest: FakeCollectionRequest },
@@ -119,6 +122,7 @@ const availableDatesWithSlots = [
 
 beforeEach(() => {
   mocks.collectionRequestFindOne.mockReset();
+  mocks.collectionRequestFind.mockReset();
   mocks.collectionRequestSave.mockReset();
   mocks.bloodBankFindOne.mockReset();
   mocks.availableDateFind.mockReset();
@@ -143,6 +147,7 @@ describe("createCollectionRequest — atribuição de priority", () => {
   };
 
   beforeEach(() => {
+    mocks.collectionRequestFind.mockReturnValue(chainable([]));
     mocks.bloodBankFindOne.mockResolvedValue({ active: true });
     mocks.collectionRequestFindOne.mockImplementation((query: any) =>
       "status" in query ? chainable(null) : chainable(savedRequestLean)
@@ -227,6 +232,44 @@ describe("getCollectionRequestById — ordenação por priority", () => {
     ).toEqual([DATE_B_ID, DATE_A_ID]);
     expect(result?.availableSlotOptions.map((o) => (o as any).priority)).toEqual([
       1, 2,
+    ]);
+  });
+
+  it("marca slots específicos e todos os slots de uma data wildcard como solicitados", async () => {
+    const requestWithRequestedSlots = {
+      _id: "request-x",
+      institutionId: "institution-a",
+      bloodBanksLocationId: "blood-bank-a",
+      requestedDates: [
+        { availableDateId: DATE_A_ID, slotIds: ["slot-a1"], priority: 1 },
+        { availableDateId: DATE_B_ID, priority: 2 },
+      ],
+      host: baseHost,
+      status: "pending",
+      statusHistory: [],
+    };
+
+    mocks.collectionRequestFindOne.mockImplementation(() =>
+      chainable(requestWithRequestedSlots)
+    );
+    mocks.availableDateFind.mockImplementation(() =>
+      chainable(availableDatesWithSlots)
+    );
+
+    const result = await getCollectionRequestById(
+      "request-x",
+      "blood-bank-a"
+    );
+
+    expect(
+      result?.availableSlotOptions.map((option) => ({
+        availableDateId: option.availableDateId,
+        slotId: option.slotId,
+        isRequested: option.isRequested,
+      }))
+    ).toEqual([
+      { availableDateId: DATE_A_ID, slotId: "slot-a1", isRequested: true },
+      { availableDateId: DATE_B_ID, slotId: "slot-b1", isRequested: true },
     ]);
   });
 });

@@ -1,0 +1,20 @@
+# Sanitized evidence: session reload regression
+
+This file stores no credentials or token values.
+
+## Before the fix
+
+path_after_login=/agendar
+authenticated_ui_before_reload=true
+login_prompt_before_reload=false
+local_auth_cookie_before_reload=false
+
+path_after_reload=/agendar
+authenticated_ui_after_reload=false
+login_prompt_after_reload=true
+local_auth_cookie_after_reload=false
+
+## After the fix
+
+The unit tests verify that a valid login stores the token in the configured cookie.
+The unit tests verify that logout clears the user, token, and configured cookie.

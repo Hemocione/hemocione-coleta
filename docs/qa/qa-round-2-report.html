@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hemocione Coleta — Relatório QA</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, system-ui, sans-serif; }
+      body { margin: 0; background: #f8fafc; color: #172033; line-height: 1.5; }
+      main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 56px; }
+      h1, h2 { color: #111827; }
+      h1 { margin-bottom: 4px; }
+      h2 { margin-top: 32px; border-bottom: 1px solid #dbe3ef; padding-bottom: 8px; }
+      .muted { color: #64748b; }
+      .status { display: inline-block; border-radius: 999px; padding: 4px 10px; background: #dcfce7; color: #166534; font-weight: 700; }
+      .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 12px 0; }
+      table { width: 100%; border-collapse: collapse; background: white; }
+      th, td { text-align: left; vertical-align: top; border: 1px solid #e2e8f0; padding: 10px; }
+      th { background: #eff6ff; color: #1e3a8a; }
+      code { background: #f1f5f9; border-radius: 4px; padding: 2px 4px; }
+      ul { padding-left: 22px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Hemocione Coleta — QA round 2</h1>
+      <p class="muted">Data: 27/08/2026 · Branch de validação: <code>develop</code></p>
+      <p><span class="status">Correções implementadas e verificadas</span></p>
+
+      <h2>Resumo</h2>
+      <div class="card">
+        <p>O fluxo agora mostra a ordem completa da solicitação.</p>
+        <p>O fluxo mantém data, hora, equipe e fuso horário em todos os pontos principais.</p>
+        <p>O fluxo permite acompanhar contrapropostas, visitas técnicas, cancelamento e horários confirmados.</p>
+        <p>A edição institucional usa autorização atual no Hemocione ID.</p>
+      </div>
+
+      <h2>Feedback e causa corrigida</h2>
+      <table>
+        <thead>
+          <tr><th>Feedback</th><th>Causa</th><th>Correção</th><th>Evidência</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ordem do fluxo e legenda do histórico não eram claras.</td>
+            <td>A tela mostrava rótulos sem uma explicação de cada estado.</td>
+            <td>Adicionada a sequência de 5 etapas e uma descrição para cada estado do histórico.</td>
+            <td><code>pages/agendar/acompanhar/[token]/index.vue</code></td>
+          </tr>
+          <tr>
+            <td>Datas e horas divergiam entre instituição e banco.</td>
+            <td>O sistema misturava datas UTC, horas locais e duração calculada.</td>
+            <td>Persistidos <code>startTime</code> e <code>endTime</code>. Aplicado <code>America/Sao_Paulo</code>. Mantida compatibilidade com duração antiga.</td>
+            <td>Testes unitários verdes e build verde.</td>
+          </tr>
+          <tr>
+            <td>Contraproposta não mostrava disponibilidade nem equipe.</td>
+            <td>A contraproposta tinha apenas duração e não preservava a equipe.</td>
+            <td>Adicionada disponibilidade dos horários conhecidos, intervalo início-fim e equipe.</td>
+            <td><code>pages/[bloodbankSlug]/coletas/[requestId].vue</code> e modelo de solicitação.</td>
+          </tr>
+          <tr>
+            <td>Visitas técnicas não tinham vínculo claro.</td>
+            <td>A visita era criada com endereço global, sem vínculo obrigatório à solicitação.</td>
+            <td>A visita usa a solicitação selecionada. A tela mostra instituição, solicitação e evento quando existem.</td>
+            <td><code>pages/[bloodbankSlug]/visitas-tecnicas/index.vue</code></td>
+          </tr>
+          <tr>
+            <td>Equipe, calendário e visitas em lote tinham estado inconsistente.</td>
+            <td>O estado global confundia equipes selecionadas e slots bloqueados.</td>
+            <td>Separada a seleção por equipe. Adicionados lote por mês, dias úteis e legenda explícita.</td>
+            <td>Testes de calendário e visitas técnicos verdes.</td>
+          </tr>
+          <tr>
+            <td>A instituição não via o horário confirmado na lista.</td>
+            <td>A lista mostrava somente status e data de criação.</td>
+            <td>A lista mostra datas solicitadas, horário confirmado e equipe quando disponíveis.</td>
+            <td><code>pages/agendar/meus-agendamentos/index.vue</code></td>
+          </tr>
+          <tr>
+            <td>Instituição não podia revisar os próprios dados.</td>
+            <td>Não existia rota autenticada de perfil e o seletor mantinha estado antigo.</td>
+            <td>Adicionadas rotas GET e PATCH. A edição aceita somente campos de perfil. A autorização usa associação atual no banco.</td>
+            <td>Hemocione ID: 24 suítes e 133 testes verdes. Coleta: testes de adapter verdes.</td>
+          </tr>
+          <tr>
+            <td>Solicitações independentes para o mesmo banco eram bloqueadas.</td>
+            <td>A validação tratava qualquer solicitação aberta como conflito.</td>
+            <td>O conflito considera a mesma data e o mesmo intervalo efetivo.</td>
+            <td>Teste de duplicidade e suíte completa verdes.</td>
+          </tr>
+          <tr>
+            <td>Cancelamento aceito dependia de contato manual.</td>
+            <td>A ação pública só retirava solicitações pendentes.</td>
+            <td>Adicionado cancelamento autenticado para solicitações aceitas. O slot é liberado na mesma transação.</td>
+            <td>Teste do endpoint público e build verdes.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Verificação executada</h2>
+      <div class="card">
+        <ul>
+          <li>Coleta: <code>yarn test:unit --run</code> — 47 arquivos e 284 testes passaram.</li>
+          <li>Coleta: <code>yarn build</code> — exit code 0.</li>
+          <li>Coleta: <code>yarn playwright test tests/e2e --project=chromium</code> — 2 testes passaram.</li>
+          <li>Hemocione ID: <code>npm test -- --runInBand</code> — 24 suítes e 133 testes passaram.</li>
+          <li>Os comandos <code>git diff --check</code> passaram nos worktrees alterados.</li>
+        </ul>
+      </div>
+
+      <h2>Fronteira de confiança</h2>
+      <div class="card">
+        <ul>
+          <li>Rotas privadas da Coleta exigem token no middleware de API.</li>
+          <li>A ação pública de cancelamento exige JWT válido e confere o dono pelo token da solicitação.</li>
+          <li>O Hemocione ID exige autenticação e associação atual com a instituição.</li>
+          <li>Somente a associação com papel <code>admin</code> pode alterar o perfil.</li>
+          <li>O PATCH rejeita campos administrativos, identificadores e campos desconhecidos.</li>
+          <li>O token de acesso da solicitação não aparece neste relatório.</li>
+        </ul>
+      </div>
+
+      <h2>Pontos operacionais</h2>
+      <div class="card">
+        <p>A entrega por WhatsApp depende da configuração do serviço de notificações.</p>
+        <p>O card de disponibilidade usa os slots conhecidos da solicitação atual.</p>
+        <p>O deploy do Hemocione ID deve preceder o deploy da Coleta para ativar a edição institucional.</p>
+      </div>
+    </main>
+  </body>
+</html>

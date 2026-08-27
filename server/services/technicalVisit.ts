@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { collectionRequest, technicalVisit } from "~/server/models";
 const { TechnicalVisit } = technicalVisit;
 const { CollectionRequest } = collectionRequest;
+import { getInstitutionsByIds } from "~/server/services/hemocioneId";
 import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
 export interface TechnicalVisitData {
@@ -18,6 +19,14 @@ export interface TechnicalVisitData {
   deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  institutionName?: string;
+  institutionAddress?: string;
+  collectionRequest?: {
+    _id: string;
+    institutionId: string;
+    status: string;
+    eventSlug?: string;
+  };
 }
 
 export interface CreateTechnicalVisitData {
@@ -39,6 +48,67 @@ export interface UpdateTechnicalVisitData {
   visitDate?: Date;
   outcome?: "approved" | "rejected" | "pending";
   notes?: string | null;
+}
+
+async function enrichTechnicalVisits(
+  visits: TechnicalVisitData[],
+  bloodBanksLocationId: string
+): Promise<TechnicalVisitData[]> {
+  if (visits.length === 0) return visits;
+
+  const visitIds = visits.map((visit) => visit._id.toString());
+  const linkedRequests = await CollectionRequest.find({
+    technicalVisitId: { $in: visitIds },
+    bloodBanksLocationId,
+    deletedAt: null,
+  }).lean();
+
+  const requestByVisitId = new Map(
+    linkedRequests.map((request) => [
+      request.technicalVisitId?.toString(),
+      request,
+    ])
+  );
+  const institutionIds = Array.from(
+    new Set(
+      visits
+        .map((visit) => visit.institutionId?.toString())
+        .concat(
+          linkedRequests.map((request) => request.institutionId?.toString())
+        )
+        .filter((institutionId): institutionId is string => Boolean(institutionId))
+    )
+  );
+  const institutions = institutionIds.length
+    ? await getInstitutionsByIds(institutionIds)
+    : [];
+  const institutionById = new Map(
+    institutions.map((institution) => [institution.id, institution])
+  );
+
+  return visits.map((visit) => {
+    const request = requestByVisitId.get(visit._id.toString());
+    const institutionId =
+      visit.institutionId?.toString() || request?.institutionId?.toString();
+    const institution = institutionId
+      ? institutionById.get(institutionId)
+      : undefined;
+
+    return {
+      ...visit,
+      ...(institutionId && { institutionId }),
+      ...(institution?.name && { institutionName: institution.name }),
+      ...(institution?.address && { institutionAddress: institution.address }),
+      ...(request && {
+        collectionRequest: {
+          _id: request._id.toString(),
+          institutionId: request.institutionId.toString(),
+          status: request.status,
+          ...(request.eventSlug && { eventSlug: request.eventSlug }),
+        },
+      }),
+    };
+  });
 }
 
 export async function createTechnicalVisit(
@@ -81,8 +151,13 @@ export async function getTechnicalVisitsByBloodBank(
     .limit(pagination.limit)
     .lean();
 
+  const enrichedData = await enrichTechnicalVisits(
+    data as unknown as TechnicalVisitData[],
+    bloodBanksLocationId
+  );
+
   return {
-    data: data as unknown as TechnicalVisitData[],
+    data: enrichedData,
     pagination: {
       page: pagination.page,
       limit: pagination.limit,
@@ -96,11 +171,43 @@ export async function getTechnicalVisitById(
   bloodBanksLocationId: string,
   visitId: string
 ): Promise<TechnicalVisitData | null> {
-  return await TechnicalVisit.findOne({
+  const visit = await TechnicalVisit.findOne({
     _id: visitId,
     bloodBanksLocationId,
     deletedAt: null,
   }).lean() as TechnicalVisitData | null;
+
+  if (!visit) return null;
+
+  const [enrichedVisit] = await enrichTechnicalVisits(
+    [visit],
+    bloodBanksLocationId
+  );
+  return enrichedVisit || null;
+}
+
+export async function linkTechnicalVisitToCollectionRequest(
+  requestId: string,
+  bloodBanksLocationId: string,
+  technicalVisitId: string | Types.ObjectId
+) {
+  const updatedRequest = await CollectionRequest.findOneAndUpdate(
+    {
+      _id: requestId,
+      bloodBanksLocationId,
+      status: "awaiting_technical_visit",
+      technicalVisitId: { $exists: false },
+      deletedAt: null,
+    },
+    { $set: { technicalVisitId } },
+    { new: true }
+  );
+
+  if (!updatedRequest) {
+    throw new Error("Collection request is not available for a new technical visit");
+  }
+
+  return updatedRequest;
 }
 
 export async function updateTechnicalVisit(

@@ -140,7 +140,7 @@ Resultado antes da correção: `/agendar` mostrava novamente o convite de login 
 
 **Status:** fixed. O middleware grava o token no cookie local. O logout limpa usuário, token e cookie.
 
-**Evidence:** `session-reload-before-fix.txt`, `tests/unit/middleware/auth.global.test.ts` e `tests/unit/stores/user.test.ts`.
+**Evidence:** `session-reload-before-fix.txt`, `authenticated-flow.txt`, `tests/unit/middleware/auth.global.test.ts` e `tests/unit/stores/user.test.ts`.
 
 ---
 
@@ -214,5 +214,7 @@ Resultado antes da correção: o aviso aparecia durante a conexão com MongoDB.
 - `/termo/invalido`, `/agendar/acompanhar/invalido` e `/agendar/nao-existe`.
 - Auditoria axe-core no documento público e no modal.
 - Console do navegador e erros de carregamento nas rotas públicas.
+- Login, recarregamento, logout confirmado e cadastro sintético de instituição em dev.
+- Validação de CNPJ inválido com bloqueio do botão `Salvar`.
 - Suíte unitária completa e build Nuxt.
 - Boot do servidor com MongoDB local.

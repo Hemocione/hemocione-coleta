@@ -1,0 +1,19 @@
+# Sanitized browser evidence
+# No personal credential or full callback URL is stored here.
+
+login.final_path=/agendar
+login.query_keys_after_middleware=[]
+login.local_auth_cookie_after_login=true
+reload.final_path=/agendar
+reload.query_keys=[]
+reload.local_auth_cookie=true
+reload.login_prompt=false
+logout.confirmed=true
+logout.final_path=/
+logout.local_auth_cookie=false
+
+institution.invalid_cnpj.save_disabled=true
+institution.invalid_cnpj.validation_visible=true
+institution.invalid_cnpj.dialog_open=true
+institution.valid_form.dialog_closed_after_save=true
+institution.valid_form.success_visible=true

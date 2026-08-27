@@ -88,5 +88,6 @@ describe("visitas técnicas", () => {
       wrapper.find('[data-testid="technical-visit-institution-select"]').exists()
     ).toBe(true);
     expect((wrapper.vm as any).institutionSelectOptions).toEqual([]);
+    expect((wrapper.vm as any).requestOptions).toEqual([]);
   });
 });

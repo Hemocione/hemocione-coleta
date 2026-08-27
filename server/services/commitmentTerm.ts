@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { commitmentTerm } from "~/server/models";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
+import { normalizeCommitmentTermTemplate } from "~/utils/commitmentTermTemplate";
 const { CommitmentTerm } = commitmentTerm;
 
 export const DEFAULT_COMMITMENT_TERM_TEMPLATE = `TERMO DE COMPROMISSO
@@ -52,9 +53,10 @@ export function renderTemplate(
   template: string,
   params: Record<string, string>
 ): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return params[key] ?? match;
-  });
+  return normalizeCommitmentTermTemplate(template).replace(
+    /\{\{\s*(\w+)\s*\}\}/g,
+    (match, key) => params[key] ?? match
+  );
 }
 
 export async function getTemplateForBloodBank(
@@ -62,13 +64,18 @@ export async function getTemplateForBloodBank(
 ): Promise<string> {
   const bloodBank =
     await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
-  return bloodBank?.commitmentTermTemplate || DEFAULT_COMMITMENT_TERM_TEMPLATE;
+  return normalizeCommitmentTermTemplate(
+    bloodBank?.commitmentTermTemplate || DEFAULT_COMMITMENT_TERM_TEMPLATE
+  );
 }
 
 export async function createCommitmentTerm(
   data: CreateCommitmentTermData
 ): Promise<CommitmentTermData> {
-  const term = new CommitmentTerm(data);
+  const term = new CommitmentTerm({
+    ...data,
+    generatedContent: normalizeCommitmentTermTemplate(data.generatedContent),
+  });
   const saved = await term.save();
   return saved.toObject() as unknown as CommitmentTermData;
 }

@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   assertUserAccessToBloodBanksLocationId: vi.fn(),
   getCollectionRequestById: vi.fn(),
+  getCollectionRequestsByBloodBank: vi.fn(),
   createTechnicalVisit: vi.fn(),
   linkTechnicalVisitToCollectionRequest: vi.fn(),
   updateTechnicalVisit: vi.fn(),
@@ -16,6 +17,8 @@ vi.mock("~/server/services/auth", () => ({
 vi.mock("~/server/services/collectionRequest", () => ({
   getCollectionRequestById: (...args: unknown[]) =>
     mocks.getCollectionRequestById(...args),
+  getCollectionRequestsByBloodBank: (...args: unknown[]) =>
+    mocks.getCollectionRequestsByBloodBank(...args),
 }));
 
 vi.mock("~/server/services/technicalVisit", () => ({
@@ -88,6 +91,10 @@ beforeEach(() => {
     institutionId: "institution-from-request",
     status: "awaiting_technical_visit",
   });
+  mocks.getCollectionRequestsByBloodBank.mockResolvedValue({
+    data: [{ institutionId: "550e8400-e29b-41d4-a716-446655440000" }],
+    pagination: { total: 1, page: 1, limit: 1, pages: 1 },
+  });
   mocks.createTechnicalVisit.mockResolvedValue({
     _id: "visit-a",
     institutionId: "institution-from-request",
@@ -141,6 +148,47 @@ describe("POST technical-visits", () => {
         makeEvent({
           requestId,
           address: "Rua A, 1",
+          visitDate: "2999-01-15",
+          outcome: "pending",
+        })
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.createTechnicalVisit).not.toHaveBeenCalled();
+  });
+
+  it("permite visita manual somente para instituição associada ao banco", async () => {
+    const institutionId = "550e8400-e29b-41d4-a716-446655440000";
+
+    await handler(
+      makeEvent({
+        institutionId,
+        address: "Rua A, 1",
+        visitDate: "2999-01-15",
+        outcome: "pending",
+      })
+    );
+
+    expect(mocks.getCollectionRequestsByBloodBank).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      { institutionId },
+      { page: 1, limit: 1 }
+    );
+    expect(mocks.createTechnicalVisit).toHaveBeenCalledWith(
+      expect.objectContaining({ institutionId })
+    );
+  });
+
+  it("rejeita visita manual para instituição não associada ao banco", async () => {
+    mocks.getCollectionRequestsByBloodBank.mockResolvedValue({
+      data: [],
+      pagination: { total: 0, page: 1, limit: 1, pages: 0 },
+    });
+
+    await expect(
+      handler(
+        makeEvent({
+          institutionId: "550e8400-e29b-41d4-a716-446655440001",
+          address: "Rua externa, 1",
           visitDate: "2999-01-15",
           outcome: "pending",
         })

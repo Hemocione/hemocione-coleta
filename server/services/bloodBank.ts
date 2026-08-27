@@ -1,4 +1,5 @@
 import { bloodBank } from "~/server/models";
+import { normalizeCommitmentTermTemplate } from "~/utils/commitmentTermTemplate";
 const { BloodBank } = bloodBank;
 import slugify from "slugify";
 
@@ -213,7 +214,9 @@ export async function getCommitmentTermSettings(bloodBanksLocationId: string) {
   ).lean();
 
   return {
-    commitmentTermTemplate: bloodBank?.commitmentTermTemplate || null,
+    commitmentTermTemplate: bloodBank?.commitmentTermTemplate
+      ? normalizeCommitmentTermTemplate(bloodBank.commitmentTermTemplate)
+      : null,
     autoGenerateCommitmentTerm: bloodBank?.autoGenerateCommitmentTerm || false,
   };
 }
@@ -228,7 +231,9 @@ export async function updateCommitmentTermSettings(
   const updateFields: Record<string, any> = {};
 
   if (settings.commitmentTermTemplate !== undefined) {
-    updateFields.commitmentTermTemplate = settings.commitmentTermTemplate;
+    updateFields.commitmentTermTemplate = settings.commitmentTermTemplate
+      ? normalizeCommitmentTermTemplate(settings.commitmentTermTemplate)
+      : settings.commitmentTermTemplate;
   }
   if (settings.autoGenerateCommitmentTerm !== undefined) {
     updateFields.autoGenerateCommitmentTerm =
@@ -242,7 +247,9 @@ export async function updateCommitmentTermSettings(
   );
 
   return {
-    commitmentTermTemplate: updated?.commitmentTermTemplate || null,
+    commitmentTermTemplate: updated?.commitmentTermTemplate
+      ? normalizeCommitmentTermTemplate(updated.commitmentTermTemplate)
+      : null,
     autoGenerateCommitmentTerm: updated?.autoGenerateCommitmentTerm || false,
   };
 }

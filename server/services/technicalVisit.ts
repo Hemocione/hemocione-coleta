@@ -5,6 +5,38 @@ const { CollectionRequest } = collectionRequest;
 import { getInstitutionsByIds } from "~/server/services/hemocioneId";
 import { notifyCollectionRequestStatusTransition } from "./collectionRequestNotification";
 
+function normalizeAddress(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function formatCollectionRequestAddress(request: {
+  address?: {
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+}): string {
+  if (!request.address) return "";
+  const address = request.address;
+  return [
+    `${address.street}, ${address.number}`,
+    address.complement,
+    address.neighborhood,
+    `${address.city} - ${address.state}`,
+    address.zipCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export interface TechnicalVisitData {
   _id: string | Types.ObjectId;
   bloodBanksLocationId: string | Types.UUID;
@@ -69,6 +101,38 @@ async function enrichTechnicalVisits(
       request,
     ])
   );
+  const visitsWithoutInstitution = visits.filter(
+    (visit) =>
+      !visit.institutionId && !requestByVisitId.has(visit._id.toString())
+  );
+  const inferredInstitutionByVisitId = new Map<string, string>();
+
+  if (visitsWithoutInstitution.length) {
+    const requestsWithAddresses = await CollectionRequest.find({
+      bloodBanksLocationId,
+      deletedAt: null,
+      address: { $exists: true },
+    }).lean();
+    const requestsByAddress = new Map<string, Set<string>>();
+
+    requestsWithAddresses.forEach((request) => {
+      const address = normalizeAddress(formatCollectionRequestAddress(request));
+      if (!address) return;
+      const institutionIds = requestsByAddress.get(address) || new Set<string>();
+      institutionIds.add(request.institutionId.toString());
+      requestsByAddress.set(address, institutionIds);
+    });
+
+    visitsWithoutInstitution.forEach((visit) => {
+      const institutionIds = requestsByAddress.get(normalizeAddress(visit.address));
+      if (institutionIds?.size === 1) {
+        inferredInstitutionByVisitId.set(
+          visit._id.toString(),
+          Array.from(institutionIds)[0]
+        );
+      }
+    });
+  }
   const institutionIds = Array.from(
     new Set(
       visits
@@ -76,6 +140,7 @@ async function enrichTechnicalVisits(
         .concat(
           linkedRequests.map((request) => request.institutionId?.toString())
         )
+        .concat(Array.from(inferredInstitutionByVisitId.values()))
         .filter((institutionId): institutionId is string => Boolean(institutionId))
     )
   );
@@ -89,7 +154,9 @@ async function enrichTechnicalVisits(
   return visits.map((visit) => {
     const request = requestByVisitId.get(visit._id.toString());
     const institutionId =
-      visit.institutionId?.toString() || request?.institutionId?.toString();
+      visit.institutionId?.toString() ||
+      request?.institutionId?.toString() ||
+      inferredInstitutionByVisitId.get(visit._id.toString());
     const institution = institutionId
       ? institutionById.get(institutionId)
       : undefined;

@@ -130,4 +130,51 @@ describe("banco de sangue /coletas", () => {
       "/hemocione/coletas/request-counter-proposed"
     );
   });
+
+  it("mostra aceite com horário confirmado na aba Agendadas", async () => {
+    collectionRequests.value = {
+      data: [
+        {
+          _id: "request-accepted-with-slot",
+          institutionId: "institution-a",
+          institutionName: "Instituição A",
+          institutionLocation: null,
+          institutionAddress: "Rua A, 1",
+          requestedByUserId: "user-a",
+          bloodBanksLocationId: "blood-bank-a",
+          availableSlotOptions: [
+            {
+              availableDateId: "date-a",
+              slotId: "slot-a",
+              date: "2099-01-15",
+              startTime: "08:00",
+              endTime: "09:00",
+              teamName: "Equipe A",
+            },
+          ],
+          selectedSlotId: "slot-a",
+          status: "accepted",
+          host: { name: "Pessoa A", email: "a@example.com", phone: "11999999999" },
+          statusHistory: [],
+          createdAt: new Date("2026-08-26T12:00:00.000Z"),
+          updatedAt: new Date("2026-08-26T12:00:00.000Z"),
+        },
+      ],
+      pagination: { total: 1, page: 1, limit: 20, pages: 1 },
+    };
+
+    const wrapper = mountPage();
+    await flushPromises();
+    (wrapper.vm as any).selectedFilter = "scheduled";
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="collection-request-card"]').exists()).toBe(
+      true
+    );
+    expect(mocks.loadCollectionRequests).toHaveBeenLastCalledWith(
+      "blood-bank-a",
+      { status: "accepted,technical_visit_confirmed,scheduled" },
+      1
+    );
+  });
 });

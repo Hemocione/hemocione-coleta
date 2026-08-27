@@ -1,8 +1,10 @@
+import { setResponseHeader } from "h3";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import {
   getCommitmentTermByToken,
   renderTemplate,
 } from "~/server/services/commitmentTerm";
+import { createCommitmentTermPdf } from "~/server/utils/commitmentTermPdf";
 
 export default defineEventHandler(async (event) => {
   const token = getRouterParam(event, "token");
@@ -27,17 +29,16 @@ export default defineEventHandler(async (event) => {
     term.bloodBanksLocationId.toString()
   );
 
-  return {
-    success: true,
-    data: {
-      _id: term._id,
-      generatedContent: renderTemplate(term.generatedContent, {
-        bloodBankName: bloodBank?.name || "",
-      }),
-      status: term.status,
-      sentAt: term.sentAt,
-      acknowledgedAt: term.acknowledgedAt,
-      createdAt: term.createdAt,
-    },
-  };
+  setResponseHeader(event, "content-type", "application/pdf");
+  setResponseHeader(
+    event,
+    "content-disposition",
+    'attachment; filename="termo-de-compromisso.pdf"'
+  );
+
+  return createCommitmentTermPdf(
+    renderTemplate(term.generatedContent, {
+      bloodBankName: bloodBank?.name || "",
+    })
+  );
 });

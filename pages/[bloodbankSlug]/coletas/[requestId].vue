@@ -901,7 +901,7 @@
     </UModal>
 
     <!-- Counter Proposal Modal -->
-    <UModal v-model:open="showCounterProposalModal">
+    <UModal v-model:open="showCounterProposalModal" :dismissible="false">
       <template #content>
         <div class="p-6 max-h-[80vh] overflow-y-auto">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">

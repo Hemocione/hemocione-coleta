@@ -91,6 +91,27 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    if (!selectedRequest && !parsed.data.institutionId) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Institution ID is required for an unlinked visit",
+      });
+    }
+
+    if (!selectedRequest && parsed.data.institutionId) {
+      const institutionRequests = await getCollectionRequestsByBloodBank(
+        bloodBanksLocationId,
+        { institutionId: parsed.data.institutionId },
+        { page: 1, limit: 1 }
+      );
+      if (!institutionRequests.data.length) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: "Institution is not associated with this blood bank",
+        });
+      }
+    }
+
     const visitDate = parsed.data.visitDate.includes("T")
       ? new Date(parsed.data.visitDate)
       : dayjs

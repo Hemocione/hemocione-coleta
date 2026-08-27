@@ -88,12 +88,51 @@
               <div class="space-y-3">
                 <!-- Address -->
                 <div>
-                  <h4 class="font-semibold text-gray-900 truncate">
-                    {{ visit.address }}
+                  <h4
+                    class="font-semibold text-gray-900 truncate"
+                    data-testid="technical-visit-institution"
+                  >
+                    {{ visit.institutionName || "Instituição não vinculada" }}
                   </h4>
+                  <p class="text-sm text-gray-600 truncate">
+                    {{ visit.address }}
+                  </p>
+                  <p
+                    v-if="visit.institutionAddress"
+                    class="text-xs text-gray-500 truncate"
+                  >
+                    Endereço da instituição: {{ visit.institutionAddress }}
+                  </p>
                   <p class="text-sm text-gray-500">
                     {{ formatDate(visit.visitDate) }}
                   </p>
+                </div>
+
+                <!-- Vínculos persistidos da solicitação -->
+                <div
+                  v-if="visit.collectionRequest"
+                  class="flex flex-wrap items-center gap-2 text-sm"
+                  data-testid="technical-visit-links"
+                >
+                  <NuxtLink
+                    :to="`/${route.params.bloodbankSlug}/coletas/${visit.collectionRequest._id}`"
+                    class="text-primary-600 hover:underline"
+                    data-testid="technical-visit-request-link"
+                    @click.stop
+                  >
+                    Solicitação {{ visit.collectionRequest._id.slice(-6) }}
+                  </NuxtLink>
+                  <a
+                    v-if="visit.collectionRequest.eventSlug"
+                    :href="`https://eventos.hemocione.com.br/event/${visit.collectionRequest.eventSlug}`"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-primary-600 hover:underline"
+                    data-testid="technical-visit-event-link"
+                    @click.stop
+                  >
+                    Evento
+                  </a>
                 </div>
 
                 <!-- Outcome Badge -->
@@ -171,6 +210,19 @@
 
           <div class="space-y-4">
             <!-- Address -->
+            <UFormField v-if="!editingVisit" label="Solicitação vinculada">
+              <USelect
+                v-model="formData.requestId"
+                :items="requestOptions"
+                class="w-full"
+                data-testid="technical-visit-request-select"
+                @update:model-value="handleRequestSelection"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                A instituição será carregada da solicitação escolhida.
+              </p>
+            </UFormField>
+
             <UFormField label="Endereco" required>
               <UInput
                 v-model="formData.address"
@@ -329,6 +381,14 @@ interface TechnicalVisit {
   _id: string;
   bloodBanksLocationId: string;
   institutionId?: string | null;
+  institutionName?: string;
+  institutionAddress?: string;
+  collectionRequest?: {
+    _id: string;
+    institutionId: string;
+    status: string;
+    eventSlug?: string;
+  };
   address: string;
   visitDate: string;
   outcome: "approved" | "rejected" | "pending";
@@ -340,7 +400,20 @@ interface TechnicalVisit {
 
 interface OpenCollectionRequest {
   _id: string;
+  institutionId: string;
   institutionName: string;
+  institutionAddress?: string;
+  address?: {
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+  eventSlug?: string;
+  status?: string;
   technicalVisitId?: string;
 }
 
@@ -359,6 +432,8 @@ const formData = ref({
   visitDate: "",
   outcome: "pending" as "approved" | "rejected" | "pending",
   notes: "",
+  requestId: null as string | null,
+  institutionId: null as string | null,
 });
 
 // Solicitações aguardando visita técnica (para o registro vinculado)
@@ -381,6 +456,16 @@ const outcomeOptions = [
   { label: "Aprovada", value: "approved" },
   { label: "Reprovada", value: "rejected" },
 ];
+
+const requestOptions = computed(() => [
+  { label: "Sem solicitação vinculada", value: "" },
+  ...openRequests.value
+    .filter((request) => !request.technicalVisitId)
+    .map((request) => ({
+      label: `${request.institutionName} — ${request._id.slice(-6)}`,
+      value: request._id,
+    })),
+]);
 
 const isFormValid = computed(() => {
   return formData.value.address.trim() && formData.value.visitDate && formData.value.outcome;
@@ -409,6 +494,36 @@ const getLinkedOpenRequest = (visit: TechnicalVisit) => {
       (request) => request.technicalVisitId === visit._id
     ) || null
   );
+};
+
+const getRequestAddress = (request: OpenCollectionRequest): string => {
+  if (request.address) {
+    return [
+      `${request.address.street}, ${request.address.number}`,
+      request.address.complement,
+      request.address.neighborhood,
+      `${request.address.city} - ${request.address.state}`,
+      request.address.zipCode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return request.institutionAddress || "";
+};
+
+const handleRequestSelection = (value: string | null) => {
+  const requestId = value || null;
+  const request = openRequests.value.find(
+    (candidate) => candidate._id === requestId
+  );
+
+  formData.value.requestId = requestId;
+  formData.value.institutionId = request?.institutionId || null;
+  if (request) {
+    const requestAddress = getRequestAddress(request);
+    if (requestAddress) formData.value.address = requestAddress;
+  }
 };
 
 const loadVisits = async () => {
@@ -447,9 +562,11 @@ const openCreateModal = () => {
   editingVisit.value = null;
   formData.value = {
     address: "",
-    visitDate: dayjs().format("YYYY-MM-DD"),
+    visitDate: dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DD"),
     outcome: "pending",
     notes: "",
+    requestId: null,
+    institutionId: null,
   };
   showFormModal.value = true;
 };
@@ -461,6 +578,8 @@ const openEditModal = (visit: TechnicalVisit) => {
     visitDate: dayjs(visit.visitDate).format("YYYY-MM-DD"),
     outcome: visit.outcome,
     notes: visit.notes || "",
+    requestId: null,
+    institutionId: visit.institutionId || null,
   };
   showFormModal.value = true;
 };
@@ -472,6 +591,8 @@ const submitForm = async () => {
   try {
     const payload = {
       address: formData.value.address.trim(),
+      institutionId: formData.value.institutionId || undefined,
+      requestId: formData.value.requestId || undefined,
       visitDate: formData.value.visitDate,
       outcome: formData.value.outcome,
       notes: formData.value.notes?.trim() || null,
@@ -518,7 +639,7 @@ const openRegisterVisitModal = (visit: TechnicalVisit) => {
   registerTargetVisit.value = visit;
   registerContext.value = request;
   registerFormData.value = {
-    visitDate: dayjs().format("YYYY-MM-DD"),
+    visitDate: dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DD"),
     note: "",
   };
   showRegisterModal.value = true;

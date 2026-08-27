@@ -88,7 +88,7 @@ describe("banco de sangue /coletas", () => {
 
     expect(mocks.loadCollectionRequests).toHaveBeenCalledWith(
       "blood-bank-a",
-      { status: "pending,counter_proposed" },
+      { status: "pending,counter_proposed,awaiting_technical_visit" },
       1
     );
   });

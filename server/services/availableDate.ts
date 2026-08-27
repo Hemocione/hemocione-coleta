@@ -455,6 +455,11 @@ export async function addTeamsToAvailableDate(
   defaultStartTime: string,
   defaultEndTime: string
 ): Promise<AvailableDateData | null> {
+  const bloodBank = await getBloodBankByBloodBanksLocationId(
+    bloodBanksLocationId
+  );
+  const bloodBankTimezone = bloodBank?.timezone || "America/Sao_Paulo";
+
   // Verificar se availableDate pertence ao bloodbank
   const availableDate = await AvailableDate.findOne({
     _id: availableDateId,
@@ -494,8 +499,14 @@ export async function addTeamsToAvailableDate(
   // Criar novos slots
   const newSlots = newTeamIds.map((teamId) => ({
     teamId: new Types.ObjectId(teamId),
-    startTime: new Date(`${availableDate.date}T${defaultStartTime}:00.000Z`),
-    endTime: new Date(`${availableDate.date}T${defaultEndTime}:00.000Z`),
+    startTime: dayjs
+      .tz(`${availableDate.date}T${defaultStartTime}`, bloodBankTimezone)
+      .utc()
+      .toDate(),
+    endTime: dayjs
+      .tz(`${availableDate.date}T${defaultEndTime}`, bloodBankTimezone)
+      .utc()
+      .toDate(),
     locked: false,
   }));
 
@@ -539,7 +550,7 @@ export async function removeTeamFromAvailableDate(
   }
 
   // Verificar se slot não está locked
-  if (slot.locked) {
+  if (slot.locked || slot.lockedBy) {
     throw new Error("Não é possível remover um time com slot travado");
   }
 
@@ -689,39 +700,116 @@ export async function bulkSetAvailableDates(
 
       const existing = existingDateMap.get(entry.date);
 
+      const selectedTeamId = entry.teamId || null;
+      if (selectedTeamId && !teamIds.includes(selectedTeamId)) {
+        result.errors.push(
+          `${entry.date}: time ${selectedTeamId} não pertence a este banco de sangue`
+        );
+        continue;
+      }
+
+      if (selectedTeamId && existing) {
+        const existingSlot = existing.slots.find(
+          (slot) => slot.teamId.toString() === selectedTeamId
+        );
+
+        if (entry.isAvailable) {
+          if (existing.status && existing.status !== "released") {
+            result.errors.push(
+              `${entry.date}: não é possível adicionar equipe a uma data bloqueada ou pendente`
+            );
+            continue;
+          }
+          if (existingSlot) {
+            result.skipped++;
+            continue;
+          }
+
+          const startTime = dayjs
+            .tz(`${entry.date}T08:00`, bloodBankTimezone)
+            .utc()
+            .toDate();
+          const endTime = dayjs
+            .tz(`${entry.date}T17:00`, bloodBankTimezone)
+            .utc()
+            .toDate();
+          const update = existing.isAllTeams
+            ? {
+                $set: { isAllTeams: false },
+                $push: {
+                  slots: {
+                    teamId: new Types.ObjectId(selectedTeamId),
+                    startTime,
+                    endTime,
+                    locked: false,
+                  },
+                },
+              }
+            : {
+                $push: {
+                  slots: {
+                    teamId: new Types.ObjectId(selectedTeamId),
+                    startTime,
+                    endTime,
+                    locked: false,
+                  },
+                },
+              };
+
+          await AvailableDate.findOneAndUpdate(
+            { _id: existing._id, bloodBanksLocationId, deletedAt: null },
+            update
+          );
+          result.created++;
+          continue;
+        }
+
+        if (!existingSlot) {
+          result.skipped++;
+          continue;
+        }
+        if (existingSlot.locked || existingSlot.lockedBy) {
+          result.errors.push(
+            `${entry.date}: não é possível remover, possui slots travados por coletas`
+          );
+          continue;
+        }
+
+        if (existing.slots.length > 1) {
+          await AvailableDate.findOneAndUpdate(
+            { _id: existing._id, bloodBanksLocationId, deletedAt: null },
+            {
+              $set: { isAllTeams: false },
+              $pull: { slots: { teamId: selectedTeamId } },
+            }
+          );
+        } else {
+          await AvailableDate.findOneAndUpdate(
+            { _id: existing._id, bloodBanksLocationId, deletedAt: null },
+            { deletedAt: new Date() }
+          );
+        }
+        result.deleted++;
+        continue;
+      }
+
       if (entry.isAvailable) {
-        // Create date if it doesn't exist
         if (existing) {
           result.skipped++;
           continue;
         }
 
         const year = parseInt(entry.date.split("-")[0]);
-        const isAllTeams = !entry.teamId;
-        const slotsTeamIds = isAllTeams
-          ? teamIds
-          : [entry.teamId!];
-
-        // Validate teamId if specific
-        if (entry.teamId && !teamIds.includes(entry.teamId)) {
-          result.errors.push(
-            `${entry.date}: time ${entry.teamId} não pertence a este banco de sangue`
-          );
-          continue;
-        }
-
-        // Default times: 08:00-17:00 in blood bank timezone
-        const startTimeLocal = dayjs.tz(
-          `${entry.date}T08:00`,
-          bloodBankTimezone
-        );
-        const endTimeLocal = dayjs.tz(
-          `${entry.date}T17:00`,
-          bloodBankTimezone
-        );
-        const startTime = startTimeLocal.utc().toDate();
-        const endTime = endTimeLocal.utc().toDate();
-
+        const isAllTeams = !selectedTeamId;
+        const slotsTeamIds = isAllTeams ? teamIds : [selectedTeamId];
+        const startTime = dayjs
+          .tz(`${entry.date}T08:00`, bloodBankTimezone)
+          .utc()
+          .toDate();
+        const endTime = dayjs
+          .tz(`${entry.date}T17:00`, bloodBankTimezone)
+          .utc()
+          .toDate();
         const slots = slotsTeamIds.map((tId) => ({
           teamId: new Types.ObjectId(tId),
           startTime,
@@ -746,29 +834,29 @@ export async function bulkSetAvailableDates(
             result.errors.push(`${entry.date}: ${error.message}`);
           }
         }
-      } else {
-        // Delete date if it exists and has no locked slots
-        if (!existing) {
-          result.skipped++;
-          continue;
-        }
-
-        const hasLockedSlots = existing.slots.some(
-          (slot) => slot.locked || slot.lockedBy
-        );
-        if (hasLockedSlots) {
-          result.errors.push(
-            `${entry.date}: não é possível remover, possui slots travados por coletas`
-          );
-          continue;
-        }
-
-        await AvailableDate.findOneAndUpdate(
-          { _id: existing._id, deletedAt: null },
-          { deletedAt: new Date() }
-        );
-        result.deleted++;
+        continue;
       }
+
+      if (!existing) {
+        result.skipped++;
+        continue;
+      }
+
+      const hasLockedSlots = existing.slots.some(
+        (slot) => slot.locked || slot.lockedBy
+      );
+      if (hasLockedSlots) {
+        result.errors.push(
+          `${entry.date}: não é possível remover, possui slots travados por coletas`
+        );
+        continue;
+      }
+
+      await AvailableDate.findOneAndUpdate(
+        { _id: existing._id, bloodBanksLocationId, deletedAt: null },
+        { deletedAt: new Date() }
+      );
+      result.deleted++;
     } catch (error: any) {
       result.errors.push(`${entry.date}: ${error.message}`);
     }

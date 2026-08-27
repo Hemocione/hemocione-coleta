@@ -5,6 +5,7 @@ import {
 } from "~/server/services/collectionRequest";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import { sendWhatsAppNotification } from "~/server/services/notification";
+import { buildPublicUrl } from "~/utils/publicUrl";
 
 const hostSchema = z.object({
   name: z.string().min(1).max(200),
@@ -85,7 +86,9 @@ export default defineEventHandler(async (event) => {
         .filter((date, index, dates) => dates.indexOf(date) === index)
         .join(", ");
 
-      const backofficeUrl = `${process.env.NUXT_PUBLIC_BASE_URL || ""}/${bloodBankSlug}/coletas/${result._id}`;
+      const backofficeUrl = buildPublicUrl(
+        `/${bloodBankSlug}/coletas/${result._id}`
+      );
 
       const delivered = await sendWhatsAppNotification({
         userId: recipientUserId,

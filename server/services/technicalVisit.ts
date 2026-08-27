@@ -273,7 +273,7 @@ export async function updateTechnicalVisit(
     );
 
     if (updatedCollectionRequest?._id) {
-      void notifyCollectionRequestStatusTransition({
+      await notifyCollectionRequestStatusTransition({
         requestId: updatedCollectionRequest._id.toString(),
         bloodBanksLocationId,
         transition: "technical_visit_verdict",

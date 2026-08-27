@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { notifyCollectionRequestStatusTransition } from "~/server/services/collectionRequestNotification";
 
 const mocks = vi.hoisted(() => ({
@@ -63,6 +63,7 @@ const request = {
 };
 
 beforeEach(() => {
+  vi.stubEnv("NUXT_PUBLIC_BASE_URL", "https://coleta.hemocione.com.br");
   Object.values(mocks).forEach((mock) => mock.mockReset());
   mocks.collectionRequestFindOne.mockReturnValue({
     lean: async () => request,
@@ -73,6 +74,10 @@ beforeEach(() => {
   ]);
   mocks.sendWhatsAppNotification.mockResolvedValue(true);
   mocks.sendWhatsAppNotificationToPhone.mockResolvedValue(true);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("notificações das transições de collection request", () => {
@@ -91,7 +96,8 @@ describe("notificações das transições de collection request", () => {
         bloodBankName: "Banco Central",
         proposedDate: "10/09/2026",
         proposedTime: "08:30",
-        trackingUrl: "/agendar/acompanhar/tracking-token",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
   });
@@ -110,7 +116,8 @@ describe("notificações das transições de collection request", () => {
       params: {
         contactName: "Equipe do banco de sangue",
         institutionName: "Instituto Esperança",
-        trackingUrl: "/agendar/acompanhar/tracking-token",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
   });
@@ -128,7 +135,8 @@ describe("notificações das transições de collection request", () => {
       params: {
         contactName: "Pessoa responsável",
         bloodBankName: "Banco Central",
-        trackingUrl: "/agendar/acompanhar/tracking-token",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
   });
@@ -180,7 +188,8 @@ describe("notificações das transições de collection request", () => {
         contactName: "Pessoa responsável",
         bloodBankName: "Banco Central",
         result: "Reprovada",
-        trackingUrl: "/agendar/acompanhar/tracking-token",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
   });
@@ -225,7 +234,8 @@ describe("notificações das transições de collection request", () => {
     expect(mocks.sendWhatsAppNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         params: expect.objectContaining({
-          eventLink: "/agendar/acompanhar/tracking-token",
+          eventLink:
+            "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
         }),
       })
     );

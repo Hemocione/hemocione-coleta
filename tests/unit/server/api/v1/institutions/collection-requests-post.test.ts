@@ -78,6 +78,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  vi.stubEnv("NUXT_PUBLIC_BASE_URL", "https://coleta.hemocione.com.br");
   mocks.createCollectionRequest.mockReset();
   mocks.getBloodBankLastAcceptorUserId.mockReset();
   mocks.getBloodBankByBloodBanksLocationId.mockReset();
@@ -219,7 +220,7 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
         bloodBankName: "Banco A",
         institutionName: "Instituição A",
         requestedDates: "10/09/2026, 11/09/2026",
-        backofficeUrl: "/banco-a/coletas/request-a",
+        backofficeUrl: "https://coleta.hemocione.com.br/banco-a/coletas/request-a",
       },
     });
   });

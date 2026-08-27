@@ -2,6 +2,7 @@ import { acceptCollectionRequest } from "~/server/services/collectionRequest";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
+import { buildPublicUrl } from "~/utils/publicUrl";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -86,7 +87,9 @@ export default defineEventHandler(async (event) => {
           : "";
 
         const trackingUrl = updatedRequest.accessToken
-          ? `${process.env.NUXT_PUBLIC_BASE_URL || ""}/agendar/acompanhar/${updatedRequest.accessToken}`
+          ? buildPublicUrl(
+              `/agendar/acompanhar/${updatedRequest.accessToken}`
+            )
           : "";
 
         const delivered = await sendWhatsAppNotificationToPhone({

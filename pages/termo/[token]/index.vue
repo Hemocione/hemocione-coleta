@@ -25,7 +25,8 @@
           <UButton
             variant="outline"
             icon="i-lucide-printer"
-            @click="printPage"
+            :loading="downloadingPdf"
+            @click="downloadPdf"
           >
             Baixar PDF
           </UButton>
@@ -87,6 +88,7 @@ const token = route.params.token as string;
 const loading = ref(true);
 const error = ref(false);
 const acknowledging = ref(false);
+const downloadingPdf = ref(false);
 const term = ref<{
   _id: string;
   generatedContent: string;
@@ -165,8 +167,36 @@ async function acknowledgeTerm() {
   }
 }
 
-function printPage() {
-  window.print();
+async function downloadPdf() {
+  if (downloadingPdf.value) return;
+
+  downloadingPdf.value = true;
+  try {
+    const response = await fetch(
+      `/api/v1/public/commitment-terms/${encodeURIComponent(token)}/pdf`
+    );
+    if (!response.ok) {
+      throw new Error("PDF download failed");
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "termo-de-compromisso.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    useToast().add({
+      title: "Erro ao baixar PDF",
+      description: "Tente novamente mais tarde.",
+      color: "error",
+    });
+  } finally {
+    downloadingPdf.value = false;
+  }
 }
 
 onMounted(() => {

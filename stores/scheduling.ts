@@ -4,6 +4,13 @@ import {
   useFetchWithAuth,
 } from "~/composables/useFetchWithAuth";
 
+const SELECTED_INSTITUTION_STORAGE_KEY = "hemocione:selected-institution-id";
+
+function getStoredInstitutionId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(SELECTED_INSTITUTION_STORAGE_KEY);
+}
+
 export interface Institution {
   id: string;
   name: string;
@@ -75,7 +82,13 @@ export const useSchedulingStore = defineStore("scheduling", {
         await this.loadUserInstitutions();
       }
       if (this.userInstitutions?.length) {
-        await this.selectInstitution(this.userInstitutions[0].id);
+        const preferredId = getStoredInstitutionId();
+        const preferredInstitution = this.userInstitutions.find(
+          ({ id }) => id === preferredId
+        );
+        await this.selectInstitution(
+          preferredInstitution?.id || this.userInstitutions[0].id
+        );
       }
     },
     setAccessedAgendarPage(value: boolean) {
@@ -84,6 +97,16 @@ export const useSchedulingStore = defineStore("scheduling", {
     setSelectedInstitution(inst: Institution | null) {
       const institutionChanged = this.selectedInstitution?.id !== inst?.id;
       this.selectedInstitution = inst;
+      if (typeof window !== "undefined") {
+        if (inst?.id) {
+          window.localStorage.setItem(
+            SELECTED_INSTITUTION_STORAGE_KEY,
+            inst.id
+          );
+        } else {
+          window.localStorage.removeItem(SELECTED_INSTITUTION_STORAGE_KEY);
+        }
+      }
       this.latitude = inst?.latitude ?? null;
       this.longitude = inst?.longitude ?? null;
       if (institutionChanged) {
@@ -143,12 +166,13 @@ export const useSchedulingStore = defineStore("scheduling", {
         }>("/api/v1/me/institutions", { method: "GET" });
         if (data.value?.institutions) {
           this.userInstitutions = data.value.institutions;
-          const selectedId = this.selectedInstitution?.id;
+          const selectedId =
+            this.selectedInstitution?.id || getStoredInstitutionId();
           if (selectedId) {
             const institution = this.userInstitutions.find(
               ({ id }) => id === selectedId
             );
-            this.setSelectedInstitution(institution || null);
+            if (institution) this.setSelectedInstitution(institution);
           }
         }
       } finally {

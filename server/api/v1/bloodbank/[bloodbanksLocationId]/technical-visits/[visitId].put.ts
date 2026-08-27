@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
+import { getCollectionRequestsByBloodBank } from "~/server/services/collectionRequest";
 import { updateTechnicalVisit } from "~/server/services/technicalVisit";
 
 const updateTechnicalVisitSchema = z.object({
@@ -54,6 +55,20 @@ export default defineEventHandler(async (event) => {
         .map((i) => `${i.path.join(".")}: ${i.message}`)
         .join("; "),
     });
+  }
+
+  if (parsed.data.institutionId) {
+    const institutionRequests = await getCollectionRequestsByBloodBank(
+      bloodBanksLocationId,
+      { institutionId: parsed.data.institutionId },
+      { page: 1, limit: 1 }
+    );
+    if (!institutionRequests.data.length) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Institution is not associated with this blood bank",
+      });
+    }
   }
 
   try {

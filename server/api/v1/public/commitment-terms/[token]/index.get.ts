@@ -30,12 +30,13 @@ export default defineEventHandler(async (event) => {
   return {
     success: true,
     data: {
-      _id: term._id,
       generatedContent: renderTemplate(term.generatedContent, {
         bloodBankName: bloodBank?.name || "",
       }),
       status: term.status,
       sentAt: term.sentAt,
+      signedByName: term.signedByName ?? null,
+      signedAt: term.signedAt ?? null,
       acknowledgedAt: term.acknowledgedAt,
       createdAt: term.createdAt,
     },

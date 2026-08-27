@@ -905,34 +905,20 @@
       <template #content>
         <div class="p-6 max-h-[80vh] overflow-y-auto">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">
-            Propor Outra Data/Horário
+            Propor outra data e horário
           </h3>
 
           <div class="space-y-4">
-            <div
-              v-if="availableCounterProposalSlots.length"
-              class="rounded-lg border border-blue-200 bg-blue-50 p-3"
-            >
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
               <p class="text-sm font-medium text-blue-900">
-                Disponibilidade atual do banco de sangue
+                Selecione os slots configurados
               </p>
               <p class="text-xs text-blue-800 mt-1">
-                Selecione um horário disponível para preencher uma opção.
+                Escolha apenas datas e horários já cadastrados no calendário do banco.
               </p>
-              <div class="flex flex-wrap gap-2 mt-3">
-                <UButton
-                  v-for="slot in availableCounterProposalSlots"
-                  :key="`${slot.availableDateId}-${slot.slotId}`"
-                  size="xs"
-                  color="info"
-                  variant="outline"
-                  @click="applyAvailableSlotToCounterProposal(counterProposalDates[0], slot)"
-                >
-                  {{ formatDate(slot.date) }} ·
-                  {{ formatSlotTime(slot.startTime) }} -
-                  {{ formatSlotTime(slot.endTime) }}
-                </UButton>
-              </div>
+              <p v-if="!availableCounterProposalSlots.length" class="text-xs text-blue-800 mt-3">
+                Não há slots disponíveis para esta solicitação.
+              </p>
             </div>
             <div
               v-for="(d, idx) in counterProposalDates"
@@ -949,33 +935,40 @@
                   color="error"
                   variant="ghost"
                   icon="i-lucide-trash-2"
+                  aria-label="Remover opção de data"
                   @click="removeCounterProposalDate(idx)"
                 />
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <UFormField label="Data">
-                  <UInput v-model="d.date" type="date" class="w-full" />
-                </UFormField>
-                <UFormField label="Início">
-                  <UInput v-model="d.startTime" type="time" class="w-full" />
-                </UFormField>
-                <UFormField label="Fim">
-                  <UInput v-model="d.endTime" type="time" class="w-full" />
-                </UFormField>
-              </div>
-              <p
-                v-if="isEndTimeInvalid(d)"
-                class="text-xs text-red-600"
-              >
-                O horário final deve ser posterior ao horário inicial.
-              </p>
-              <UFormField label="Equipe">
-                <UInput
-                  v-model="d.teamName"
-                  placeholder="Ex: Equipe A"
+              <UFormField label="Slot configurado">
+                <USelect
+                  v-model="d.slotKey"
+                  :items="counterProposalSlotItems"
+                  placeholder="Selecione uma data e um horário"
+                  aria-label="Slot configurado"
                   class="w-full"
+                  :disabled="!availableCounterProposalSlots.length"
                 />
               </UFormField>
+              <div
+                v-if="selectedCounterProposalSlot(d)"
+                class="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700"
+              >
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
+                  <span>{{ formatDate(selectedCounterProposalSlot(d)!.date) }}</span>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                  <UIcon name="i-lucide-clock" class="w-4 h-4 text-gray-400" />
+                  <span>
+                    {{ formatSlotTime(selectedCounterProposalSlot(d)!.startTime) }} -
+                    {{ formatSlotTime(selectedCounterProposalSlot(d)!.endTime) }}
+                  </span>
+                </div>
+                <div v-if="selectedCounterProposalSlot(d)!.teamName" class="flex items-center gap-2 mt-1">
+                  <UIcon name="i-lucide-users" class="w-4 h-4 text-gray-400" />
+                  <span>{{ selectedCounterProposalSlot(d)!.teamName }}</span>
+                </div>
+              </div>
               <UFormField label="Nota desta opção">
                 <UInput
                   v-model="d.note"
@@ -1020,7 +1013,7 @@
               color="info"
               @click="confirmCounterProposal"
               :loading="isSendingCounterProposal"
-              :disabled="!isCounterProposalValid"
+              :disabled="!isCounterProposalValid || isSendingCounterProposal"
             >
               Enviar Contraproposta
             </UButton>
@@ -1454,15 +1447,20 @@ const isSendingCounterProposal = ref(false);
 const counterProposalNote = ref("");
 const counterProposalNeedsTechnicalVisit = ref(false);
 interface CounterProposalDateDraft {
-  date: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes?: number;
-  teamName?: string;
+  slotKey: string;
   note: string;
 }
 
-const isEndTimeInvalid = (draft: CounterProposalDateDraft) => {
+interface TechnicalVisitProposalDateDraft {
+  date: string;
+  startTime: string;
+  endTime: string;
+  note: string;
+}
+
+const isEndTimeInvalid = (
+  draft: Pick<TechnicalVisitProposalDateDraft, "startTime" | "endTime">
+) => {
   if (!draft.startTime || !draft.endTime) return false;
   const startMinutes = timeToMinutes(draft.startTime);
   const endMinutes = timeToMinutes(draft.endTime);
@@ -1474,13 +1472,32 @@ const isEndTimeInvalid = (draft: CounterProposalDateDraft) => {
 };
 
 const counterProposalDates = ref<CounterProposalDateDraft[]>([
-  { date: "", startTime: "", endTime: "", teamName: "", note: "" },
+  { slotKey: "", note: "" },
 ]);
 
-const availableCounterProposalSlots = computed(() =>
-  (currentCollectionRequest.value?.availableSlotOptions || [])
-    .filter((slot) => !slot.isLocked && slot.startTime && slot.endTime)
-    .slice(0, 12)
+const availableCounterProposalSlots = computed(() => {
+  const seen = new Set<string>();
+  const slots =
+    currentCollectionRequest.value?.availableCounterProposalOptions ||
+    currentCollectionRequest.value?.availableSlotOptions ||
+    [];
+
+  return slots.filter((slot) => {
+    const slotKey = `${slot.availableDateId}:${slot.slotId}`;
+    if (seen.has(slotKey) || slot.isLocked || !slot.startTime || !slot.endTime) {
+      return false;
+    }
+
+    seen.add(slotKey);
+    return true;
+  });
+});
+
+const counterProposalSlotItems = computed(() =>
+  availableCounterProposalSlots.value.map((slot) => ({
+    label: `${formatDate(slot.date)} · ${formatSlotTime(slot.startTime)} - ${formatSlotTime(slot.endTime)} · ${slot.teamName || "Equipe não definida"}`,
+    value: `${slot.availableDateId}:${slot.slotId}`,
+  }))
 );
 
 const formatSlotTime = (time: Date | string | undefined) => {
@@ -1489,20 +1506,10 @@ const formatSlotTime = (time: Date | string | undefined) => {
   return dayjs(time).tz(SCHEDULE_TIMEZONE).format("HH:mm");
 };
 
-const toInputDate = (date: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(date)
-    ? date
-    : dayjs(date).tz(SCHEDULE_TIMEZONE).format("YYYY-MM-DD");
-
-const applyAvailableSlotToCounterProposal = (
-  draft: CounterProposalDateDraft,
-  slot: NonNullable<typeof currentCollectionRequest.value>["availableSlotOptions"][number]
-) => {
-  draft.date = toInputDate(slot.date);
-  draft.startTime = formatSlotTime(slot.startTime);
-  draft.endTime = formatSlotTime(slot.endTime);
-  draft.teamName = slot.teamName || "";
-};
+const selectedCounterProposalSlot = (draft: CounterProposalDateDraft) =>
+  availableCounterProposalSlots.value.find(
+    (slot) => `${slot.availableDateId}:${slot.slotId}` === draft.slotKey
+  );
 
 const canProposeTechnicalVisit = computed(() => {
   const request = currentCollectionRequest.value;
@@ -1516,7 +1523,7 @@ const canProposeTechnicalVisit = computed(() => {
 const showTechnicalVisitProposalModal = ref(false);
 const isSendingTechnicalVisitProposal = ref(false);
 const technicalVisitProposalNote = ref("");
-const technicalVisitProposalDates = ref<CounterProposalDateDraft[]>([
+const technicalVisitProposalDates = ref<TechnicalVisitProposalDateDraft[]>([
   { date: "", startTime: "", endTime: "", note: "" },
 ]);
 
@@ -1547,10 +1554,7 @@ const isTechnicalVisitProposalValid = computed(
 
 const addCounterProposalDate = () => {
   counterProposalDates.value.push({
-    date: "",
-    startTime: "",
-    endTime: "",
-    teamName: "",
+    slotKey: "",
     note: "",
   });
 };
@@ -1567,11 +1571,43 @@ const isCounterProposalValid = computed(
   () =>
     counterProposalDates.value.length > 0 &&
     counterProposalDates.value.every(
-      (d) => d.date && d.startTime && d.endTime && !isEndTimeInvalid(d)
-    )
+      (draft) => selectedCounterProposalSlot(draft)
+    ) &&
+    new Set(counterProposalDates.value.map((draft) => draft.slotKey)).size ===
+      counterProposalDates.value.length
 );
 
-const serializeProposalDate = (draft: CounterProposalDateDraft) => {
+const serializeCounterProposalDate = (draft: CounterProposalDateDraft) => {
+  const slot = selectedCounterProposalSlot(draft);
+  if (!slot) {
+    throw new Error("Selecione um slot configurado");
+  }
+
+  const startTime = formatSlotTime(slot.startTime);
+  const endTime = formatSlotTime(slot.endTime);
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  if (startMinutes === null || endMinutes === null) {
+    throw new Error("Horário da proposta inválido");
+  }
+
+  return {
+    date: dayjs
+      .tz(`${slot.date}T12:00`, SCHEDULE_TIMEZONE)
+      .toISOString(),
+    availableDateId: slot.availableDateId,
+    slotId: slot.slotId,
+    startTime,
+    endTime,
+    durationMinutes: endMinutes - startMinutes,
+    teamName: slot.teamName || undefined,
+    note: draft.note,
+  };
+};
+
+const serializeTechnicalVisitProposalDate = (
+  draft: TechnicalVisitProposalDateDraft
+) => {
   const startMinutes = timeToMinutes(draft.startTime);
   const endMinutes = timeToMinutes(draft.endTime);
   if (startMinutes === null || endMinutes === null) {
@@ -1585,7 +1621,6 @@ const serializeProposalDate = (draft: CounterProposalDateDraft) => {
     startTime: draft.startTime,
     endTime: draft.endTime,
     durationMinutes: endMinutes - startMinutes,
-    teamName: draft.teamName?.trim() || undefined,
     note: draft.note,
   };
 };
@@ -1610,7 +1645,9 @@ const confirmCounterProposal = async () => {
     await bloodbankStore.counterProposeCollectionRequest(
       requestId,
       {
-        proposedDates: counterProposalDates.value.map(serializeProposalDate),
+        proposedDates: counterProposalDates.value.map(
+          serializeCounterProposalDate
+        ),
         needsTechnicalVisit: counterProposalNeedsTechnicalVisit.value,
         note: counterProposalNote.value,
       },
@@ -1628,7 +1665,7 @@ const confirmCounterProposal = async () => {
     counterProposalNote.value = "";
     counterProposalNeedsTechnicalVisit.value = false;
     counterProposalDates.value = [
-      { date: "", startTime: "", endTime: "", teamName: "", note: "" },
+      { slotKey: "", note: "" },
     ];
 
     await loadRequestDetails();
@@ -1672,8 +1709,9 @@ const confirmTechnicalVisitProposal = async () => {
     await bloodbankStore.proposeTechnicalVisit(
       requestId,
       {
-        proposedDates:
-          technicalVisitProposalDates.value.map(serializeProposalDate),
+        proposedDates: technicalVisitProposalDates.value.map(
+          serializeTechnicalVisitProposalDate
+        ),
         note: technicalVisitProposalNote.value,
       },
       bloodBanksLocationId.value

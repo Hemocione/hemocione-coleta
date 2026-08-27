@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
-import { counterPropose } from "~/server/services/collectionRequest";
+import {
+  counterPropose,
+  getCollectionRequestById,
+} from "~/server/services/collectionRequest";
 
 const timeSchema = z
   .string()
@@ -9,6 +12,8 @@ const timeSchema = z
 const proposalDateSchema = z
   .object({
     date: z.coerce.date(),
+    availableDateId: z.string().trim().min(1),
+    slotId: z.string().trim().min(1),
     startTime: timeSchema,
     endTime: timeSchema.optional(),
     durationMinutes: z.number().int().positive().optional(),
@@ -51,6 +56,22 @@ function timeToMinutes(time: string): number {
   return hours * 60 + minutes;
 }
 
+function formatSlotTime(value: Date | string | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string" && timeSchema.safeParse(value).success) {
+    return value;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Sao_Paulo",
+      });
+}
+
 function normalizeProposalDates(
   proposedDates: z.infer<typeof bodySchema>["proposedDates"]
 ) {
@@ -88,6 +109,44 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = bodySchema.parse(await readBody(event));
+    const request = await getCollectionRequestById(
+      requestId,
+      bloodBanksLocationId
+    );
+
+    if (!request || request.status !== "pending") {
+      throw createError({
+        statusCode: 409,
+        statusMessage: "A solicitação não está disponível para contraproposta",
+      });
+    }
+
+    const configuredSlots = new Map(
+      request.availableCounterProposalOptions
+        .filter((slot) => !slot.isLocked)
+        .map((slot) => [`${slot.availableDateId}:${slot.slotId}`, slot])
+    );
+    const hasOnlyConfiguredSlots = body.proposedDates.every((proposalDate) => {
+      const slot = configuredSlots.get(
+        `${proposalDate.availableDateId}:${proposalDate.slotId}`
+      );
+      if (!slot) return false;
+
+      return (
+        proposalDate.date.toISOString().slice(0, 10) === slot.date &&
+        proposalDate.startTime === formatSlotTime(slot.startTime) &&
+        proposalDate.endTime === formatSlotTime(slot.endTime) &&
+        proposalDate.teamName === slot.teamName
+      );
+    });
+
+    if (!hasOnlyConfiguredSlots) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Selecione apenas slots disponíveis do calendário",
+      });
+    }
+
     const proposedByUserId = event.context.auth.user.id;
 
     const updatedRequest = await counterPropose(

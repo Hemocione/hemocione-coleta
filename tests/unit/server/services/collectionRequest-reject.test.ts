@@ -29,6 +29,7 @@ vi.mock("~/server/models", () => ({
   },
   team: { Team: {} },
   technicalVisit: { TechnicalVisit: {} },
+  commitmentTerm: { CommitmentTerm: {} },
 }));
 
 vi.mock("~/server/services/hemocioneId", () => ({

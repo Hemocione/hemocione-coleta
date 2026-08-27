@@ -18,6 +18,14 @@ export const CommitmentTermSchema = new Schema(
     generatedContent: { type: String, required: true, maxlength: 20000 },
     sentTo: { type: String, required: true, maxlength: 200, trim: true },
     sentAt: { type: Date, required: false, default: null },
+    signedByName: {
+      type: String,
+      required: false,
+      default: null,
+      maxlength: 200,
+      trim: true,
+    },
+    signedAt: { type: Date, required: false, default: null },
     status: {
       type: String,
       required: true,

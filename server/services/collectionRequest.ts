@@ -8,11 +8,13 @@ import {
   collectionRequest,
   availableDate,
   bloodBank,
+  commitmentTerm,
 } from "~/server/models";
 const { Team } = team;
 const { CollectionRequest } = collectionRequest;
 const { AvailableDate } = availableDate;
 const { BloodBank } = bloodBank;
+const { CommitmentTerm } = commitmentTerm;
 import { getInstitutionsByIds } from "./hemocioneId";
 import {
   createTechnicalVisit,
@@ -51,6 +53,8 @@ export type CollectionRequestStatus =
 
 export interface CounterProposalDate {
   date: Date;
+  availableDateId?: string;
+  slotId?: string;
   startTime: string;
   endTime?: string;
   durationMinutes?: number;
@@ -202,6 +206,16 @@ export interface CollectionRequestWithDetails {
     isLocked?: boolean;
     isRequested?: boolean; // Indicates if this slot was specifically requested
     priority?: number; // Prioridade que a instituição atribuiu à data solicitada
+  }>;
+  availableCounterProposalOptions: Array<{
+    availableDateId: string;
+    slotId: string;
+    date: string;
+    startTime?: Date;
+    endTime?: Date;
+    teamName?: string;
+    teamColor?: string;
+    isLocked?: boolean;
   }>;
   host: {
     name: string;
@@ -434,6 +448,7 @@ async function getCollectionRequestsByScope(
         bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
         bloodBankLogo: bloodBankDoc?.logo,
         availableSlotOptions,
+        availableCounterProposalOptions: [],
       };
     })
     .filter((request): request is NonNullable<typeof request> => {
@@ -506,20 +521,31 @@ export async function getCollectionRequestById(
     return null;
   }
 
-  const [institutions, availableDates] = await Promise.all([
-    getInstitutionsByIds([request.institutionId.toString()]),
-    (() => {
-      const requestedDateIds = request.requestedDates.map(
-        (rd) => rd.availableDateId
-      );
-      return AvailableDate.find({
-        _id: { $in: requestedDateIds },
+  const [institutions, availableDates, counterProposalAvailableDates] =
+    await Promise.all([
+      getInstitutionsByIds([request.institutionId.toString()]),
+      (() => {
+        const requestedDateIds = request.requestedDates.map(
+          (rd) => rd.availableDateId
+        );
+        return AvailableDate.find({
+          _id: { $in: requestedDateIds },
+          deletedAt: null,
+        })
+          .populate({ path: "slots.teamId", select: "name color", model: Team })
+          .lean();
+      })(),
+      AvailableDate.find({
+        bloodBanksLocationId: request.bloodBanksLocationId,
+        date: {
+          $gte: dayjs().tz(TECHNICAL_VISIT_TIMEZONE).format("YYYY-MM-DD"),
+        },
         deletedAt: null,
+        status: { $nin: ["blocked", "pending"] },
       })
         .populate({ path: "slots.teamId", select: "name color", model: Team })
-        .lean();
-    })(),
-  ]);
+        .lean(),
+    ]);
 
   const institution = institutions[0];
 
@@ -583,6 +609,21 @@ export async function getCollectionRequestById(
     }
   });
 
+  const availableCounterProposalOptions = counterProposalAvailableDates.flatMap(
+    (availableDate) =>
+      (availableDate.slots || []).map((slot) => ({
+        availableDateId: availableDate._id.toString(),
+        slotId: slot._id.toString(),
+        date: availableDate.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        teamName:
+          (slot.teamId as { name?: string })?.name || "Equipe não definida",
+        teamColor: (slot.teamId as { color?: string })?.color || "#3B82F6",
+        isLocked: slot.locked || false,
+      }))
+  );
+
   const requestWithDetails = {
     ...request,
     ...(request.confirmedSchedule && {
@@ -600,6 +641,7 @@ export async function getCollectionRequestById(
     institutionLogo: institution?.logo,
     institutionBanner: institution?.banner,
     availableSlotOptions,
+    availableCounterProposalOptions,
   };
 
   return requestWithDetails as unknown as CollectionRequestWithDetails;
@@ -1884,6 +1926,13 @@ export interface CollectionRequestPublicDetails {
     outcome: "approved" | "rejected" | "pending";
     notes?: string;
   };
+  commitmentTerm?: {
+    accessToken?: string;
+    status: "draft" | "sent" | "acknowledged";
+    createdAt: Date;
+    signedByName?: string | null;
+    signedAt?: Date | null;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -1910,12 +1959,21 @@ export async function getCollectionRequestPublicByToken(
 }
 
 async function buildCollectionRequestPublicDetails(
-  request: any
+  request: any,
+  includeCommitmentTermAccessToken = true
 ): Promise<CollectionRequestPublicDetails> {
-  const [institutions, bloodBankDoc, availableDates, technicalVisitDoc] =
+  const [
+    institutions,
+    bloodBankDoc,
+    availableDates,
+    technicalVisitDoc,
+    commitmentTermDoc,
+  ] =
     await Promise.all([
       getInstitutionsByIds([request.institutionId.toString()]),
-      BloodBank.findOne({ bloodBanksLocationId: request.bloodBanksLocationId }).lean(),
+      BloodBank.findOne({
+        bloodBanksLocationId: request.bloodBanksLocationId,
+      }).lean(),
       AvailableDate.find({
         _id: { $in: request.requestedDates.map((rd: any) => rd.availableDateId) },
         deletedAt: null,
@@ -1928,6 +1986,13 @@ async function buildCollectionRequestPublicDetails(
             request.technicalVisitId.toString()
           )
         : Promise.resolve(null),
+      CommitmentTerm.findOne({
+        bloodBanksLocationId: request.bloodBanksLocationId,
+        collectionRequestId: request._id,
+      })
+        .sort({ createdAt: -1 })
+        .select("accessToken createdAt status signedByName signedAt")
+        .lean(),
     ]);
 
   const institution = institutions[0];
@@ -1936,28 +2001,14 @@ async function buildCollectionRequestPublicDetails(
   );
 
   const requestedDatesInfo: CollectionRequestPublicDetails["requestedDates"] = [];
+  const requestedDateKeys = new Set<string>();
   request.requestedDates.forEach((rd: any) => {
     const ad = availableDateMap.get(rd.availableDateId.toString());
     if (!ad) return;
-    if (rd.slotIds && rd.slotIds.length > 0) {
-      rd.slotIds.forEach((slotId: any) => {
-        const slot = ad.slots.find((s) => s._id.toString() === slotId.toString());
-        if (slot) {
-          requestedDatesInfo.push({
-            date: ad.date,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            teamName: (slot.teamId as any)?.name,
-          });
-        }
-      });
-    } else {
-      requestedDatesInfo.push({
-        date: ad.date,
-        startTime: rd.startTime,
-        endTime: rd.endTime,
-      });
-    }
+    if (requestedDateKeys.has(ad.date)) return;
+
+    requestedDateKeys.add(ad.date);
+    requestedDatesInfo.push({ date: ad.date });
   });
 
   let selectedDate: CollectionRequestPublicDetails["selectedDate"];
@@ -2013,6 +2064,21 @@ async function buildCollectionRequestPublicDetails(
         }
       : undefined;
 
+  const publicCommitmentTerm = commitmentTermDoc
+    ? {
+        ...(includeCommitmentTermAccessToken && {
+          accessToken: commitmentTermDoc.accessToken,
+        }),
+        status: commitmentTermDoc.status as
+          | "draft"
+          | "sent"
+          | "acknowledged",
+        createdAt: commitmentTermDoc.createdAt as Date,
+        signedByName: commitmentTermDoc.signedByName || null,
+        signedAt: commitmentTermDoc.signedAt || null,
+      }
+    : undefined;
+
   return {
     _id: request._id!.toString(),
     status: request.status as CollectionRequestPublicDetails["status"],
@@ -2028,6 +2094,7 @@ async function buildCollectionRequestPublicDetails(
     counterProposal,
     visitProposal,
     technicalVisit,
+    commitmentTerm: publicCommitmentTerm,
     rejectionReason: request.rejectionReason || undefined,
     statusHistory: (request.statusHistory || []).map((h: any) => ({
       status: h.status as string,
@@ -2050,7 +2117,7 @@ export async function getCollectionRequestPublic(
     return null;
   }
 
-  return buildCollectionRequestPublicDetails(request);
+  return buildCollectionRequestPublicDetails(request, false);
 }
 
 export async function getCollectionRequestIdByToken(

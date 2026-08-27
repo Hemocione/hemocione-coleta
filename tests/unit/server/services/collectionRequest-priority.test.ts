@@ -63,6 +63,7 @@ vi.mock("~/server/models", () => {
     },
     team: { Team: {} },
     technicalVisit: { TechnicalVisit: {} },
+    commitmentTerm: { CommitmentTerm: {} },
   };
 });
 
@@ -271,5 +272,50 @@ describe("getCollectionRequestById — ordenação por priority", () => {
       { availableDateId: DATE_A_ID, slotId: "slot-a1", isRequested: true },
       { availableDateId: DATE_B_ID, slotId: "slot-b1", isRequested: true },
     ]);
+  });
+
+  it("expõe slots futuros configurados para contraproposta fora das datas solicitadas", async () => {
+    const futureDate = {
+      _id: "cccccccccccccccccccccccc",
+      date: "2026-09-12",
+      slots: [
+        {
+          _id: "slot-c1",
+          startTime: new Date("2026-09-12T12:00:00Z"),
+          endTime: new Date("2026-09-12T13:00:00Z"),
+          locked: false,
+          lockedBy: null,
+          teamId: { name: "Equipe C", color: "#333333" },
+        },
+      ],
+    };
+    const requestWithOneDate = {
+      _id: "request-x",
+      institutionId: "institution-a",
+      bloodBanksLocationId: "blood-bank-a",
+      requestedDates: [{ availableDateId: DATE_A_ID, priority: 1 }],
+      host: baseHost,
+      status: "pending",
+      statusHistory: [],
+    };
+
+    mocks.collectionRequestFindOne.mockImplementation(() =>
+      chainable(requestWithOneDate)
+    );
+    mocks.availableDateFind.mockImplementation(() =>
+      chainable([availableDatesWithSlots[0], futureDate])
+    );
+
+    const result = await getCollectionRequestById(
+      "request-x",
+      "blood-bank-a"
+    );
+
+    expect(result?.availableSlotOptions.map((option) => option.date)).toEqual([
+      "2026-09-10",
+    ]);
+    expect(
+      result?.availableCounterProposalOptions.map((option) => option.date)
+    ).toEqual(["2026-09-10", "2026-09-12"]);
   });
 });

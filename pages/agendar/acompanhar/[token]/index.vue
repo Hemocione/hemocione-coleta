@@ -187,7 +187,7 @@
         </UCard>
 
         <!-- Requested Dates -->
-        <UCard v-if="request.requestedDates.length">
+        <UCard v-if="uniqueRequestedDates.length">
           <template #header>
             <div class="flex items-center gap-2">
               <UIcon
@@ -199,18 +199,12 @@
           </template>
           <div class="space-y-2">
             <div
-              v-for="(rd, idx) in request.requestedDates"
+              v-for="(rd, idx) in uniqueRequestedDates"
               :key="idx"
               class="flex items-center gap-2 text-sm"
             >
               <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
               <span>{{ formatDate(rd.date) }}</span>
-              <span v-if="rd.startTime" class="text-gray-400">
-                {{ formatTime(rd.startTime) }}
-                <template v-if="rd.endTime">
-                  - {{ formatTime(rd.endTime) }}
-                </template>
-              </span>
             </div>
           </div>
         </UCard>
@@ -464,6 +458,25 @@
                 <div class="text-xs text-gray-600 mt-0.5">
                   {{ historyStatusDescription(entry.status) }}
                 </div>
+                <div
+                  v-if="entry.commitmentTerm?.signedByName"
+                  class="text-xs text-gray-700 mt-1"
+                >
+                  <span class="font-serif italic">
+                    {{ entry.commitmentTerm.signedByName }}
+                  </span>
+                  assinou o termo.
+                </div>
+                <a
+                  v-if="entry.commitmentTerm?.accessToken"
+                  :href="`/termo/${entry.commitmentTerm.accessToken}`"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-1"
+                >
+                  Ver termo de compromisso
+                  <UIcon name="i-lucide-external-link" class="w-3 h-3" />
+                </a>
                 <!-- Motivo: só statuses com texto escrito por humano
                      (rejeição/cancelamento). Nos demais a reason é uma
                      string técnica fixa em inglês já coberta pelo rótulo. -->
@@ -699,6 +712,13 @@ interface PublicRequestData {
     outcome: "approved" | "rejected" | "pending";
     notes?: string;
   };
+  commitmentTerm?: {
+    accessToken: string;
+    status: "draft" | "sent" | "acknowledged";
+    createdAt: string;
+    signedByName?: string | null;
+    signedAt?: string | null;
+  };
   rejectionReason?: string;
   statusHistory: Array<{
     status: string;
@@ -808,11 +828,47 @@ const formattedAddress = computed(() => {
   return parts;
 });
 
-const sortedHistory = computed(() => {
-  if (!request.value?.statusHistory) return [];
-  return [...request.value.statusHistory].sort(
+type TimelineEntry = {
+  status: string;
+  changedAt: string;
+  reason?: string;
+  commitmentTerm?: NonNullable<PublicRequestData["commitmentTerm"]>;
+};
+
+const sortedHistory = computed<TimelineEntry[]>(() => {
+  if (!request.value) return [];
+  const history: TimelineEntry[] = [
+    ...(request.value.statusHistory || []),
+  ].sort(
     (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
   );
+
+  if (request.value.commitmentTerm) {
+    history.push({
+      status: "commitment_term_generated",
+      changedAt: request.value.commitmentTerm.createdAt,
+      reason: undefined,
+      commitmentTerm: request.value.commitmentTerm,
+    });
+  }
+
+  history.sort(
+    (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+  );
+
+  return history.filter(
+    (entry, index) => index === 0 || entry.status !== history[index - 1].status
+  );
+});
+
+const uniqueRequestedDates = computed(() => {
+  const seen = new Set<string>();
+
+  return (request.value?.requestedDates || []).filter((entry) => {
+    if (seen.has(entry.date)) return false;
+    seen.add(entry.date);
+    return true;
+  });
 });
 
 function formatDate(dateStr: string) {
@@ -900,6 +956,8 @@ function historyDotColor(status: string) {
       return "bg-green-500";
     case "scheduled":
       return "bg-green-500";
+    case "commitment_term_generated":
+      return "bg-violet-500";
     default:
       return "bg-gray-300";
   }
@@ -925,6 +983,8 @@ function historyStatusLabel(status: string) {
       return "Visita técnica confirmada";
     case "scheduled":
       return "Solicitação agendada";
+    case "commitment_term_generated":
+      return "Termo de compromisso gerado";
     default:
       return status;
   }
@@ -950,6 +1010,8 @@ function historyStatusDescription(status: string) {
       return "A instituição recusou as novas opções.";
     case "cancelled":
       return "A solicitação foi cancelada.";
+    case "commitment_term_generated":
+      return "O banco de sangue gerou o termo de compromisso.";
     default:
       return "Atualização registrada no histórico.";
   }

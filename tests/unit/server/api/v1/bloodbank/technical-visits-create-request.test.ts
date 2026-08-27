@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   createTechnicalVisit: vi.fn(),
   linkTechnicalVisitToCollectionRequest: vi.fn(),
   updateTechnicalVisit: vi.fn(),
+  getBloodBankByBloodBanksLocationId: vi.fn(),
+  getTemplateForBloodBank: vi.fn(),
+  renderTemplate: vi.fn(),
+  createCommitmentTerm: vi.fn(),
+  sendWhatsAppNotificationToPhone: vi.fn(),
 }));
 
 vi.mock("~/server/services/auth", () => ({
@@ -30,20 +35,24 @@ vi.mock("~/server/services/technicalVisit", () => ({
 }));
 
 vi.mock("~/server/services/bloodBank", () => ({
-  getBloodBankByBloodBanksLocationId: vi.fn(),
+  getBloodBankByBloodBanksLocationId: (...args: unknown[]) =>
+    mocks.getBloodBankByBloodBanksLocationId(...args),
 }));
 vi.mock("~/server/services/commitmentTerm", () => ({
-  createCommitmentTerm: vi.fn(),
-  getTemplateForBloodBank: vi.fn(),
-  renderTemplate: vi.fn(),
+  createCommitmentTerm: (...args: unknown[]) =>
+    mocks.createCommitmentTerm(...args),
+  getTemplateForBloodBank: (...args: unknown[]) =>
+    mocks.getTemplateForBloodBank(...args),
+  renderTemplate: (...args: unknown[]) => mocks.renderTemplate(...args),
 }));
 vi.mock("~/server/services/notification", () => ({
-  sendWhatsAppNotificationToPhone: vi.fn(),
+  sendWhatsAppNotificationToPhone: (...args: unknown[]) =>
+    mocks.sendWhatsAppNotificationToPhone(...args),
 }));
 
 interface FakeEvent {
   context: {
-    auth: { user: { id: string } };
+    auth: { user: { id: string; givenName: string; surName: string } };
     params: Record<string, string>;
   };
   body: unknown;
@@ -58,7 +67,13 @@ let handler: Handler;
 function makeEvent(body: unknown): FakeEvent {
   return {
     context: {
-      auth: { user: { id: "blood-bank-user" } },
+      auth: {
+        user: {
+          id: "blood-bank-user",
+          givenName: "Ana",
+          surName: "Silva",
+        },
+      },
       params: { bloodbanksLocationId: bloodBanksLocationId },
     },
     body,
@@ -102,6 +117,10 @@ beforeEach(() => {
   mocks.linkTechnicalVisitToCollectionRequest.mockResolvedValue({
     _id: requestId,
     technicalVisitId: "visit-a",
+  });
+  mocks.getBloodBankByBloodBanksLocationId.mockResolvedValue({
+    name: "Banco A",
+    autoGenerateCommitmentTerm: false,
   });
 });
 
@@ -195,5 +214,47 @@ describe("POST technical-visits", () => {
       )
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(mocks.createTechnicalVisit).not.toHaveBeenCalled();
+  });
+
+  it("gera termo assinado pelo usuário autenticado e vincula a solicitação", async () => {
+    mocks.getBloodBankByBloodBanksLocationId.mockResolvedValue({
+      name: "Banco A",
+      autoGenerateCommitmentTerm: true,
+    });
+    mocks.getCollectionRequestsByBloodBank.mockResolvedValue({
+      data: [
+        {
+          institutionId: "institution-from-request",
+          institutionName: "Instituição A",
+          host: { name: "Fulano", phone: "11999999999" },
+        },
+      ],
+      pagination: { total: 1, page: 1, limit: 1, pages: 1 },
+    });
+    mocks.getTemplateForBloodBank.mockResolvedValue("Termo {{bloodBankName}}");
+    mocks.renderTemplate.mockReturnValue("Termo Banco A");
+    mocks.createCommitmentTerm.mockResolvedValue({
+      _id: "term-a",
+      accessToken: "term-token",
+    });
+
+    await handler(
+      makeEvent({
+        requestId,
+        address: "Rua A, 1",
+        visitDate: "2999-01-15",
+        outcome: "approved",
+      })
+    );
+
+    expect(mocks.createCommitmentTerm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collectionRequestId: requestId,
+        technicalVisitId: "visit-a",
+        status: "sent",
+        signedByName: "Ana Silva",
+        signedAt: expect.any(Date),
+      })
+    );
   });
 });

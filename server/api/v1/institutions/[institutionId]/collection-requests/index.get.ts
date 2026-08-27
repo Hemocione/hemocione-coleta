@@ -1,8 +1,5 @@
-import {
-  assertUserAccessToInstitutionId,
-  useHemocioneUserAuth,
-} from "~/server/services/auth";
 import { getCollectionRequestsByInstitution } from "~/server/services/collectionRequest";
+import { getUserInstitutions } from "~/server/services/hemocioneId";
 
 export default defineEventHandler(async (event) => {
   try {
@@ -15,8 +12,17 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const user = useHemocioneUserAuth(event);
-    assertUserAccessToInstitutionId(user, institutionId);
+    const token = event.context.auth?.token;
+    if (!token) {
+      throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+    }
+    const institutions = await getUserInstitutions(token);
+    if (!institutions.some((institution) => institution.id === institutionId)) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: "User does not have access to this institution",
+      });
+    }
 
     // Get query parameters
     const query = getQuery(event);

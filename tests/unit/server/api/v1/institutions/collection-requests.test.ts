@@ -1,16 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  useHemocioneUserAuth: vi.fn(),
-  assertUserAccessToInstitutionId: vi.fn(),
+  getUserInstitutions: vi.fn(),
   getCollectionRequestsByInstitution: vi.fn(),
 }));
 
-vi.mock("~/server/services/auth", () => ({
-  useHemocioneUserAuth: (...args: unknown[]) =>
-    mocks.useHemocioneUserAuth(...args),
-  assertUserAccessToInstitutionId: (...args: unknown[]) =>
-    mocks.assertUserAccessToInstitutionId(...args),
+vi.mock("~/server/services/hemocioneId", () => ({
+  getUserInstitutions: (...args: unknown[]) => mocks.getUserInstitutions(...args),
 }));
 
 vi.mock("~/server/services/collectionRequest", () => ({
@@ -21,18 +17,12 @@ vi.mock("~/server/services/collectionRequest", () => ({
 interface FakeEvent {
   context: {
     params: Record<string, string>;
+    auth: { token: string };
   };
   headers: {
     get: (name: string) => string | null;
   };
   query: Record<string, string>;
-}
-
-interface TestUser {
-  institutionRoles: Array<{
-    institutionId: string;
-    role: "admin" | "staff";
-  }>;
 }
 
 const institutionId = "institution-a";
@@ -44,22 +34,12 @@ function makeEvent(
   return {
     context: {
       params: { institutionId: requestedInstitutionId },
+      auth: { token: "token-de-teste" },
     },
     headers: {
       get: () => "Bearer token-de-teste",
     },
     query,
-  };
-}
-
-function makeUser(
-  institutionIds: string[] = [institutionId]
-): TestUser {
-  return {
-    institutionRoles: institutionIds.map((id) => ({
-      institutionId: id,
-      role: "staff" as const,
-    })),
   };
 }
 
@@ -90,25 +70,10 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  mocks.useHemocioneUserAuth.mockReset();
-  mocks.assertUserAccessToInstitutionId.mockReset();
+  mocks.getUserInstitutions.mockReset();
   mocks.getCollectionRequestsByInstitution.mockReset();
 
-  mocks.useHemocioneUserAuth.mockReturnValue(makeUser());
-  mocks.assertUserAccessToInstitutionId.mockImplementation(
-    (user: TestUser, requestedInstitutionId: string) => {
-      if (
-        !user.institutionRoles.some(
-          (role) => role.institutionId === requestedInstitutionId
-        )
-      ) {
-        throw Object.assign(
-          new Error("User does not have access to this institution"),
-          { statusCode: 403 }
-        );
-      }
-    }
-  );
+  mocks.getUserInstitutions.mockResolvedValue([{ id: institutionId }]);
   mocks.getCollectionRequestsByInstitution.mockResolvedValue(emptyResult);
 });
 
@@ -166,7 +131,9 @@ describe("GET /api/v1/institutions/:institutionId/collection-requests", () => {
   });
 
   it("retorna 403 quando o usuário não tem institutionRole", async () => {
-    mocks.useHemocioneUserAuth.mockReturnValue(makeUser(["institution-b"]));
+    mocks.getUserInstitutions.mockResolvedValue([
+      { id: "institution-b" },
+    ]);
 
     await expect(handler(makeEvent())).rejects.toMatchObject({
       statusCode: 403,

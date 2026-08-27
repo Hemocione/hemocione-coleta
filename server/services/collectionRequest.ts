@@ -902,7 +902,7 @@ async function linkTechnicalVisitToRequest(
     throw new Error("Collection request was already resolved");
   }
 
-  void notifyCollectionRequestStatusTransition({
+  await notifyCollectionRequestStatusTransition({
     requestId,
     bloodBanksLocationId,
     transition:
@@ -1043,7 +1043,7 @@ export async function markCollectionRequestScheduled(
     );
   }
 
-  void notifyCollectionRequestStatusTransition({
+  await notifyCollectionRequestStatusTransition({
     requestId,
     bloodBanksLocationId: data.bloodBanksLocationId,
     transition: "scheduled",
@@ -1093,7 +1093,7 @@ export async function counterPropose(
     );
   }
 
-  void notifyCollectionRequestStatusTransition({
+  await notifyCollectionRequestStatusTransition({
     requestId,
     bloodBanksLocationId,
     transition: "counter_proposed",
@@ -1209,7 +1209,7 @@ export async function respondToCounterProposal(
     notificationBloodBanksLocationId &&
     nextStatus === "awaiting_technical_visit"
   ) {
-    void notifyCollectionRequestStatusTransition({
+    await notifyCollectionRequestStatusTransition({
       requestId,
       bloodBanksLocationId: notificationBloodBanksLocationId,
       transition: "awaiting_technical_visit",
@@ -1218,7 +1218,7 @@ export async function respondToCounterProposal(
     notificationBloodBanksLocationId &&
     nextStatus === "counter_proposal_declined"
   ) {
-    void notifyCollectionRequestStatusTransition({
+    await notifyCollectionRequestStatusTransition({
       requestId,
       bloodBanksLocationId: notificationBloodBanksLocationId,
       transition: "counter_proposal_declined",
@@ -1268,7 +1268,7 @@ export async function proposeTechnicalVisit(
     );
   }
 
-  void notifyCollectionRequestStatusTransition({
+  await notifyCollectionRequestStatusTransition({
     requestId,
     bloodBanksLocationId,
     transition: "technical_visit_proposed",
@@ -1355,7 +1355,7 @@ export async function respondToTechnicalVisitProposal(
   }
 
   if (data.decision === "declined") {
-    void notifyCollectionRequestStatusTransition({
+    await notifyCollectionRequestStatusTransition({
       requestId,
       bloodBanksLocationId,
       transition: "technical_visit_proposal_declined",

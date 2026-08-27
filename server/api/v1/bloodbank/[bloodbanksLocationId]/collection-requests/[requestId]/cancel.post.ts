@@ -62,20 +62,26 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Fire-and-forget WhatsApp notification to institution's host
     if (updatedRequest.host?.phone) {
       const bloodBankDoc = await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
       const bloodBankName = bloodBankDoc?.name || "Banco de Sangue";
 
-      sendWhatsAppNotificationToPhone({
-        phone: updatedRequest.host.phone,
-        templateName: "collection_request_cancelled",
-        params: {
-          bloodBankName,
-          cancellationReason: cancellationReason.trim(),
-          hostName: updatedRequest.host.name,
-        },
-      }).catch(() => {});
+      try {
+        await sendWhatsAppNotificationToPhone({
+          phone: updatedRequest.host.phone,
+          templateName: "collection_request_cancelled",
+          params: {
+            bloodBankName,
+            cancellationReason: cancellationReason.trim(),
+            hostName: updatedRequest.host.name,
+          },
+        });
+      } catch (error) {
+        console.error(
+          "[notification] Collection request cancellation notification failed",
+          error
+        );
+      }
     }
 
     return {

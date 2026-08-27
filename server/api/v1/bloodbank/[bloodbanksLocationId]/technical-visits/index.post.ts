@@ -14,6 +14,7 @@ import {
   getCollectionRequestsByBloodBank,
 } from "~/server/services/collectionRequest";
 import { sendWhatsAppNotificationToPhone } from "~/server/services/notification";
+import { buildPublicUrl } from "~/utils/publicUrl";
 import {
   createTechnicalVisit,
   linkTechnicalVisitToCollectionRequest,
@@ -130,14 +131,11 @@ export default defineEventHandler(async (event) => {
         )) || visit;
     }
 
-    // Auto-generate commitment term if approved and setting is enabled
     if (parsed.data.outcome === "approved") {
-      (async () => {
-        try {
-          const bloodBank =
-            await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
-          if (!bloodBank?.autoGenerateCommitmentTerm) return;
-
+      try {
+        const bloodBank =
+          await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
+        if (bloodBank?.autoGenerateCommitmentTerm) {
           // Find the latest collection request for this institution to get host/address data
           let hostPhone: string | undefined;
           let sentTo = "";
@@ -172,50 +170,47 @@ export default defineEventHandler(async (event) => {
             console.log(
               "[commitment-term] No contact info found for auto-generated term, skipping"
             );
-            return;
+          } else {
+            const template =
+              await getTemplateForBloodBank(bloodBanksLocationId);
+            const generatedContent = renderTemplate(
+              template,
+              templateParams
+            );
+
+            const term = await createCommitmentTerm({
+              bloodBanksLocationId,
+              technicalVisitId: responseVisit._id?.toString(),
+              generatedContent,
+              sentTo,
+              status: "sent",
+            });
+
+            const termUrl = buildPublicUrl(`/termo/${term.accessToken}`);
+
+            if (hostPhone) {
+              await sendWhatsAppNotificationToPhone({
+                phone: hostPhone,
+                templateName: "commitment_term_generated",
+                params: {
+                  bloodBankName: templateParams.bloodBankName,
+                  termUrl,
+                  hostName: templateParams.hostName || "",
+                },
+              });
+            }
+
+            console.log(
+              `[commitment-term] Auto-generated and sent term ${term._id} for visit ${responseVisit._id}`
+            );
           }
-
-          const template =
-            await getTemplateForBloodBank(bloodBanksLocationId);
-          const generatedContent = renderTemplate(
-            template,
-            templateParams
-          );
-
-          const term = await createCommitmentTerm({
-            bloodBanksLocationId,
-            technicalVisitId: responseVisit._id?.toString(),
-            generatedContent,
-            sentTo,
-            status: "sent",
-          });
-
-          const baseUrl = process.env.NUXT_PUBLIC_BASE_URL || "";
-          const termUrl = `${baseUrl}/termo/${term.accessToken}`;
-
-          // Send WhatsApp notification to host
-          if (hostPhone) {
-            sendWhatsAppNotificationToPhone({
-              phone: hostPhone,
-              templateName: "commitment_term_generated",
-              params: {
-                bloodBankName: templateParams.bloodBankName,
-                termUrl,
-                hostName: templateParams.hostName || "",
-              },
-            }).catch(() => {});
-          }
-
-          console.log(
-            `[commitment-term] Auto-generated and sent term ${term._id} for visit ${responseVisit._id}`
-          );
-        } catch (err) {
-          console.error(
-            "[commitment-term] Failed to auto-generate term:",
-            err
-          );
         }
-      })();
+      } catch (err) {
+        console.error(
+          "[commitment-term] Failed to auto-generate term:",
+          err
+        );
+      }
     }
 
     return {

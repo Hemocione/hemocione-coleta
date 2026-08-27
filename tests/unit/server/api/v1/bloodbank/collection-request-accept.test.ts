@@ -46,7 +46,7 @@ const acceptedRequest = {
   availableSlotOptions: [
     {
       slotId: "slot-a",
-      date: "10/09/2026",
+      date: "2026-09-10",
       startTime: new Date("2026-09-10T12:00:00.000Z"),
     },
   ],
@@ -122,6 +122,11 @@ describe("POST /api/v1/bloodbank/:bloodbanksLocationId/collection-requests/:requ
       data: acceptedRequest,
       message: "Collection request accepted successfully",
     });
+    expect(mocks.sendWhatsAppNotificationToPhone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ confirmedDate: "10/09/2026" }),
+      })
+    );
   });
 
   it.each([

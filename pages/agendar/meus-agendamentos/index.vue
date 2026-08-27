@@ -47,7 +47,12 @@
                     {{ request.bloodBankName }}
                   </div>
                   <div class="text-xs text-gray-500">
-                    Criada em {{ formatDate(request.createdAt) }}
+                    <template v-if="requestedDateLabels(request).length">
+                      Datas solicitadas: {{ requestedDateLabels(request).join(", ") }}
+                    </template>
+                    <template v-else>
+                      Criada em {{ formatDate(request.createdAt) }}
+                    </template>
                   </div>
                 </div>
               </div>
@@ -95,6 +100,22 @@
               </div>
             </div>
 
+            <div
+              v-if="scheduleOf(request)"
+              class="mt-3 rounded-lg bg-green-50 border border-green-200 p-3 text-sm"
+              data-testid="confirmed-schedule"
+            >
+              <div class="font-medium text-green-900">Horário confirmado</div>
+              <div class="text-green-800 mt-1">
+                {{ formatScheduleDate(scheduleOf(request)!.date) }} ·
+                {{ scheduleOf(request)!.startTime }} -
+                {{ scheduleOf(request)!.endTime }}
+              </div>
+              <div v-if="scheduleOf(request)!.teamName" class="text-green-800">
+                Equipe: {{ scheduleOf(request)!.teamName }}
+              </div>
+            </div>
+
             <div class="flex justify-end mt-3">
               <NuxtLink
                 v-if="request.accessToken"
@@ -128,6 +149,9 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: "agendamento" });
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { useSchedulingStore } from "~/stores/scheduling";
 import { useFetchWithAuth } from "~/composables/useFetchWithAuth";
 import { getCollectionRequestPhase } from "~/utils/collectionRequestPhase";
@@ -139,6 +163,21 @@ interface InstitutionCollectionRequestListItem {
   bloodBankLogo?: string | null;
   accessToken?: string;
   createdAt: string;
+  selectedSlotId?: string;
+  availableSlotOptions?: Array<{
+    slotId: string;
+    date: string;
+    startTime?: string | Date;
+    endTime?: string | Date;
+    teamName?: string;
+    isRequested?: boolean;
+  }>;
+  confirmedSchedule?: {
+    date: string | Date;
+    startTime: string;
+    endTime: string;
+    teamName?: string;
+  };
 }
 
 interface CollectionRequestsResponse {
@@ -162,6 +201,46 @@ const isLoading = ref(false);
 let requestsLoadVersion = 0;
 
 const phaseOf = (status: string) => getCollectionRequestPhase(status);
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
+
+const scheduleOf = (request: InstitutionCollectionRequestListItem) => {
+  if (request.confirmedSchedule) return request.confirmedSchedule;
+  if (!request.selectedSlotId) return null;
+  const slot = request.availableSlotOptions?.find(
+    (option) => option.slotId === request.selectedSlotId
+  );
+  return slot
+    ? {
+        date: slot.date,
+        startTime: formatTime(slot.startTime),
+        endTime: formatTime(slot.endTime),
+        teamName: slot.teamName,
+      }
+    : null;
+};
+
+const formatTime = (time?: string | Date) => {
+  if (!time) return "";
+  if (typeof time === "string" && /^\d{2}:\d{2}$/.test(time)) return time;
+  return dayjs(time).tz(SCHEDULE_TIMEZONE).format("HH:mm");
+};
+
+const formatScheduleDate = (date: string | Date) =>
+  typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? dayjs.tz(`${date}T12:00`, SCHEDULE_TIMEZONE).format("DD/MM/YYYY")
+    : dayjs(date).tz(SCHEDULE_TIMEZONE).format("DD/MM/YYYY");
+
+const requestedDateLabels = (request: InstitutionCollectionRequestListItem) =>
+  Array.from(
+    new Set(
+      (request.availableSlotOptions || [])
+        .filter((option) => option.isRequested !== false)
+        .map((option) => formatScheduleDate(option.date))
+    )
+  );
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("pt-BR");

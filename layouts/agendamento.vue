@@ -110,6 +110,17 @@
                         <dd>{{ selectedInstitution.phone }}</dd>
                       </div>
                     </dl>
+                    <UButton
+                      v-if="canEditSelectedInstitution"
+                      size="xs"
+                      variant="soft"
+                      icon="i-lucide-pencil"
+                      class="mt-3"
+                      data-testid="edit-institution-button"
+                      @click="openEditInstitution"
+                    >
+                      Editar dados
+                    </UButton>
                   </div>
                 </div>
               </div>
@@ -291,6 +302,67 @@
         </template>
       </UModal>
 
+      <!-- Edit Institution Modal -->
+      <UModal v-model:open="editInstitutionOpen">
+        <template #content>
+          <div class="p-6 space-y-4 max-h-[95dvh] overflow-auto">
+            <div>
+              <div class="text-base font-semibold">Editar instituição</div>
+              <p class="text-sm text-gray-600 mt-1">
+                Atualize os dados usados no agendamento.
+              </p>
+            </div>
+            <UAlert
+              v-if="editInstitutionError"
+              color="error"
+              icon="i-lucide-alert-circle"
+              :description="editInstitutionError"
+            />
+            <UFormField label="Nome" required>
+              <UInput v-model="editInstitutionForm.name" />
+            </UFormField>
+            <UFormField label="Razão Social">
+              <UInput v-model="editInstitutionForm.legalName" />
+            </UFormField>
+            <UFormField label="Endereço">
+              <UInput v-model="editInstitutionForm.address" />
+            </UFormField>
+            <div class="grid grid-cols-2 gap-3">
+              <UFormField label="Cidade" required>
+                <UInput v-model="editInstitutionForm.city" />
+              </UFormField>
+              <UFormField label="Estado" required>
+                <USelect
+                  v-model="editInstitutionForm.state"
+                  :items="brazilianStates"
+                />
+              </UFormField>
+            </div>
+            <UFormField label="Telefone">
+              <UInput v-model="editInstitutionForm.phone" />
+            </UFormField>
+            <div class="flex justify-end gap-2">
+              <UButton
+                variant="ghost"
+                :disabled="editInstitutionSaving"
+                @click="editInstitutionOpen = false"
+              >
+                Cancelar
+              </UButton>
+              <UButton
+                color="primary"
+                :loading="editInstitutionSaving"
+                :disabled="!isEditInstitutionValid"
+                data-testid="save-institution-button"
+                @click="saveEditInstitution"
+              >
+                Salvar alterações
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UModal>
+
       <!-- Login Prompt Modal (quando deslogado) -->
       <UModal
         v-model:open="loginPromptOpen"
@@ -377,6 +449,17 @@ const cnpjLoading = ref(false);
 const geocodeLoading = ref(false);
 const cnpjError = ref("");
 const discardConfirm = ref(false);
+const editInstitutionOpen = ref(false);
+const editInstitutionSaving = ref(false);
+const editInstitutionError = ref("");
+const editInstitutionForm = reactive({
+  name: "",
+  legalName: "",
+  address: "",
+  city: "",
+  state: "",
+  phone: "",
+});
 const userInstitutions = computed(() => scheduling.userInstitutions || []);
 const institutionItems = computed(() =>
   userInstitutions.value.map((i) => ({ label: i.name, value: i.id }))
@@ -481,6 +564,17 @@ const isFormValid = computed(() => {
     form.kind.trim() !== ""
   );
 });
+
+const isEditInstitutionValid = computed(
+  () =>
+    editInstitutionForm.name.trim().length > 0 &&
+    editInstitutionForm.city.trim().length > 0 &&
+    editInstitutionForm.state.length === 2
+);
+
+const canEditSelectedInstitution = computed(
+  () => selectedInstitution.value?.membershipRole === "admin"
+);
 
 const brazilianStates = [
   { label: "Acre", value: "AC" },
@@ -699,5 +793,45 @@ const onCreateClick = () => {
   discardConfirm.value = false;
   cnpjError.value = "";
   openCreate.value = true;
+};
+
+const openEditInstitution = () => {
+  const institution = selectedInstitution.value;
+  if (!institution) return;
+
+  Object.assign(editInstitutionForm, {
+    name: institution.name || "",
+    legalName: institution.legalName || "",
+    address: institution.address || "",
+    city: institution.city || "",
+    state: institution.state || "",
+    phone: institution.phone || "",
+  });
+  editInstitutionError.value = "";
+  editInstitutionOpen.value = true;
+};
+
+const saveEditInstitution = async () => {
+  if (!selectedInstitution.value || !isEditInstitutionValid.value) return;
+
+  editInstitutionSaving.value = true;
+  editInstitutionError.value = "";
+  try {
+    await scheduling.updateInstitution(selectedInstitution.value.id, {
+      name: editInstitutionForm.name.trim(),
+      legalName: editInstitutionForm.legalName.trim() || null,
+      address: editInstitutionForm.address.trim() || null,
+      city: editInstitutionForm.city.trim(),
+      state: editInstitutionForm.state,
+      phone: editInstitutionForm.phone.trim() || null,
+    });
+    editInstitutionOpen.value = false;
+    useToast().add({ title: "Instituição atualizada", color: "success" });
+  } catch (error: any) {
+    editInstitutionError.value =
+      error?.data?.message || error?.message || "Erro ao atualizar instituição";
+  } finally {
+    editInstitutionSaving.value = false;
+  }
 };
 </script>

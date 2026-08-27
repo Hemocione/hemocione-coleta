@@ -552,6 +552,13 @@
                 {{ currentCollectionRequest.confirmedSchedule.endTime }}
               </span>
             </div>
+            <div
+              v-if="currentCollectionRequest.confirmedSchedule.teamName"
+              class="flex items-center gap-2"
+            >
+              <UIcon name="i-lucide-users" class="w-4 h-4 text-gray-400" />
+              <span>{{ currentCollectionRequest.confirmedSchedule.teamName }}</span>
+            </div>
           </div>
         </UCard>
 
@@ -582,6 +589,9 @@
             >
               <p class="font-medium">
                 {{ formatDate(d.date) }} · {{ formatProposalRange(d) }}
+              </p>
+              <p v-if="d.teamName" class="text-sm text-gray-600 mt-1">
+                Equipe: {{ d.teamName }}
               </p>
               <p v-if="d.note" class="text-gray-600 mt-1">{{ d.note }}</p>
             </div>
@@ -900,6 +910,31 @@
 
           <div class="space-y-4">
             <div
+              v-if="availableCounterProposalSlots.length"
+              class="rounded-lg border border-blue-200 bg-blue-50 p-3"
+            >
+              <p class="text-sm font-medium text-blue-900">
+                Disponibilidade atual do banco de sangue
+              </p>
+              <p class="text-xs text-blue-800 mt-1">
+                Selecione um horário disponível para preencher uma opção.
+              </p>
+              <div class="flex flex-wrap gap-2 mt-3">
+                <UButton
+                  v-for="slot in availableCounterProposalSlots"
+                  :key="`${slot.availableDateId}-${slot.slotId}`"
+                  size="xs"
+                  color="info"
+                  variant="outline"
+                  @click="applyAvailableSlotToCounterProposal(counterProposalDates[0], slot)"
+                >
+                  {{ formatDate(slot.date) }} ·
+                  {{ formatSlotTime(slot.startTime) }} -
+                  {{ formatSlotTime(slot.endTime) }}
+                </UButton>
+              </div>
+            </div>
+            <div
               v-for="(d, idx) in counterProposalDates"
               :key="idx"
               class="border rounded-lg p-3 space-y-2"
@@ -934,6 +969,13 @@
               >
                 O horário final deve ser posterior ao horário inicial.
               </p>
+              <UFormField label="Equipe">
+                <UInput
+                  v-model="d.teamName"
+                  placeholder="Ex: Equipe A"
+                  class="w-full"
+                />
+              </UFormField>
               <UFormField label="Nota desta opção">
                 <UInput
                   v-model="d.note"
@@ -1416,6 +1458,7 @@ interface CounterProposalDateDraft {
   startTime: string;
   endTime: string;
   durationMinutes?: number;
+  teamName?: string;
   note: string;
 }
 
@@ -1431,8 +1474,35 @@ const isEndTimeInvalid = (draft: CounterProposalDateDraft) => {
 };
 
 const counterProposalDates = ref<CounterProposalDateDraft[]>([
-  { date: "", startTime: "", endTime: "", note: "" },
+  { date: "", startTime: "", endTime: "", teamName: "", note: "" },
 ]);
+
+const availableCounterProposalSlots = computed(() =>
+  (currentCollectionRequest.value?.availableSlotOptions || [])
+    .filter((slot) => !slot.isLocked && slot.startTime && slot.endTime)
+    .slice(0, 12)
+);
+
+const formatSlotTime = (time: Date | string | undefined) => {
+  if (!time) return "--:--";
+  if (typeof time === "string" && /^\d{2}:\d{2}$/.test(time)) return time;
+  return dayjs(time).tz(SCHEDULE_TIMEZONE).format("HH:mm");
+};
+
+const toInputDate = (date: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? date
+    : dayjs(date).tz(SCHEDULE_TIMEZONE).format("YYYY-MM-DD");
+
+const applyAvailableSlotToCounterProposal = (
+  draft: CounterProposalDateDraft,
+  slot: NonNullable<typeof currentCollectionRequest.value>["availableSlotOptions"][number]
+) => {
+  draft.date = toInputDate(slot.date);
+  draft.startTime = formatSlotTime(slot.startTime);
+  draft.endTime = formatSlotTime(slot.endTime);
+  draft.teamName = slot.teamName || "";
+};
 
 const canProposeTechnicalVisit = computed(() => {
   const request = currentCollectionRequest.value;
@@ -1480,6 +1550,7 @@ const addCounterProposalDate = () => {
     date: "",
     startTime: "",
     endTime: "",
+    teamName: "",
     note: "",
   });
 };
@@ -1514,6 +1585,7 @@ const serializeProposalDate = (draft: CounterProposalDateDraft) => {
     startTime: draft.startTime,
     endTime: draft.endTime,
     durationMinutes: endMinutes - startMinutes,
+    teamName: draft.teamName?.trim() || undefined,
     note: draft.note,
   };
 };
@@ -1556,7 +1628,7 @@ const confirmCounterProposal = async () => {
     counterProposalNote.value = "";
     counterProposalNeedsTechnicalVisit.value = false;
     counterProposalDates.value = [
-      { date: "", startTime: "", endTime: "", note: "" },
+      { date: "", startTime: "", endTime: "", teamName: "", note: "" },
     ];
 
     await loadRequestDetails();

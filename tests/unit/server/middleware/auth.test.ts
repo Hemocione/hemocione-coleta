@@ -131,7 +131,7 @@ describe("middleware de auth — demais rotas", () => {
       event,
       expect.objectContaining({
         "access-control-allow-origin": "*",
-        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
         "access-control-allow-headers": "Authorization, Content-Type",
       }),
     );

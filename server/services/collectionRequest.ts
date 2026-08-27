@@ -52,7 +52,9 @@ export type CollectionRequestStatus =
 export interface CounterProposalDate {
   date: Date;
   startTime: string;
-  durationMinutes: number;
+  endTime?: string;
+  durationMinutes?: number;
+  teamName?: string;
   note: string;
 }
 
@@ -88,6 +90,7 @@ interface StoredConfirmedSchedule {
   startTime: string;
   endTime?: string;
   durationMinutes: number;
+  teamName?: string;
 }
 
 export interface ConfirmedSchedule {
@@ -95,6 +98,7 @@ export interface ConfirmedSchedule {
   startTime: string;
   endTime: string;
   durationMinutes: number;
+  teamName?: string;
 }
 
 export interface VisitProposal {
@@ -780,6 +784,7 @@ function normalizeConfirmedSchedule(
         schedule.durationMinutes
       ),
     durationMinutes: schedule.durationMinutes,
+    teamName: schedule.teamName,
   };
 }
 
@@ -793,6 +798,48 @@ function combineDateAndTime(date: Date, startTime: string): Date {
     .tz(`${datePart}T${startTime}`, TECHNICAL_VISIT_TIMEZONE)
     .utc()
     .toDate();
+}
+
+function timeToMinutes(time: string): number | null {
+  if (!/^\d{2}:\d{2}$/.test(time)) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function getProposalDurationMinutes(proposal: CounterProposalDate): number {
+  if (proposal.durationMinutes && proposal.durationMinutes > 0) {
+    return proposal.durationMinutes;
+  }
+
+  const startMinutes = timeToMinutes(proposal.startTime);
+  const endMinutes = proposal.endTime
+    ? timeToMinutes(proposal.endTime)
+    : null;
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    throw new Error("Invalid proposal time range");
+  }
+
+  return endMinutes - startMinutes;
+}
+
+function normalizeProposalDates(
+  proposals: CounterProposalDate[]
+): CounterProposalDate[] {
+  return proposals.map((proposal) => {
+    const durationMinutes = getProposalDurationMinutes(proposal);
+    return {
+      ...proposal,
+      durationMinutes,
+      endTime:
+        proposal.endTime ??
+        calculateScheduleEndTime(
+          proposal.date,
+          proposal.startTime,
+          durationMinutes
+        ),
+    };
+  });
 }
 
 async function getAwaitingTechnicalVisitRequest(
@@ -1012,6 +1059,7 @@ export async function counterPropose(
 ) {
   const counterProposal: CounterProposal = {
     ...data,
+    proposedDates: normalizeProposalDates(data.proposedDates),
     proposedAt: new Date(),
   };
   const statusHistoryEntry = {
@@ -1089,12 +1137,15 @@ export async function respondToCounterProposal(
     confirmedSchedule = {
       date: selectedDate.date,
       startTime: selectedDate.startTime,
-      endTime: calculateScheduleEndTime(
-        selectedDate.date,
-        selectedDate.startTime,
-        selectedDate.durationMinutes
-      ),
-      durationMinutes: selectedDate.durationMinutes,
+      endTime:
+        selectedDate.endTime ??
+        calculateScheduleEndTime(
+          selectedDate.date,
+          selectedDate.startTime,
+          getProposalDurationMinutes(selectedDate)
+        ),
+      durationMinutes: getProposalDurationMinutes(selectedDate),
+      teamName: selectedDate.teamName,
     };
     nextStatus = currentCounterProposal.needsTechnicalVisit
       ? "awaiting_technical_visit"
@@ -1185,6 +1236,7 @@ export async function proposeTechnicalVisit(
 ) {
   const visitProposal: VisitProposal = {
     ...data,
+    proposedDates: normalizeProposalDates(data.proposedDates),
     proposedAt: new Date(),
   };
   const statusHistoryEntry = {
@@ -1803,14 +1855,14 @@ export interface CollectionRequestPublicDetails {
   note?: string;
   requestedDates: Array<{
     date: string;
-    startTime?: Date;
-    endTime?: Date;
+    startTime?: string | Date;
+    endTime?: string | Date;
     teamName?: string;
   }>;
   selectedDate?: {
     date: string;
-    startTime?: Date;
-    endTime?: Date;
+    startTime?: string | Date;
+    endTime?: string | Date;
     teamName?: string;
   };
   confirmedSchedule?: ConfirmedSchedule;
@@ -1900,7 +1952,11 @@ async function buildCollectionRequestPublicDetails(
         }
       });
     } else {
-      requestedDatesInfo.push({ date: ad.date });
+      requestedDatesInfo.push({
+        date: ad.date,
+        startTime: rd.startTime,
+        endTime: rd.endTime,
+      });
     }
   });
 
@@ -2046,4 +2102,72 @@ export async function withdrawCollectionRequest(
   );
 
   return await getCollectionRequestPublic(requestId);
+}
+
+export async function cancelCollectionRequestByInstitution(
+  requestId: string,
+  institutionUserId: string,
+  reason?: string
+): Promise<CollectionRequestPublicDetails | null> {
+  const session = await CollectionRequest.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const request = await CollectionRequest.findOne({
+        _id: requestId,
+        requestedByUserId: institutionUserId,
+        status: { $in: ["pending", "accepted"] },
+        deletedAt: null,
+      }).session(session);
+
+      if (!request) {
+        throw new Error("Request not found or cannot be cancelled");
+      }
+
+      if (
+        request.status === "accepted" &&
+        request.selectedAvailableDateId &&
+        request.selectedSlotId
+      ) {
+        await AvailableDate.findOneAndUpdate(
+          {
+            _id: request.selectedAvailableDateId,
+            "slots._id": request.selectedSlotId,
+          },
+          {
+            $set: {
+              "slots.$.locked": false,
+              "slots.$.lockedBy": null,
+            },
+          },
+          { session }
+        );
+      }
+
+      await CollectionRequest.findOneAndUpdate(
+        {
+          _id: requestId,
+          requestedByUserId: institutionUserId,
+          status: { $in: ["pending", "accepted"] },
+          deletedAt: null,
+        },
+        {
+          $set: { status: "cancelled" },
+          $push: {
+            statusHistory: {
+              status: "cancelled",
+              changedAt: new Date(),
+              changedBy: institutionUserId,
+              reason: reason || "Cancelado pela instituição",
+            },
+          },
+        },
+        { session }
+      );
+    });
+
+    return await getCollectionRequestPublic(requestId);
+  } finally {
+    await session.endSession();
+  }
 }

@@ -18,6 +18,7 @@ export interface Institution {
   logo?: string | null;
   banner?: string | null;
   status?: "pending" | "validated" | "rejected";
+  membershipRole?: "admin" | "staff";
 }
 
 export interface BloodBankListItem {
@@ -187,6 +188,35 @@ export const useSchedulingStore = defineStore("scheduling", {
       } finally {
         this.isCreatingInstitution = false;
       }
+    },
+
+    async updateInstitution(
+      institutionId: string,
+      payload: Partial<
+        Pick<
+          Institution,
+          "name" | "legalName" | "address" | "phone" | "city" | "state" | "latitude" | "longitude"
+        >
+      >
+    ) {
+      const response = await fetchWithAuth<{ institution: Institution }>(
+        `/api/v1/institutions/${institutionId}`,
+        { method: "PATCH", body: payload as any }
+      );
+      const updated = response.institution;
+      this.userInstitutions = (this.userInstitutions || []).map((institution) =>
+        institution.id === institutionId ? { ...institution, ...updated } : institution
+      );
+      const selected = this.userInstitutions.find(
+        (institution) => institution.id === institutionId
+      );
+      if (selected) {
+        this.selectedInstitution = selected;
+        this.latitude = selected.latitude ?? null;
+        this.longitude = selected.longitude ?? null;
+      }
+      await this.loadBloodBanksByCoverage();
+      return selected || null;
     },
 
     async loadBloodBanksByCoverage() {

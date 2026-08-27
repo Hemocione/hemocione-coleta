@@ -1,4 +1,7 @@
 import { z } from "zod";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import {
@@ -16,6 +19,10 @@ import {
   linkTechnicalVisitToCollectionRequest,
   updateTechnicalVisit,
 } from "~/server/services/technicalVisit";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
 
 const createTechnicalVisitSchema = z.object({
   requestId: z.string().trim().min(1).nullish(),
@@ -83,13 +90,19 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const visitDate = parsed.data.visitDate.includes("T")
+      ? new Date(parsed.data.visitDate)
+      : dayjs
+          .tz(`${parsed.data.visitDate}T12:00`, SCHEDULE_TIMEZONE)
+          .toDate();
+
     const visit = await createTechnicalVisit({
       bloodBanksLocationId,
       institutionId:
         selectedRequest?.institutionId || parsed.data.institutionId || undefined,
       address: parsed.data.address,
       location: parsed.data.location ?? undefined,
-      visitDate: new Date(parsed.data.visitDate),
+      visitDate,
       outcome: parsed.data.outcome,
       notes: parsed.data.notes ?? undefined,
       visitedBy: user.id,

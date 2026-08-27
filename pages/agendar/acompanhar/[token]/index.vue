@@ -60,6 +60,22 @@
           </div>
         </UCard>
 
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-list-ordered" class="w-5 h-5 text-gray-500" />
+              <span class="font-semibold">Como funciona</span>
+            </div>
+          </template>
+          <ol class="grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+            <li><span class="font-medium text-gray-900">1.</span> Solicitação enviada.</li>
+            <li><span class="font-medium text-gray-900">2.</span> Banco de sangue analisa.</li>
+            <li><span class="font-medium text-gray-900">3.</span> Visita técnica, se necessária.</li>
+            <li><span class="font-medium text-gray-900">4.</span> Confirmação do horário.</li>
+            <li><span class="font-medium text-gray-900">5.</span> Coleta agendada.</li>
+          </ol>
+        </UCard>
+
         <!-- Accepted Info -->
         <UCard
           v-if="
@@ -84,6 +100,13 @@
                 {{ request.confirmedSchedule.startTime }} -
                 {{ request.confirmedSchedule.endTime }}
               </span>
+            </div>
+            <div
+              v-if="request.confirmedSchedule.teamName"
+              class="flex items-center gap-2"
+            >
+              <UIcon name="i-lucide-users" class="w-4 h-4 text-gray-400" />
+              <span>{{ request.confirmedSchedule.teamName }}</span>
             </div>
           </div>
           <div v-else-if="request.selectedDate" class="space-y-2">
@@ -113,13 +136,26 @@
           </div>
         </UCard>
 
-        <!-- Cancellation orientation for accepted requests -->
+        <!-- Cancellation action for accepted requests -->
+        <UCard v-if="request.status === 'accepted' && isLoggedIn">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="font-medium">Precisa cancelar ou pedir outra data?</p>
+              <p class="text-sm text-gray-600">
+                Cancele a solicitação e envie uma nova data ao banco de sangue.
+              </p>
+            </div>
+            <UButton color="error" variant="soft" @click="showCancelModal = true">
+              Cancelar coleta
+            </UButton>
+          </div>
+        </UCard>
         <UAlert
-          v-if="request.status === 'accepted'"
+          v-else-if="request.status === 'accepted'"
           color="info"
           icon="i-lucide-info"
           title="Precisa cancelar?"
-          :description="`Entre em contato diretamente com ${request.bloodBankName} para solicitar o cancelamento.`"
+          description="Entre para cancelar a solicitação ou entre em contato com o banco de sangue."
         />
 
         <!-- Rejection Reason -->
@@ -151,7 +187,7 @@
         </UCard>
 
         <!-- Requested Dates -->
-        <UCard v-if="request.status === 'pending'">
+        <UCard v-if="request.requestedDates.length">
           <template #header>
             <div class="flex items-center gap-2">
               <UIcon
@@ -425,6 +461,9 @@
                 <div class="text-xs text-gray-500">
                   {{ formatDateTime(entry.changedAt) }}
                 </div>
+                <div class="text-xs text-gray-600 mt-0.5">
+                  {{ historyStatusDescription(entry.status) }}
+                </div>
                 <!-- Motivo: só statuses com texto escrito por humano
                      (rejeição/cancelamento). Nos demais a reason é uma
                      string técnica fixa em inglês já coberta pelo rótulo. -->
@@ -440,6 +479,33 @@
         </UCard>
       </template>
     </main>
+
+    <!-- Cancel Accepted Request Modal -->
+    <UModal v-model:open="showCancelModal">
+      <template #content>
+        <div class="p-6 space-y-4">
+          <h3 class="text-lg font-semibold">Cancelar coleta</h3>
+          <p class="text-sm text-gray-600">
+            O horário reservado será liberado. Envie uma nova solicitação se desejar outra data.
+          </p>
+          <UFormField label="Motivo (opcional)">
+            <UTextarea
+              v-model="cancelReason"
+              placeholder="Informe o motivo do cancelamento..."
+              :maxlength="1000"
+            />
+          </UFormField>
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" :disabled="cancelling" @click="showCancelModal = false">
+              Voltar
+            </UButton>
+            <UButton color="error" :loading="cancelling" @click="handleCancelAcceptedRequest">
+              Confirmar cancelamento
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
 
     <!-- Withdraw Modal -->
     <UModal v-model:open="showWithdrawModal">
@@ -599,6 +665,7 @@ interface PublicRequestData {
     startTime: string;
     endTime: string;
     durationMinutes: number;
+    teamName?: string;
   };
   counterProposal?: {
     proposedDates: Array<{
@@ -606,6 +673,7 @@ interface PublicRequestData {
       startTime: string;
       endTime?: string;
       durationMinutes?: number;
+      teamName?: string;
       note: string;
     }>;
     needsTechnicalVisit: boolean;
@@ -618,6 +686,7 @@ interface PublicRequestData {
       startTime: string;
       endTime?: string;
       durationMinutes?: number;
+      teamName?: string;
       note: string;
     }>;
     note: string;
@@ -645,6 +714,9 @@ const request = ref<PublicRequestData | null>(null);
 const showWithdrawModal = ref(false);
 const withdrawReason = ref("");
 const withdrawing = ref(false);
+const showCancelModal = ref(false);
+const cancelReason = ref("");
+const cancelling = ref(false);
 
 const statusColor = computed(() => {
   switch (request.value?.status) {
@@ -772,17 +844,7 @@ function formatTime(timeStr: string) {
 }
 
 function formatDateTime(dateStr: string) {
-  return dayjs(dateStr)
-    .tz(SCHEDULE_TIMEZONE)
-    .toDate()
-    .toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: SCHEDULE_TIMEZONE,
-    });
+  return dayjs(dateStr).tz(SCHEDULE_TIMEZONE).format("DD/MM/YYYY HH:mm");
 }
 
 function addMinutesToTime(timeStr: string, durationMinutes?: number) {
@@ -865,6 +927,31 @@ function historyStatusLabel(status: string) {
       return "Solicitação agendada";
     default:
       return status;
+  }
+}
+
+function historyStatusDescription(status: string) {
+  switch (status) {
+    case "pending":
+      return "A instituição enviou a solicitação ao banco de sangue.";
+    case "accepted":
+      return "O banco de sangue aceitou uma opção de horário.";
+    case "counter_proposed":
+      return "O banco de sangue enviou novas opções de horário.";
+    case "awaiting_technical_visit":
+      return "O banco de sangue precisa validar o local antes da confirmação.";
+    case "technical_visit_confirmed":
+      return "A visita técnica foi confirmada.";
+    case "scheduled":
+      return "A coleta está agendada.";
+    case "rejected":
+      return "O banco de sangue rejeitou a solicitação.";
+    case "counter_proposal_declined":
+      return "A instituição recusou as novas opções.";
+    case "cancelled":
+      return "A solicitação foi cancelada.";
+    default:
+      return "Atualização registrada no histórico.";
   }
 }
 
@@ -997,6 +1084,29 @@ async function handleWithdraw() {
     toast.add({ title: "Erro ao retirar solicitação", color: "error" });
   } finally {
     withdrawing.value = false;
+  }
+}
+
+async function handleCancelAcceptedRequest() {
+  if (!request.value || request.value.status !== "accepted") return;
+  cancelling.value = true;
+  try {
+    const response = await $fetch<{ success: boolean; data: PublicRequestData }>(
+      `/api/v1/public/collection-requests/track/${accessToken}/cancel`,
+      {
+        method: "POST",
+        body: { reason: cancelReason.value.trim() || undefined },
+        headers: { Authorization: `Bearer ${userStore.token}` },
+      }
+    );
+    request.value = response.data;
+    showCancelModal.value = false;
+    cancelReason.value = "";
+    toast.add({ title: "Coleta cancelada", color: "success" });
+  } catch {
+    toast.add({ title: "Erro ao cancelar a coleta", color: "error" });
+  } finally {
+    cancelling.value = false;
   }
 }
 

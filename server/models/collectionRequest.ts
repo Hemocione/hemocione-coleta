@@ -75,6 +75,7 @@ const CounterProposalDateSchema = new Schema(
     startTime: { type: String, required: true },
     endTime: { type: String, required: false },
     durationMinutes: { type: Number, required: false },
+    teamName: { type: String, required: false, maxlength: 100, trim: true },
     note: { type: String, required: true },
   },
   { _id: false }
@@ -141,6 +142,7 @@ const ConfirmedScheduleSchema = new Schema(
     // stored the calculated end time.
     endTime: { type: String, required: false },
     durationMinutes: { type: Number, required: true },
+    teamName: { type: String, required: false, maxlength: 100, trim: true },
   },
   { _id: false }
 );

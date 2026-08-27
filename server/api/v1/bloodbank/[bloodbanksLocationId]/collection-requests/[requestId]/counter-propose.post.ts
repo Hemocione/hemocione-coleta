@@ -12,6 +12,7 @@ const proposalDateSchema = z
     startTime: timeSchema,
     endTime: timeSchema.optional(),
     durationMinutes: z.number().int().positive().optional(),
+    teamName: z.string().trim().max(100).optional(),
     note: z.string(),
   })
   .superRefine((proposalDate, context) => {

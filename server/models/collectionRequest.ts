@@ -55,6 +55,10 @@ const RequestedDateSchema = new Schema(
       type: String,
       required: false,
     },
+    endTime: {
+      type: String,
+      required: false,
+    },
     priority: {
       type: Number,
       required: true,
@@ -69,7 +73,8 @@ const CounterProposalDateSchema = new Schema(
   {
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
-    durationMinutes: { type: Number, required: true },
+    endTime: { type: String, required: false },
+    durationMinutes: { type: Number, required: false },
     note: { type: String, required: true },
   },
   { _id: false }

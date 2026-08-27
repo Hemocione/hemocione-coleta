@@ -124,6 +124,38 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
     );
   });
 
+  it("repassa slotIds e o intervalo escolhido por data", async () => {
+    await handler(
+      makeEvent({
+        ...validBody,
+        requestedDates: [
+          {
+            availableDateId: "available-date-a",
+            slotIds: ["slot-a", "slot-b"],
+            startTime: "08:00",
+            endTime: "10:00",
+            priority: 1,
+          },
+        ],
+      })
+    );
+
+    expect(mocks.createCollectionRequest).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      expect.objectContaining({
+        requestedDates: [
+          {
+            availableDateId: "available-date-a",
+            slotIds: ["slot-a", "slot-b"],
+            startTime: "08:00",
+            endTime: "10:00",
+            priority: 1,
+          },
+        ],
+      })
+    );
+  });
+
   it("rejeita quando a note excede o tamanho máximo permitido", async () => {
     await expect(
       handler(

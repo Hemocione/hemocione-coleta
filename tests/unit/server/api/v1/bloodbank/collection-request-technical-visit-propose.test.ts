@@ -46,7 +46,7 @@ const validBody = {
     {
       date: "2026-09-10T00:00:00.000Z",
       startTime: "09:00",
-      durationMinutes: 60,
+      endTime: "10:00",
       note: "Chegar 15 minutos antes",
     },
   ],
@@ -101,6 +101,7 @@ describe("POST self-service propose-technical-visit", () => {
           {
             date: new Date("2026-09-10T00:00:00.000Z"),
             startTime: "09:00",
+            endTime: "10:00",
             durationMinutes: 60,
             note: "Chegar 15 minutos antes",
           },
@@ -127,6 +128,19 @@ describe("POST self-service propose-technical-visit", () => {
     await expect(
       handler(makeEvent({ ...validBody, proposedDates: [] }))
     ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.proposeTechnicalVisit).not.toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando o horário final não é posterior ao inicial", async () => {
+    await expect(
+      handler(
+        makeEvent({
+          ...validBody,
+          proposedDates: [{ ...validBody.proposedDates[0], endTime: "08:59" }],
+        })
+      )
+    ).rejects.toMatchObject({ statusCode: 400 });
+
     expect(mocks.proposeTechnicalVisit).not.toHaveBeenCalled();
   });
 });

@@ -460,6 +460,7 @@ const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
 const isLoggedIn = computed(() => Boolean(user.value));
+const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
 const showConfirmationModal = ref(false);
 const trackingUrl = ref("");
 const loading = ref(true);
@@ -672,17 +673,21 @@ const formatPt = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const formatTimeRange = (start: string | Date, end: string | Date) => {
-  const s = new Date(start);
-  const e = new Date(end);
-  const fmt: Intl.DateTimeFormatOptions = {
+const formatTime = (time: string | Date) => {
+  if (typeof time === "string" && /^\d{2}:\d{2}$/.test(time)) {
+    return time;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
-  };
-  return `${s.toLocaleTimeString("pt-BR", fmt)} - ${e.toLocaleTimeString(
-    "pt-BR",
-    fmt
-  )}`;
+    hourCycle: "h23",
+    timeZone: SCHEDULE_TIMEZONE,
+  }).format(typeof time === "string" ? new Date(time) : time);
+};
+
+const formatTimeRange = (start: string | Date, end: string | Date) => {
+  return `${formatTime(start)} - ${formatTime(end)}`;
 };
 
 const uniqueTimeRanges = (availableDateId: string) => {
@@ -700,6 +705,32 @@ const getTimeItemsWithAny = (availableDateId: string) => {
   // Adicionar opção "Qualquer horário do dia" no início
   items.unshift({ label: "Qualquer horário do dia", value: "any" });
   return items;
+};
+
+const getSelectedSlotRange = (availableDateId: string) => {
+  const availableDate = dates.value.find(
+    (date: any) => date._id === availableDateId
+  );
+  if (!availableDate) return undefined;
+
+  const ranges = uniqueTimeRanges(availableDateId);
+  const selectedRange = selectedRangeByDateId.value[availableDateId];
+  if (selectedRange === "any" || (!selectedRange && ranges.length !== 1)) {
+    return undefined;
+  }
+
+  const range = selectedRange || ranges[0];
+  const matchingSlots = availableDate.slots.filter(
+    (slot: any) => formatTimeRange(slot.startTime, slot.endTime) === range
+  );
+  const firstSlot = matchingSlots[0];
+  if (!firstSlot) return undefined;
+
+  return {
+    slotIds: matchingSlots.map((slot: any) => slot._id),
+    startTime: formatTime(firstSlot.startTime),
+    endTime: formatTime(firstSlot.endTime),
+  };
 };
 
 const loadDates = async () => {
@@ -808,6 +839,7 @@ const submit = async () => {
       requestedDates: selected.value.map((d, index) => ({
         availableDateId: d.availableDateId,
         priority: index + 1,
+        ...getSelectedSlotRange(d.availableDateId),
       })),
       host: {
         name: hostName.value.trim(),
@@ -859,8 +891,18 @@ const submit = async () => {
 };
 
 const currentCalendarDate = computed<CalendarDate>((): CalendarDate => {
-  const now = new Date();
-  return new CalendarDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SCHEDULE_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  );
+  return new CalendarDate(values.year, values.month, values.day);
 });
 
 const isDateUnavailable = (day: DateValue) => {

@@ -29,6 +29,8 @@ const bodySchema = z.object({
       z.object({
         availableDateId: z.string(),
         slotIds: z.array(z.string()).optional(),
+        startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+        endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
         priority: z.number().int().min(1).max(3).optional(),
       })
     )

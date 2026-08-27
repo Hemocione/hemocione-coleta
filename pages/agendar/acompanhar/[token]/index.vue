@@ -203,9 +203,9 @@
               >
                 <div>
                   <p class="font-medium text-sm">
-                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
+                    {{ formatCounterProposalDate(d.date) }} ·
+                    {{ formatProposalRange(d) }}
                   </p>
-                  <p class="text-xs text-gray-500">{{ d.durationMinutes }} minutos</p>
                   <p v-if="d.note" class="text-xs text-gray-600 mt-1">{{ d.note }}</p>
                 </div>
                 <UButton
@@ -259,10 +259,8 @@
               >
                 <div>
                   <p class="font-medium text-sm">
-                    {{ formatCounterProposalDate(d.date) }} às {{ d.startTime }}
-                  </p>
-                  <p class="text-xs text-gray-500">
-                    {{ d.durationMinutes }} minutos
+                    {{ formatCounterProposalDate(d.date) }} ·
+                    {{ formatProposalRange(d) }}
                   </p>
                   <p v-if="d.note" class="text-xs text-gray-600 mt-1">
                     {{ d.note }}
@@ -540,12 +538,19 @@
 
 <script setup lang="ts">
 import { useUserStore } from "~/stores/user";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 definePageMeta({ layout: false });
 
 const route = useRoute();
 const accessToken = route.params.token as string;
 const toast = useToast();
+const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
 
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
@@ -599,7 +604,8 @@ interface PublicRequestData {
     proposedDates: Array<{
       date: string;
       startTime: string;
-      durationMinutes: number;
+      endTime?: string;
+      durationMinutes?: number;
       note: string;
     }>;
     needsTechnicalVisit: boolean;
@@ -610,7 +616,8 @@ interface PublicRequestData {
     proposedDates: Array<{
       date: string;
       startTime: string;
-      durationMinutes: number;
+      endTime?: string;
+      durationMinutes?: number;
       note: string;
     }>;
     note: string;
@@ -737,58 +744,72 @@ const sortedHistory = computed(() => {
 });
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("pt-BR", {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? dayjs.tz(`${dateStr}T12:00`, SCHEDULE_TIMEZONE)
+    : dayjs(dateStr).tz(SCHEDULE_TIMEZONE);
+  return date.toDate().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "2-digit",
     month: "long",
     year: "numeric",
+    timeZone: SCHEDULE_TIMEZONE,
   });
 }
 
-// counterProposal.proposedDates[].date é um Date completo (com hora, em UTC),
-// diferente de requestedDates[].date/selectedDate.date que são strings
-// "YYYY-MM-DD" sem hora — por isso não pode reusar formatDate() aqui, que
-// assume "YYYY-MM-DD" e concatena "T12:00:00". Fixamos o timezone
-// explicitamente para bater com o calendário do banco de sangue.
 function formatCounterProposalDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  });
+  return formatDate(dateStr);
 }
 
-// technicalVisit.visitDate é um Date completo (data + hora, em UTC) e a visita
-// acontece na instituição, então exibimos data e hora no mesmo timezone fixo
-// usado pela proposta (America/Sao_Paulo), igual ao calendário do banco.
 function formatTechnicalVisitDate(dateStr: string) {
-  const d = new Date(dateStr);
-  const date = formatCounterProposalDate(dateStr);
-  const time = d.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  });
-  return `${date} às ${time}`;
+  const visitDate = dayjs(dateStr).tz(SCHEDULE_TIMEZONE);
+  const formattedDate = formatCounterProposalDate(dateStr);
+  return `${formattedDate} às ${visitDate.format("HH:mm")}`;
 }
 
 function formatTime(timeStr: string) {
-  const d = new Date(timeStr);
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr;
+  return dayjs(timeStr).tz(SCHEDULE_TIMEZONE).format("HH:mm");
 }
 
 function formatDateTime(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return dayjs(dateStr)
+    .tz(SCHEDULE_TIMEZONE)
+    .toDate()
+    .toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: SCHEDULE_TIMEZONE,
+    });
+}
+
+function addMinutesToTime(timeStr: string, durationMinutes?: number) {
+  if (
+    !/^\d{2}:\d{2}$/.test(timeStr) ||
+    !durationMinutes ||
+    durationMinutes <= 0
+  ) {
+    return "";
+  }
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const totalMinutes = (hours * 60 + minutes + durationMinutes) % (24 * 60);
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(
+    totalMinutes % 60
+  ).padStart(2, "0")}`;
+}
+
+function formatProposalRange(proposal: {
+  startTime: string;
+  endTime?: string;
+  durationMinutes?: number;
+}) {
+  const startTime = formatTime(proposal.startTime);
+  const endTime = proposal.endTime
+    ? formatTime(proposal.endTime)
+    : addMinutesToTime(startTime, proposal.durationMinutes);
+  return endTime ? `${startTime} - ${endTime}` : startTime;
 }
 
 function historyShowsReason(status: string) {

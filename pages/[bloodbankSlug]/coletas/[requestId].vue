@@ -581,9 +581,8 @@
               class="border rounded-lg p-3 text-sm"
             >
               <p class="font-medium">
-                {{ formatDate(d.date) }} às {{ d.startTime }}
+                {{ formatDate(d.date) }} · {{ formatProposalRange(d) }}
               </p>
-              <p class="text-gray-500">{{ d.durationMinutes }} minutos</p>
               <p v-if="d.note" class="text-gray-600 mt-1">{{ d.note }}</p>
             </div>
             <p class="text-xs text-gray-500">
@@ -922,18 +921,19 @@
                 <UFormField label="Data">
                   <UInput v-model="d.date" type="date" class="w-full" />
                 </UFormField>
-                <UFormField label="Horário">
+                <UFormField label="Início">
                   <UInput v-model="d.startTime" type="time" class="w-full" />
                 </UFormField>
-                <UFormField label="Duração (min)">
-                  <UInput
-                    v-model.number="d.durationMinutes"
-                    type="number"
-                    min="1"
-                    class="w-full"
-                  />
+                <UFormField label="Fim">
+                  <UInput v-model="d.endTime" type="time" class="w-full" />
                 </UFormField>
               </div>
+              <p
+                v-if="isEndTimeInvalid(d)"
+                class="text-xs text-red-600"
+              >
+                O horário final deve ser posterior ao horário inicial.
+              </p>
               <UFormField label="Nota desta opção">
                 <UInput
                   v-model="d.note"
@@ -1018,18 +1018,19 @@
                 <UFormField label="Data">
                   <UInput v-model="d.date" type="date" class="w-full" />
                 </UFormField>
-                <UFormField label="Horário">
+                <UFormField label="Início">
                   <UInput v-model="d.startTime" type="time" class="w-full" />
                 </UFormField>
-                <UFormField label="Duração (min)">
-                  <UInput
-                    v-model.number="d.durationMinutes"
-                    type="number"
-                    min="1"
-                    class="w-full"
-                  />
+                <UFormField label="Fim">
+                  <UInput v-model="d.endTime" type="time" class="w-full" />
                 </UFormField>
               </div>
+              <p
+                v-if="isEndTimeInvalid(d)"
+                class="text-xs text-red-600"
+              >
+                O horário final deve ser posterior ao horário inicial.
+              </p>
               <UFormField label="Nota desta opção">
                 <UInput
                   v-model="d.note"
@@ -1104,6 +1105,7 @@ const bloodbankStore = useBloodbankStore();
 const userStore = useUserStore();
 const { bloodbankData, currentCollectionRequest } = storeToRefs(bloodbankStore);
 const { currentBloodBankRole } = storeToRefs(userStore);
+const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
 
 const requestId = route.params.requestId as string;
 const bloodbankSlug = route.params.bloodbankSlug as string;
@@ -1228,11 +1230,14 @@ const getStatusLabel = (status: string) =>
   getBloodbankCollectionRequestStatusLabel(status);
 
 const formatDate = (date: string | Date) => {
-  return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY");
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return dayjs.tz(`${date}T12:00`, SCHEDULE_TIMEZONE).format("DD/MM/YYYY");
+  }
+  return dayjs(date).tz(SCHEDULE_TIMEZONE).format("DD/MM/YYYY");
 };
 
 const formatDateTime = (date: string | Date) => {
-  return dayjs(date).tz("America/Sao_Paulo").format("DD/MM/YYYY HH:mm");
+  return dayjs(date).tz(SCHEDULE_TIMEZONE).format("DD/MM/YYYY HH:mm");
 };
 
 const formatTimeRange = (
@@ -1240,9 +1245,40 @@ const formatTimeRange = (
   endTime: Date | undefined
 ) => {
   if (!startTime || !endTime) return "N/A";
-  const start = dayjs(startTime).tz("America/Sao_Paulo").format("HH:mm");
-  const end = dayjs(endTime).tz("America/Sao_Paulo").format("HH:mm");
+  const start = dayjs(startTime).tz(SCHEDULE_TIMEZONE).format("HH:mm");
+  const end = dayjs(endTime).tz(SCHEDULE_TIMEZONE).format("HH:mm");
   return `${start} - ${end}`;
+};
+
+interface ProposalDateLike {
+  startTime: string;
+  endTime?: string;
+  durationMinutes?: number;
+}
+
+const timeToMinutes = (time: string) => {
+  if (!/^\d{2}:\d{2}$/.test(time)) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
+const addMinutesToTime = (time: string, durationMinutes?: number) => {
+  const startMinutes = timeToMinutes(time);
+  if (startMinutes === null || !durationMinutes || durationMinutes <= 0) {
+    return "";
+  }
+  const endMinutes = (startMinutes + durationMinutes) % (24 * 60);
+  return `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(
+    endMinutes % 60
+  ).padStart(2, "0")}`;
+};
+
+const formatProposalRange = (proposal: ProposalDateLike) => {
+  const endTime = proposal.endTime
+    ? proposal.endTime
+    : addMinutesToTime(proposal.startTime, proposal.durationMinutes);
+  return endTime ? `${proposal.startTime} - ${endTime}` : proposal.startTime;
 };
 
 // Rótulo da prioridade que a instituição atribuiu a esta data (índice 0 =
@@ -1378,11 +1414,24 @@ const counterProposalNeedsTechnicalVisit = ref(false);
 interface CounterProposalDateDraft {
   date: string;
   startTime: string;
-  durationMinutes: number;
+  endTime: string;
+  durationMinutes?: number;
   note: string;
 }
+
+const isEndTimeInvalid = (draft: CounterProposalDateDraft) => {
+  if (!draft.startTime || !draft.endTime) return false;
+  const startMinutes = timeToMinutes(draft.startTime);
+  const endMinutes = timeToMinutes(draft.endTime);
+  return (
+    startMinutes === null ||
+    endMinutes === null ||
+    endMinutes <= startMinutes
+  );
+};
+
 const counterProposalDates = ref<CounterProposalDateDraft[]>([
-  { date: "", startTime: "", durationMinutes: 60, note: "" },
+  { date: "", startTime: "", endTime: "", note: "" },
 ]);
 
 const canProposeTechnicalVisit = computed(() => {
@@ -1398,14 +1447,14 @@ const showTechnicalVisitProposalModal = ref(false);
 const isSendingTechnicalVisitProposal = ref(false);
 const technicalVisitProposalNote = ref("");
 const technicalVisitProposalDates = ref<CounterProposalDateDraft[]>([
-  { date: "", startTime: "", durationMinutes: 60, note: "" },
+  { date: "", startTime: "", endTime: "", note: "" },
 ]);
 
 const addTechnicalVisitProposalDate = () => {
   technicalVisitProposalDates.value.push({
     date: "",
     startTime: "",
-    durationMinutes: 60,
+    endTime: "",
     note: "",
   });
 };
@@ -1422,7 +1471,7 @@ const isTechnicalVisitProposalValid = computed(
   () =>
     technicalVisitProposalDates.value.length > 0 &&
     technicalVisitProposalDates.value.every(
-      (d) => d.date && d.startTime && d.durationMinutes > 0
+      (d) => d.date && d.startTime && d.endTime && !isEndTimeInvalid(d)
     )
 );
 
@@ -1430,7 +1479,7 @@ const addCounterProposalDate = () => {
   counterProposalDates.value.push({
     date: "",
     startTime: "",
-    durationMinutes: 60,
+    endTime: "",
     note: "",
   });
 };
@@ -1447,9 +1496,27 @@ const isCounterProposalValid = computed(
   () =>
     counterProposalDates.value.length > 0 &&
     counterProposalDates.value.every(
-      (d) => d.date && d.startTime && d.durationMinutes > 0
+      (d) => d.date && d.startTime && d.endTime && !isEndTimeInvalid(d)
     )
 );
+
+const serializeProposalDate = (draft: CounterProposalDateDraft) => {
+  const startMinutes = timeToMinutes(draft.startTime);
+  const endMinutes = timeToMinutes(draft.endTime);
+  if (startMinutes === null || endMinutes === null) {
+    throw new Error("Horário da proposta inválido");
+  }
+
+  return {
+    date: dayjs
+      .tz(`${draft.date}T00:00`, SCHEDULE_TIMEZONE)
+      .toISOString(),
+    startTime: draft.startTime,
+    endTime: draft.endTime,
+    durationMinutes: endMinutes - startMinutes,
+    note: draft.note,
+  };
+};
 
 const confirmCounterProposal = async () => {
   if (!isCounterProposalValid.value) {
@@ -1471,12 +1538,7 @@ const confirmCounterProposal = async () => {
     await bloodbankStore.counterProposeCollectionRequest(
       requestId,
       {
-        proposedDates: counterProposalDates.value.map((d) => ({
-          date: new Date(`${d.date}T00:00:00`).toISOString(),
-          startTime: d.startTime,
-          durationMinutes: Number(d.durationMinutes),
-          note: d.note,
-        })),
+        proposedDates: counterProposalDates.value.map(serializeProposalDate),
         needsTechnicalVisit: counterProposalNeedsTechnicalVisit.value,
         note: counterProposalNote.value,
       },
@@ -1494,7 +1556,7 @@ const confirmCounterProposal = async () => {
     counterProposalNote.value = "";
     counterProposalNeedsTechnicalVisit.value = false;
     counterProposalDates.value = [
-      { date: "", startTime: "", durationMinutes: 60, note: "" },
+      { date: "", startTime: "", endTime: "", note: "" },
     ];
 
     await loadRequestDetails();
@@ -1538,12 +1600,8 @@ const confirmTechnicalVisitProposal = async () => {
     await bloodbankStore.proposeTechnicalVisit(
       requestId,
       {
-        proposedDates: technicalVisitProposalDates.value.map((d) => ({
-          date: new Date(`${d.date}T00:00:00`).toISOString(),
-          startTime: d.startTime,
-          durationMinutes: Number(d.durationMinutes),
-          note: d.note,
-        })),
+        proposedDates:
+          technicalVisitProposalDates.value.map(serializeProposalDate),
         note: technicalVisitProposalNote.value,
       },
       bloodBanksLocationId.value
@@ -1559,7 +1617,7 @@ const confirmTechnicalVisitProposal = async () => {
     showTechnicalVisitProposalModal.value = false;
     technicalVisitProposalNote.value = "";
     technicalVisitProposalDates.value = [
-      { date: "", startTime: "", durationMinutes: 60, note: "" },
+      { date: "", startTime: "", endTime: "", note: "" },
     ];
 
     await loadRequestDetails();

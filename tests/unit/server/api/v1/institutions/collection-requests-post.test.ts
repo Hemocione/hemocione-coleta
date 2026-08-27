@@ -90,6 +90,10 @@ beforeEach(() => {
     availableSlotOptions: [],
   });
   mocks.getBloodBankLastAcceptorUserId.mockResolvedValue(null);
+  mocks.getBloodBankByBloodBanksLocationId.mockResolvedValue({
+    name: "Banco A",
+    slug: "banco-a",
+  });
 });
 
 describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
@@ -131,6 +135,78 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
     ).rejects.toThrow();
 
     expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
+  });
+
+  it("aguarda a tentativa de notificação de criação e usa todas as datas solicitadas", async () => {
+    let resolveNotification!: (value: boolean) => void;
+    const notificationPromise = new Promise<boolean>((resolve) => {
+      resolveNotification = resolve;
+    });
+
+    mocks.getBloodBankLastAcceptorUserId.mockResolvedValue("blood-bank-user");
+    mocks.createCollectionRequest.mockResolvedValue({
+      _id: "request-a",
+      accessToken: "token-a",
+      institutionName: "Instituição A",
+      availableSlotOptions: [
+        { date: "10/09/2026", isRequested: true },
+        { date: "11/09/2026", isRequested: true },
+      ],
+    });
+    mocks.sendWhatsAppNotification.mockReturnValue(notificationPromise);
+
+    let settled = false;
+    const responsePromise = handler(
+      makeEvent({
+        ...validBody,
+        requestedDates: [
+          { availableDateId: "available-date-a" },
+          { availableDateId: "available-date-b" },
+        ],
+      })
+    ).then((response) => {
+      settled = true;
+      return response;
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.sendWhatsAppNotification).toHaveBeenCalled();
+    });
+    expect(settled).toBe(false);
+
+    resolveNotification(true);
+
+    await expect(responsePromise).resolves.toEqual({
+      success: true,
+      data: { accessToken: "token-a" },
+    });
+    expect(mocks.sendWhatsAppNotification).toHaveBeenCalledWith({
+      userId: "blood-bank-user",
+      templateName: "collection_request_created",
+      params: {
+        bloodBankName: "Banco A",
+        institutionName: "Instituição A",
+        requestedDates: "10/09/2026, 11/09/2026",
+        backofficeUrl: "/banco-a/coletas/request-a",
+      },
+    });
+  });
+
+  it("mantém a criação bem-sucedida quando a notificação retorna false", async () => {
+    mocks.getBloodBankLastAcceptorUserId.mockResolvedValue("blood-bank-user");
+    mocks.sendWhatsAppNotification.mockResolvedValue(false);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(handler(makeEvent(validBody))).resolves.toEqual({
+      success: true,
+      data: { accessToken: "token-a" },
+    });
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Collection request created notification"),
+      expect.anything()
+    );
+    errorSpy.mockRestore();
   });
 });
 

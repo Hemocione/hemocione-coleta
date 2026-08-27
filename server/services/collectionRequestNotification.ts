@@ -46,6 +46,50 @@ function getUserId(value: unknown): string | undefined {
   return value?.toString?.();
 }
 
+async function sendUserNotification(
+  params: Parameters<typeof sendWhatsAppNotification>[0],
+  requestId: string,
+  transition: CollectionRequestNotificationTransition
+): Promise<void> {
+  try {
+    const delivered = await sendWhatsAppNotification(params);
+    if (!delivered) {
+      console.error("[notification] WhatsApp notification was not delivered", {
+        requestId,
+        transition,
+      });
+    }
+  } catch (error) {
+    console.error("[notification] WhatsApp notification failed", {
+      requestId,
+      transition,
+      error,
+    });
+  }
+}
+
+async function sendPhoneNotification(
+  params: Parameters<typeof sendWhatsAppNotificationToPhone>[0],
+  requestId: string,
+  transition: CollectionRequestNotificationTransition
+): Promise<void> {
+  try {
+    const delivered = await sendWhatsAppNotificationToPhone(params);
+    if (!delivered) {
+      console.error("[notification] WhatsApp phone notification was not delivered", {
+        requestId,
+        transition,
+      });
+    }
+  } catch (error) {
+    console.error("[notification] WhatsApp phone notification failed", {
+      requestId,
+      transition,
+      error,
+    });
+  }
+}
+
 /**
  * Sends the WhatsApp notification associated with a collection-request
  * transition. This function deliberately owns recipient lookup and template
@@ -85,7 +129,7 @@ export async function notifyCollectionRequestStatusTransition({
 
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "collection_request_counter_proposed",
         params: {
@@ -95,14 +139,14 @@ export async function notifyCollectionRequestStatusTransition({
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
     if (transition === "counter_proposal_declined") {
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "collection_request_counter_proposal_declined",
         params: {
@@ -110,14 +154,14 @@ export async function notifyCollectionRequestStatusTransition({
           institutionName,
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
     if (transition === "awaiting_technical_visit") {
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "collection_request_awaiting_technical_visit",
         params: {
@@ -125,7 +169,7 @@ export async function notifyCollectionRequestStatusTransition({
           bloodBankName,
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
@@ -134,7 +178,7 @@ export async function notifyCollectionRequestStatusTransition({
 
       const proposedDate = request.visitProposal?.proposedDates?.[0];
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "collection_request_technical_visit_proposed",
         params: {
@@ -144,14 +188,14 @@ export async function notifyCollectionRequestStatusTransition({
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
     if (transition === "technical_visit_scheduled") {
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "technical_visit_scheduled",
         params: {
@@ -159,14 +203,14 @@ export async function notifyCollectionRequestStatusTransition({
           institutionName,
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
     if (transition === "technical_visit_proposal_declined") {
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "technical_visit_proposal_declined",
         params: {
@@ -174,7 +218,7 @@ export async function notifyCollectionRequestStatusTransition({
           institutionName,
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
@@ -184,7 +228,7 @@ export async function notifyCollectionRequestStatusTransition({
     ) {
       if (!userId) return;
 
-      void sendWhatsAppNotification({
+      await sendUserNotification({
         userId,
         templateName: "technical_visit_confirmed",
         params: {
@@ -193,7 +237,7 @@ export async function notifyCollectionRequestStatusTransition({
           result: technicalVisitResult || "Aprovada",
           trackingUrl,
         },
-      }).catch(() => {});
+      }, requestId, transition);
       return;
     }
 
@@ -212,19 +256,19 @@ export async function notifyCollectionRequestStatusTransition({
       };
 
       if (userId) {
-        void sendWhatsAppNotification({
+        await sendUserNotification({
           userId,
           templateName: "collection_request_scheduled",
           params,
-        }).catch(() => {});
+        }, requestId, transition);
       }
 
       if (request.host?.phone) {
-        void sendWhatsAppNotificationToPhone({
+        await sendPhoneNotification({
           phone: request.host.phone,
           templateName: "collection_request_scheduled",
           params,
-        }).catch(() => {});
+        }, requestId, transition);
       }
     }
   } catch (error) {

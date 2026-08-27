@@ -8,6 +8,7 @@ import {
 } from "~/server/services/collectionRequest";
 
 const mocks = vi.hoisted(() => ({
+  collectionRequestFind: vi.fn(),
   collectionRequestFindOne: vi.fn(),
   collectionRequestFindOneAndUpdate: vi.fn(),
   bloodBankFindOne: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("~/server/models", () => ({
   collectionRequest: {
     CollectionRequest: {
       findOne: (...args: unknown[]) => mocks.collectionRequestFindOne(...args),
+      find: (...args: unknown[]) => mocks.collectionRequestFind(...args),
       findOneAndUpdate: (...args: unknown[]) =>
         mocks.collectionRequestFindOneAndUpdate(...args),
     },
@@ -82,6 +84,7 @@ const createData = {
 };
 
 beforeEach(() => {
+  mocks.collectionRequestFind.mockReset();
   mocks.collectionRequestFindOne.mockReset();
   mocks.collectionRequestFindOneAndUpdate.mockReset();
   mocks.bloodBankFindOne.mockReset();
@@ -345,13 +348,18 @@ describe("guard de duplicidade de solicitações", () => {
     "bloqueia nova solicitação quando já existe uma com status %s",
     async (status) => {
       mocks.bloodBankFindOne.mockResolvedValue({ active: true });
-      mocks.collectionRequestFindOne.mockResolvedValue({ status });
+      mocks.collectionRequestFind.mockReturnValue({
+        lean: async () => [{ status, requestedDates: [{ availableDateId: "available-date-a" }] }],
+      });
+      mocks.availableDateFind.mockReturnValue({
+        lean: async () => [{ _id: "available-date-a", date: "2026-09-10" }],
+      });
 
       await expect(
         createCollectionRequest("blood-bank-a", createData)
       ).rejects.toThrow("já possui uma solicitação em aberto");
 
-      expect(mocks.collectionRequestFindOne).toHaveBeenCalledWith({
+      expect(mocks.collectionRequestFind).toHaveBeenCalledWith({
         institutionId: "institution-a",
         bloodBanksLocationId: "blood-bank-a",
         status: {

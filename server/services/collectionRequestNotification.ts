@@ -5,6 +5,7 @@ import {
   sendWhatsAppNotification,
   sendWhatsAppNotificationToPhone,
 } from "./notification";
+import { buildPublicUrl } from "~/utils/publicUrl";
 
 const { CollectionRequest } = collectionRequest;
 
@@ -30,7 +31,7 @@ interface NotifyCollectionRequestStatusTransitionData {
 function getCollectionRequestTrackingUrl(accessToken?: unknown): string {
   if (!accessToken) return "";
 
-  return `${process.env.NUXT_PUBLIC_BASE_URL || ""}/agendar/acompanhar/${accessToken}`;
+  return buildPublicUrl(`/agendar/acompanhar/${accessToken}`);
 }
 
 function formatDate(value: unknown): string {

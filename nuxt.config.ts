@@ -1,25 +1,6 @@
-const getSiteUrl = () => {
-  if (process.env.VERCEL_ENV === undefined) {
-    const nuxtDevConfig = process.env.__NUXT_DEV__;
-    let networkAddress;
-    if (nuxtDevConfig) {
-      const parsedConfig = JSON.parse(nuxtDevConfig);
-      networkAddress = parsedConfig?.proxy?.urls?.find(
-        (addr: any) => addr.type === "network"
-      )?.url;
-    }
+import { getPublicBaseUrl } from "./utils/publicUrl";
 
-    return networkAddress || "http://localhost:3000";
-  }
-
-  if (process.env.VERCEL_ENV !== "production") {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  return "https://coleta.hemocione.com.br";
-};
-
-const siteUrl = getSiteUrl();
+const siteUrl = getPublicBaseUrl();
 const currentEnv = process.env.VERCEL_ENV || "dev";
 const bugsnagApiKey = process.env.BUGSNAG_API_KEY?.trim();
 

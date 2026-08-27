@@ -33,6 +33,7 @@
         <p>O fluxo mantém data, hora, equipe e fuso horário em todos os pontos principais.</p>
         <p>O fluxo permite acompanhar contrapropostas, visitas técnicas, cancelamento e horários confirmados.</p>
         <p>A edição institucional usa autorização atual no Hemocione ID.</p>
+        <p>As mensagens do WhatsApp usam URLs públicas absolutas. As rotas aguardam a entrega antes da resposta.</p>
       </div>
 
       <h2>Feedback e causa corrigida</h2>
@@ -95,16 +96,22 @@
             <td>Adicionado cancelamento autenticado para solicitações aceitas. O slot é liberado na mesma transação.</td>
             <td>Teste do endpoint público e build verdes.</td>
           </tr>
+          <tr>
+            <td>Links do WhatsApp chegavam relativos. Algumas mensagens não chegavam.</td>
+            <td>O runtime não tinha <code>NUXT_PUBLIC_BASE_URL</code>. Vários envios eram fire-and-forget.</td>
+            <td>Adicionada uma origem pública centralizada. Produção usa <code>https://coleta.hemocione.com.br</code>. As transições e os handlers aguardam o envio.</td>
+            <td>Teste de URL, testes de handlers, suíte unitária e build verdes.</td>
+          </tr>
         </tbody>
       </table>
 
       <h2>Verificação executada</h2>
       <div class="card">
         <ul>
-          <li>Coleta: <code>yarn test:unit --run</code> — 47 arquivos e 284 testes passaram.</li>
+          <li>Coleta: <code>yarn test:unit --run</code> — 50 arquivos e 294 testes passaram.</li>
           <li>Coleta: <code>yarn build</code> — exit code 0.</li>
           <li>Coleta: <code>yarn playwright test tests/e2e --project=chromium</code> — 2 testes passaram.</li>
-          <li>Hemocione ID: <code>npm test -- --runInBand</code> — 24 suítes e 133 testes passaram.</li>
+          <li>Hemocione ID: <code>npm test -- --runInBand</code> — 92 suítes e 491 testes passaram.</li>
           <li>Os comandos <code>git diff --check</code> passaram nos worktrees alterados.</li>
         </ul>
       </div>
@@ -123,7 +130,7 @@
 
       <h2>Pontos operacionais</h2>
       <div class="card">
-        <p>A entrega por WhatsApp depende da configuração do serviço de notificações.</p>
+        <p>A entrega por WhatsApp depende do serviço de notificações. A Coleta aguarda a resposta do envio.</p>
         <p>O card de disponibilidade usa os slots conhecidos da solicitação atual.</p>
         <p>O deploy do Hemocione ID deve preceder o deploy da Coleta para ativar a edição institucional.</p>
       </div>

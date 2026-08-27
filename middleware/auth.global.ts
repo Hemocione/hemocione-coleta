@@ -11,9 +11,11 @@ export const routeBypassesBloodbankRoles = (route: string) => {
   );
 };
 
-const publicRoutesPrefixes = ["/agendar"];
+const publicRoutesPrefixes = ["/agendar", "/termo"];
 export const isPublicRoute = (route: string) => {
-  return publicRoutesPrefixes.some((prefix) => route.startsWith(prefix));
+  return publicRoutesPrefixes.some(
+    (prefix) => route === prefix || route.startsWith(`${prefix}/`)
+  );
 };
 
 const getMeWithAuth = (token: string) => {
@@ -93,12 +95,19 @@ export async function evaluateCurrentLogin(query?: LocationQuery) {
   let tokenIsValid = true;
 
   try {
-    await $fetch(`${config.public.hemocioneIdApiUrl}/users/validate-token`, {
+    const validationResponse = await $fetch<
+      boolean | { valid?: boolean }
+    >(`${config.public.hemocioneIdApiUrl}/users/validate-token`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    tokenIsValid =
+      validationResponse !== false &&
+      (typeof validationResponse !== "object" ||
+        validationResponse === null ||
+        validationResponse.valid !== false);
   } catch (error) {
     tokenIsValid = false;
   }
@@ -119,6 +128,7 @@ export async function evaluateCurrentLogin(query?: LocationQuery) {
 
     userStore.setUser(enrichedUserData);
     userStore.setToken(token);
+    useCookie(config.public.authCookieKey).value = token;
 
     return true;
   } catch (error) {
@@ -143,4 +153,3 @@ export function getCurrentToken(query?: LocationQuery): string | null {
   const cookieToken = useCookie(config.public.authCookieKey).value as string;
   return cookieToken;
 }
-

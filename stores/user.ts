@@ -48,10 +48,12 @@ export const useUserStore = defineStore("user", {
 
     async logOut() {
       try {
+        const config = useRuntimeConfig();
+        useCookie(config.public.authCookieKey).value = null;
+        this.setUser(null);
         this.setToken(null);
         const route = useRoute();
         await redirectToID(route.fullPath);
-        // Clear user data
       } catch (error) {
         console.error("🚨 Error during logout:", error);
       }

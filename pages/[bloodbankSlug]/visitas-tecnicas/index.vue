@@ -405,6 +405,11 @@ interface TechnicalVisit {
     institutionId: string;
     status: string;
     eventSlug?: string;
+    host?: {
+      name: string;
+      email: string;
+      phone: string;
+    };
   };
   address: string;
   visitDate: string;
@@ -834,13 +839,16 @@ const generateTermForVisit = async (visit: TechnicalVisit) => {
         body: {
           collectionRequestId: visit.collectionRequest?._id,
           technicalVisitId: visit._id,
-          sentTo: visit.address,
+          sentTo:
+            visit.collectionRequest?.host?.phone ||
+            visit.collectionRequest?.host?.email ||
+            visit.address,
           templateParams: {
             bloodBankName: bloodbankData.value?.name || "",
             address: visit.address,
             date: new Date().toLocaleDateString("pt-BR"),
-            institutionName: "",
-            hostName: "",
+            institutionName: visit.institutionName || "",
+            hostName: visit.collectionRequest?.host?.name || "",
           },
           status: "draft",
         },

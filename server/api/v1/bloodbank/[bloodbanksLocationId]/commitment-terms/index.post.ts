@@ -47,6 +47,9 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    const bloodBank = await getBloodBankByBloodBanksLocationId(
+      bloodBanksLocationId
+    );
     let generatedContent: string;
 
     if (parsed.data.customContent) {
@@ -55,7 +58,10 @@ export default defineEventHandler(async (event) => {
       const template = await getTemplateForBloodBank(bloodBanksLocationId);
       generatedContent = renderTemplate(
         template,
-        parsed.data.templateParams || {}
+        {
+          ...(parsed.data.templateParams || {}),
+          bloodBankName: bloodBank?.name || "Banco de sangue",
+        }
       );
     }
 
@@ -74,15 +80,13 @@ export default defineEventHandler(async (event) => {
 
     if (parsed.data.status === "sent" && parsed.data.sentTo) {
       try {
-        const bloodBank =
-          await getBloodBankByBloodBanksLocationId(bloodBanksLocationId);
         const termUrl = buildPublicUrl(`/termo/${term.accessToken}`);
 
         await sendWhatsAppNotificationToPhone({
           phone: parsed.data.sentTo,
           templateName: "commitment_term_generated",
           params: {
-            bloodBankName: bloodBank?.name || "",
+            bloodBankName: bloodBank?.name || "Banco de sangue",
             termUrl,
             hostName: parsed.data.templateParams?.hostName || "",
           },

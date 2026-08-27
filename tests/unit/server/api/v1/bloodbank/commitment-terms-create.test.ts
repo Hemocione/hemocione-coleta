@@ -3,6 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   assertUserAccessToBloodBanksLocationId: vi.fn(),
   createCommitmentTerm: vi.fn(),
+  getBloodBankByBloodBanksLocationId: vi.fn(),
+  getTemplateForBloodBank: vi.fn(),
+  renderTemplate: vi.fn(),
 }));
 
 vi.mock("~/server/services/auth", () => ({
@@ -13,12 +16,14 @@ vi.mock("~/server/services/auth", () => ({
 vi.mock("~/server/services/commitmentTerm", () => ({
   createCommitmentTerm: (...args: unknown[]) =>
     mocks.createCommitmentTerm(...args),
-  getTemplateForBloodBank: vi.fn(),
-  renderTemplate: vi.fn(),
+  getTemplateForBloodBank: (...args: unknown[]) =>
+    mocks.getTemplateForBloodBank(...args),
+  renderTemplate: (...args: unknown[]) => mocks.renderTemplate(...args),
 }));
 
 vi.mock("~/server/services/bloodBank", () => ({
-  getBloodBankByBloodBanksLocationId: vi.fn(),
+  getBloodBankByBloodBanksLocationId: (...args: unknown[]) =>
+    mocks.getBloodBankByBloodBanksLocationId(...args),
 }));
 
 vi.mock("~/server/services/notification", () => ({
@@ -81,6 +86,19 @@ beforeAll(async () => {
 beforeEach(() => {
   mocks.assertUserAccessToBloodBanksLocationId.mockReset();
   mocks.createCommitmentTerm.mockReset();
+  mocks.getBloodBankByBloodBanksLocationId.mockReset();
+  mocks.getTemplateForBloodBank.mockReset();
+  mocks.renderTemplate.mockReset();
+  mocks.getBloodBankByBloodBanksLocationId.mockResolvedValue({
+    name: "Hemodemo",
+  });
+  mocks.getTemplateForBloodBank.mockResolvedValue(
+    "Banco: {{bloodBankName}}"
+  );
+  mocks.renderTemplate.mockImplementation(
+    (_template: string, params: Record<string, string>) =>
+      `Banco: ${params.bloodBankName}`
+  );
   mocks.createCommitmentTerm.mockResolvedValue({
     _id: "term-a",
     accessToken: "term-token",
@@ -107,6 +125,24 @@ describe("POST commitment-terms", () => {
     );
     expect(mocks.createCommitmentTerm).not.toHaveBeenCalledWith(
       expect.objectContaining({ signedByName: "Nome não confiável" })
+    );
+  });
+
+  it("usa o nome real do banco de sangue ao renderizar o termo", async () => {
+    await handler(
+      makeEvent({
+        sentTo: "11999999999",
+        status: "draft",
+        templateParams: { bloodBankName: "Nome enviado pelo navegador" },
+      })
+    );
+
+    expect(mocks.renderTemplate).toHaveBeenCalledWith(
+      "Banco: {{bloodBankName}}",
+      expect.objectContaining({ bloodBankName: "Hemodemo" })
+    );
+    expect(mocks.createCommitmentTerm).toHaveBeenCalledWith(
+      expect.objectContaining({ generatedContent: "Banco: Hemodemo" })
     );
   });
 });

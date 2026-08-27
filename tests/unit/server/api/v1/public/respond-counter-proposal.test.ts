@@ -71,6 +71,12 @@ beforeEach(() => {
   mocks.respondToCounterProposal.mockResolvedValue({
     _id: requestId,
     status: "accepted",
+    confirmedSchedule: {
+      date: new Date("2026-09-10T00:00:00.000Z"),
+      startTime: "08:30",
+      endTime: "09:15",
+      durationMinutes: 45,
+    },
   });
 });
 
@@ -82,7 +88,16 @@ describe("POST respond-counter-proposal", () => {
 
     expect(response).toEqual({
       success: true,
-      data: { _id: requestId, status: "accepted" },
+      data: {
+        _id: requestId,
+        status: "accepted",
+        confirmedSchedule: {
+          date: new Date("2026-09-10T00:00:00.000Z"),
+          startTime: "08:30",
+          endTime: "09:15",
+          durationMinutes: 45,
+        },
+      },
       message: "Contraproposta respondida com sucesso",
     });
     expect(mocks.respondToCounterProposal).toHaveBeenCalledWith(requestId, {

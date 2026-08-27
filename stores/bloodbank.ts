@@ -130,6 +130,12 @@ export interface CollectionRequest {
     proposedBy: string;
     proposedAt: string;
   };
+  confirmedSchedule?: {
+    date: string | Date;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+  };
   visitProposal?: {
     proposedDates: Array<{
       date: string;

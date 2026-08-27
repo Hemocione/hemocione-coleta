@@ -61,14 +61,32 @@
         </UCard>
 
         <!-- Accepted Info -->
-        <UCard v-if="request.status === 'accepted' && request.selectedDate">
+        <UCard
+          v-if="
+            request.confirmedSchedule ||
+            (request.status === 'accepted' && request.selectedDate)
+          "
+        >
           <template #header>
             <div class="flex items-center gap-2 text-green-700">
               <UIcon name="i-lucide-calendar-check" class="w-5 h-5" />
               <span class="font-semibold">Coleta Confirmada</span>
             </div>
           </template>
-          <div class="space-y-2">
+          <div v-if="request.confirmedSchedule" class="space-y-2">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
+              <span>{{ formatCounterProposalDate(request.confirmedSchedule.date) }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-clock" class="w-4 h-4 text-gray-400" />
+              <span>
+                {{ request.confirmedSchedule.startTime }} -
+                {{ request.confirmedSchedule.endTime }}
+              </span>
+            </div>
+          </div>
+          <div v-else-if="request.selectedDate" class="space-y-2">
             <div class="flex items-center gap-2">
               <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
               <span>{{ formatDate(request.selectedDate.date) }}</span>
@@ -570,6 +588,12 @@ interface PublicRequestData {
     startTime?: string;
     endTime?: string;
     teamName?: string;
+  };
+  confirmedSchedule?: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
   };
   counterProposal?: {
     proposedDates: Array<{

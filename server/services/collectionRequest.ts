@@ -83,6 +83,20 @@ export interface RespondToCounterProposalData {
   respondedBy: string;
 }
 
+interface StoredConfirmedSchedule {
+  date: Date;
+  startTime: string;
+  endTime?: string;
+  durationMinutes: number;
+}
+
+export interface ConfirmedSchedule {
+  date: Date;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+}
+
 export interface VisitProposal {
   proposedDates: CounterProposalDate[];
   note: string;
@@ -200,11 +214,7 @@ export interface CollectionRequestWithDetails {
   previousCounterProposals?: CounterProposal[];
   visitProposal?: VisitProposal;
   previousVisitProposals?: VisitProposal[];
-  confirmedSchedule?: {
-    date: Date;
-    startTime: string;
-    durationMinutes: number;
-  };
+  confirmedSchedule?: ConfirmedSchedule;
   eventSlug?: string;
   status: CollectionRequestStatus;
   rejectionReason?: string;
@@ -555,6 +565,9 @@ export async function getCollectionRequestById(
 
   const requestWithDetails = {
     ...request,
+    ...(request.confirmedSchedule && {
+      confirmedSchedule: normalizeConfirmedSchedule(request.confirmedSchedule),
+    }),
     institutionName: institution?.name || "Instituição não encontrada",
     institutionLocation:
       institution?.latitude && institution?.longitude
@@ -710,6 +723,41 @@ function getTechnicalVisitAddress(request: {
     .join(", ");
 
   return formattedAddress.slice(0, 500) || "Endereço não informado";
+}
+
+function calculateScheduleEndTime(
+  date: Date,
+  startTime: string,
+  durationMinutes: number
+): string {
+  const datePart = dayjs.utc(date).format("YYYY-MM-DD");
+  const startAt = dayjs.tz(
+    `${datePart}T${startTime}`,
+    TECHNICAL_VISIT_TIMEZONE
+  );
+
+  if (!startAt.isValid()) {
+    throw new Error("Invalid confirmed schedule start time");
+  }
+
+  return startAt.add(durationMinutes, "minute").format("HH:mm");
+}
+
+function normalizeConfirmedSchedule(
+  schedule: StoredConfirmedSchedule
+): ConfirmedSchedule {
+  return {
+    date: schedule.date,
+    startTime: schedule.startTime,
+    endTime:
+      schedule.endTime ??
+      calculateScheduleEndTime(
+        schedule.date,
+        schedule.startTime,
+        schedule.durationMinutes
+      ),
+    durationMinutes: schedule.durationMinutes,
+  };
 }
 
 function combineDateAndTime(date: Date, startTime: string): Date {
@@ -1001,11 +1049,7 @@ export async function respondToCounterProposal(
   const currentCounterProposal = request.counterProposal as unknown as CounterProposal;
   let nextStatus: CollectionRequestStatus;
   let confirmedSchedule:
-    | {
-        date: Date;
-        startTime: string;
-        durationMinutes: number;
-      }
+    | ConfirmedSchedule
     | undefined;
 
   if (data.decision === "accepted") {
@@ -1022,6 +1066,11 @@ export async function respondToCounterProposal(
     confirmedSchedule = {
       date: selectedDate.date,
       startTime: selectedDate.startTime,
+      endTime: calculateScheduleEndTime(
+        selectedDate.date,
+        selectedDate.startTime,
+        selectedDate.durationMinutes
+      ),
       durationMinutes: selectedDate.durationMinutes,
     };
     nextStatus = currentCounterProposal.needsTechnicalVisit
@@ -1698,6 +1747,7 @@ export interface CollectionRequestPublicDetails {
     endTime?: Date;
     teamName?: string;
   };
+  confirmedSchedule?: ConfirmedSchedule;
   counterProposal?: {
     proposedDates: CounterProposalDate[];
     needsTechnicalVisit: boolean;
@@ -1825,6 +1875,11 @@ async function buildCollectionRequestPublicDetails(
         }
       : undefined;
 
+  const confirmedSchedule: CollectionRequestPublicDetails["confirmedSchedule"] =
+    request.confirmedSchedule
+      ? normalizeConfirmedSchedule(request.confirmedSchedule)
+      : undefined;
+
   const technicalVisit: CollectionRequestPublicDetails["technicalVisit"] =
     technicalVisitDoc
       ? {
@@ -1847,6 +1902,7 @@ async function buildCollectionRequestPublicDetails(
     note: request.note || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
+    confirmedSchedule,
     counterProposal,
     visitProposal,
     technicalVisit,

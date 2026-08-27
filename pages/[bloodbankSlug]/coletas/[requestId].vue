@@ -530,6 +530,31 @@
           </div>
         </UCard>
 
+        <!-- Confirmed schedule -->
+        <UCard v-if="currentCollectionRequest.confirmedSchedule">
+          <template #header>
+            <div class="flex items-center gap-2 text-green-700">
+              <UIcon name="i-lucide-calendar-check" class="w-5 h-5" />
+              <h3 class="text-lg font-semibold text-gray-900">
+                Coleta Confirmada
+              </h3>
+            </div>
+          </template>
+          <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-calendar" class="w-4 h-4 text-gray-400" />
+              <span>{{ formatDate(currentCollectionRequest.confirmedSchedule.date) }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-clock" class="w-4 h-4 text-gray-400" />
+              <span>
+                {{ currentCollectionRequest.confirmedSchedule.startTime }} -
+                {{ currentCollectionRequest.confirmedSchedule.endTime }}
+              </span>
+            </div>
+          </div>
+        </UCard>
+
         <!-- Counter Proposal Sent (read-only) -->
         <UCard
           v-if="

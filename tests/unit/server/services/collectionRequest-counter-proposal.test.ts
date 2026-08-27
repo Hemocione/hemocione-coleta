@@ -268,6 +268,7 @@ describe("máquina de estados de contraproposta", () => {
         confirmedSchedule: {
           date: proposedDates[1].date,
           startTime: proposedDates[1].startTime,
+          endTime: "15:00",
           durationMinutes: proposedDates[1].durationMinutes,
         },
       });
@@ -382,6 +383,9 @@ describe("schema de CollectionRequest", () => {
       CollectionRequestSchema.path("previousCounterProposals")
     ).toBeDefined();
     expect(CollectionRequestSchema.path("confirmedSchedule")).toBeDefined();
+    expect(
+      CollectionRequestSchema.path("confirmedSchedule").schema.path("endTime")
+    ).toBeDefined();
     expect(CollectionRequestSchema.path("eventSlug")).toBeDefined();
     expect(CollectionRequestSchema.path("status").options.enum).toEqual(
       expect.arrayContaining([

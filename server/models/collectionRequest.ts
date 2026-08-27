@@ -132,6 +132,9 @@ const ConfirmedScheduleSchema = new Schema(
   {
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
+    // Optional for records created before confirmed counter-proposal schedules
+    // stored the calculated end time.
+    endTime: { type: String, required: false },
     durationMinutes: { type: Number, required: true },
   },
   { _id: false }

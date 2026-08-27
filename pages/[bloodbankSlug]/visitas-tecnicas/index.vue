@@ -228,6 +228,7 @@
                 v-model="formData.institutionId"
                 :items="institutionSelectOptions"
                 :disabled="Boolean(formData.requestId)"
+                placeholder="Selecione uma instituição"
                 class="w-full"
                 data-testid="technical-visit-institution-select"
               />
@@ -488,7 +489,6 @@ const requestOptions = computed(() => [
 ]);
 
 const institutionSelectOptions = computed(() => [
-  { label: "Sem instituição vinculada", value: "" },
   ...institutionOptions.value.map((institution) => ({
     label: institution.name,
     value: institution.id,

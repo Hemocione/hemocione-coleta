@@ -42,8 +42,77 @@
                 :items="institutionItems"
                 placeholder="Selecione sua instituição"
                 class="w-full md:w-80"
-                @change="onSelectInstitution"
               />
+              <div
+                v-if="selectedInstitution"
+                class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3"
+                data-testid="selected-institution-details"
+              >
+                <div class="flex items-start gap-3">
+                  <UAvatar
+                    :src="selectedInstitution.logo || undefined"
+                    icon="i-lucide-building-2"
+                    size="md"
+                  >
+                    {{ selectedInstitution.name.charAt(0) }}
+                  </UAvatar>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <div class="font-semibold truncate">
+                        {{ selectedInstitution.name }}
+                      </div>
+                      <UBadge
+                        v-if="selectedInstitution.status"
+                        color="neutral"
+                        variant="subtle"
+                      >
+                        {{ institutionStatusLabel(selectedInstitution.status) }}
+                      </UBadge>
+                    </div>
+                    <dl
+                      class="mt-2 grid gap-x-4 gap-y-1 text-xs text-gray-600 sm:grid-cols-2"
+                    >
+                      <div v-if="selectedInstitution.document">
+                        <dt class="font-medium text-gray-500">CNPJ</dt>
+                        <dd>
+                          {{ formatInstitutionDocument(selectedInstitution.document) }}
+                        </dd>
+                      </div>
+                      <div v-if="selectedInstitution.kind">
+                        <dt class="font-medium text-gray-500">Tipo</dt>
+                        <dd>
+                          {{ institutionKindLabel(selectedInstitution.kind) }}
+                        </dd>
+                      </div>
+                      <div
+                        v-if="
+                          selectedInstitution.address ||
+                          selectedInstitution.city ||
+                          selectedInstitution.state
+                        "
+                        class="sm:col-span-2"
+                      >
+                        <dt class="font-medium text-gray-500">Endereço</dt>
+                        <dd>
+                          {{
+                            [
+                              selectedInstitution.address,
+                              selectedInstitution.city,
+                              selectedInstitution.state,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")
+                          }}
+                        </dd>
+                      </div>
+                      <div v-if="selectedInstitution.phone">
+                        <dt class="font-medium text-gray-500">Telefone</dt>
+                        <dd>{{ selectedInstitution.phone }}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </div>
+              </div>
             </div>
             <div v-else class="text-sm text-gray-600 leading-snug">
               Entre para selecionar sua instituição ou crie uma nova.
@@ -325,32 +394,52 @@ onMounted(async () => {
         scheduling?.userInstitutions?.length
       ) {
         const firstInst = scheduling.userInstitutions[0];
-        scheduling.setSelectedInstitution(firstInst);
-        selectedInstitutionId.value = firstInst.id;
-        // Load blood banks if institution has coordinates
-        if (firstInst.latitude && firstInst.longitude) {
-          scheduling.loadBloodBanksByCoverage();
-        }
+        await scheduling.selectInstitution(firstInst.id);
+      } else if (scheduling.selectedInstitution) {
+        selectedInstitutionId.value = scheduling.selectedInstitution.id;
+        await scheduling.loadBloodBanksByCoverage();
       }
     } catch {}
   }
 });
 
-watch(selectedInstitution, (newVal, oldVal) => {
-  if (newVal?.id !== oldVal?.id) {
-    selectedInstitutionId.value = newVal?.id;
-    onSelectInstitution();
+watch(selectedInstitutionId, (institutionId) => {
+  if (institutionId !== selectedInstitution.value?.id) {
+    void scheduling.selectInstitution(institutionId);
   }
 });
 
-const onSelectInstitution = () => {
-  const inst =
-    scheduling?.userInstitutions?.find(
-      (i) => i.id === selectedInstitutionId.value
-    ) || null;
-  scheduling.setSelectedInstitution(inst);
-  // Load blood banks if institution has coordinates
-  scheduling.loadBloodBanksByCoverage();
+watch(
+  () => selectedInstitution.value?.id,
+  (institutionId) => {
+    if (institutionId !== selectedInstitutionId.value) {
+      selectedInstitutionId.value = institutionId;
+    }
+  }
+);
+
+const institutionKindLabel = (kind: string) =>
+  ({
+    company: "Empresa",
+    ngo: "Organização social",
+    school: "Escola",
+    university: "Universidade",
+  })[kind] || kind;
+
+const institutionStatusLabel = (status: string) =>
+  ({
+    pending: "Pendente",
+    validated: "Validada",
+    rejected: "Rejeitada",
+  })[status] || status;
+
+const formatInstitutionDocument = (document: string) => {
+  const digits = onlyDigits(document);
+  if (digits.length !== 14) return document;
+  return digits.replace(
+    /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+    "$1.$2.$3/$4-$5"
+  );
 };
 
 const form = reactive({

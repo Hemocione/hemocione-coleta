@@ -159,6 +159,7 @@ const requests = ref<InstitutionCollectionRequestListItem[]>([]);
 const pagination = ref({ total: 0, page: 1, limit: 10, pages: 0 });
 const currentPage = ref(1);
 const isLoading = ref(false);
+let requestsLoadVersion = 0;
 
 const phaseOf = (status: string) => getCollectionRequestPhase(status);
 
@@ -167,16 +168,24 @@ function formatDate(date: string) {
 }
 
 async function loadRequests() {
-  if (!selectedInstitution.value?.id) return;
+  const institutionId = selectedInstitution.value?.id;
+  const loadVersion = ++requestsLoadVersion;
+  if (!institutionId) {
+    requests.value = [];
+    pagination.value = { total: 0, page: 1, limit: 10, pages: 0 };
+    isLoading.value = false;
+    return;
+  }
+
   isLoading.value = true;
   try {
     const { data } = await useFetchWithAuth<CollectionRequestsResponse>(
-      `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,
+      `/api/v1/institutions/${institutionId}/collection-requests`,
       {
         query: { page: currentPage.value, limit: pagination.value.limit },
       }
     );
-    if (data.value) {
+    if (loadVersion === requestsLoadVersion && data.value) {
       requests.value = data.value.data;
       pagination.value = data.value.pagination;
     }
@@ -186,7 +195,9 @@ async function loadRequests() {
       color: "error",
     });
   } finally {
-    isLoading.value = false;
+    if (loadVersion === requestsLoadVersion) {
+      isLoading.value = false;
+    }
   }
 }
 
@@ -194,7 +205,9 @@ watch(
   () => selectedInstitution.value?.id,
   () => {
     currentPage.value = 1;
-    loadRequests();
+    requests.value = [];
+    pagination.value = { total: 0, page: 1, limit: 10, pages: 0 };
+    void loadRequests();
   }
 );
 

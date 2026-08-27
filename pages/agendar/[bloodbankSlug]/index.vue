@@ -586,6 +586,17 @@ const bank = ref<{
   bloodBanksLocationId: string;
 } | null>(null);
 
+const restoreSelectedBloodBank = () => {
+  if (!bank.value) return;
+  store.setSelectedBloodBank({
+    _id: "",
+    name: bank.value.name,
+    slug: slug.value,
+    logo: bank.value.logo || null,
+    bloodBanksLocationId: bank.value.bloodBanksLocationId,
+  });
+};
+
 const selected = computed(() => store.selectedDates);
 const calendarValue = ref<any>([]);
 const dateToAvailableMap = computed<Record<string, any>>(() => {
@@ -596,6 +607,20 @@ const dateToAvailableMap = computed<Record<string, any>>(() => {
 
 // Guarda seleção opcional de horário por data selecionada
 const selectedRangeByDateId = ref<Record<string, string | undefined>>({});
+
+watch(
+  () => selectedInstitution.value?.id,
+  (institutionId, previousInstitutionId) => {
+    if (!institutionId || institutionId === previousInstitutionId) return;
+
+    initAddressFromInstitution();
+    store.selectedDates = [];
+    calendarValue.value = [];
+    selectedRangeByDateId.value = {};
+    hasReadRestrictions.value = false;
+    restoreSelectedBloodBank();
+  }
+);
 
 const priorityLabel = (index: number) => {
   const labels = ["1ª opção preferida", "2ª opção", "3ª opção"];

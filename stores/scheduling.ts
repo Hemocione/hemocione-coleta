@@ -61,6 +61,7 @@ export const useSchedulingStore = defineStore("scheduling", {
     isLoadingInstitutions: false,
     isCreatingInstitution: false,
     isLoadingBloodBanks: false,
+    coverageRequestVersion: 0,
     accessedAgendarPage: false,
   }),
   getters: {
@@ -73,16 +74,31 @@ export const useSchedulingStore = defineStore("scheduling", {
         await this.loadUserInstitutions();
       }
       if (this.userInstitutions?.length) {
-        this.setSelectedInstitution(this.userInstitutions[0]);
+        await this.selectInstitution(this.userInstitutions[0].id);
       }
     },
     setAccessedAgendarPage(value: boolean) {
       this.accessedAgendarPage = value;
     },
     setSelectedInstitution(inst: Institution | null) {
+      const institutionChanged = this.selectedInstitution?.id !== inst?.id;
       this.selectedInstitution = inst;
       this.latitude = inst?.latitude ?? null;
       this.longitude = inst?.longitude ?? null;
+      if (institutionChanged) {
+        this.coverageRequestVersion += 1;
+        this.nearbyBloodBanks = [];
+        this.selectedBloodBank = null;
+        this.selectedDates = [];
+      }
+    },
+    async selectInstitution(institutionId: string | undefined) {
+      const institution =
+        this.userInstitutions?.find(({ id }) => id === institutionId) || null;
+      if (institution?.id === this.selectedInstitution?.id) return;
+
+      this.setSelectedInstitution(institution);
+      await this.loadBloodBanksByCoverage();
     },
     setTemporaryInstitutionData(data: Partial<Institution> | null) {
       this.temporaryInstitutionData = data;
@@ -126,6 +142,13 @@ export const useSchedulingStore = defineStore("scheduling", {
         }>("/api/v1/me/institutions", { method: "GET" });
         if (data.value?.institutions) {
           this.userInstitutions = data.value.institutions;
+          const selectedId = this.selectedInstitution?.id;
+          if (selectedId) {
+            const institution = this.userInstitutions.find(
+              ({ id }) => id === selectedId
+            );
+            this.setSelectedInstitution(institution || null);
+          }
         }
       } finally {
         this.isLoadingInstitutions = false;
@@ -159,6 +182,7 @@ export const useSchedulingStore = defineStore("scheduling", {
         const inst =
           this.userInstitutions?.find((i) => i.id === created?.id) || null;
         this.setSelectedInstitution(inst);
+        await this.loadBloodBanksByCoverage();
         return inst;
       } finally {
         this.isCreatingInstitution = false;
@@ -166,7 +190,12 @@ export const useSchedulingStore = defineStore("scheduling", {
     },
 
     async loadBloodBanksByCoverage() {
-      if (!this.hasLatLng) return;
+      const requestVersion = ++this.coverageRequestVersion;
+      this.nearbyBloodBanks = [];
+      if (!this.hasLatLng) {
+        this.isLoadingBloodBanks = false;
+        return;
+      }
       this.isLoadingBloodBanks = true;
       try {
         const { data } = await useFetchWithAuth<{
@@ -175,11 +204,13 @@ export const useSchedulingStore = defineStore("scheduling", {
         }>(
           `/api/v1/bloodbanks/by-location?lat=${this.latitude}&lng=${this.longitude}`
         );
-        if (data.value?.success) {
+        if (requestVersion === this.coverageRequestVersion && data.value?.success) {
           this.nearbyBloodBanks = data.value.data;
         }
       } finally {
-        this.isLoadingBloodBanks = false;
+        if (requestVersion === this.coverageRequestVersion) {
+          this.isLoadingBloodBanks = false;
+        }
       }
     },
   },

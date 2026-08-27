@@ -37,7 +37,6 @@ export const CommitmentTermSchema = new Schema(
 
 CommitmentTermSchema.index({ bloodBanksLocationId: 1, collectionRequestId: 1 });
 CommitmentTermSchema.index({ bloodBanksLocationId: 1, technicalVisitId: 1 });
-CommitmentTermSchema.index({ accessToken: 1 }, { unique: true });
 
 export type CommitmentTermSchema = InferSchemaType<typeof CommitmentTermSchema>;
 

@@ -313,11 +313,6 @@ CollectionRequestSchema.index(
   { partialFilterExpression: { deletedAt: null } }
 );
 
-CollectionRequestSchema.index(
-  { accessToken: 1 },
-  { unique: true }
-);
-
 export type CollectionRequestSchema = InferSchemaType<
   typeof CollectionRequestSchema
 >;

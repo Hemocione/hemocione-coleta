@@ -14,7 +14,7 @@
             <UIcon name="i-lucide-droplet" class="text-white" />
           </div> -->
           <img src="/logo.svg" alt="Hemocione Coleta" class="w-8 h-8" />
-          <span class="font-semibold">Agendar Coleta</span>
+          <h1 class="font-semibold">Agendar Coleta</h1>
         </div>
         <AgendamentoNavigation
           :is-logged-in="isLoggedIn"
@@ -223,7 +223,11 @@
       </UModal>
 
       <!-- Login Prompt Modal (quando deslogado) -->
-      <UModal v-model:open="loginPromptOpen">
+      <UModal
+        v-model:open="loginPromptOpen"
+        title="Entre para continuar"
+        description="Para registrar ou selecionar uma instituição, você precisa estar logado."
+      >
         <template #content>
           <div class="p-6 space-y-3">
             <h3 class="text-lg font-semibold">Entre para continuar</h3>

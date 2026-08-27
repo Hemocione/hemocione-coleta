@@ -240,6 +240,7 @@ import {
   getBloodbankCollectionRequestStatusLabel,
   getCollectionRequestStatusColor,
 } from "~/utils/collectionRequestStatus";
+import { isCollectionRequestScheduled } from "~/utils/bloodbankCollectionRequest";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -307,19 +308,22 @@ const visibleRequests = computed(() => {
 
   if (selectedFilter.value === "accepted") {
     return requests.filter((request) =>
-      ["accepted", "technical_visit_confirmed"].includes(request.status)
+      ["accepted", "technical_visit_confirmed"].includes(request.status) &&
+      !isCollectionRequestScheduled(request)
     );
   }
 
   if (selectedFilter.value === "scheduled") {
     return requests.filter(
-      (request) => request.status === "scheduled" && !isRequestPast(request)
+      (request) =>
+        isCollectionRequestScheduled(request) && !isRequestPast(request)
     );
   }
 
   if (selectedFilter.value === "completed") {
     return requests.filter(
-      (request) => request.status === "scheduled" && isRequestPast(request)
+      (request) =>
+        isCollectionRequestScheduled(request) && isRequestPast(request)
     );
   }
 
@@ -350,7 +354,7 @@ const loadRequests = async () => {
           ? "accepted,technical_visit_confirmed"
           : selectedFilter.value === "scheduled" ||
               selectedFilter.value === "completed"
-            ? "scheduled"
+            ? "accepted,technical_visit_confirmed,scheduled"
             : selectedFilter.value === "rejected"
               ? "rejected,cancelled,counter_proposal_declined"
               : selectedFilter.value,

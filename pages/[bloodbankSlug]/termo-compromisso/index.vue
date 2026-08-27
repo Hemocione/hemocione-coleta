@@ -125,6 +125,7 @@
 <script setup lang="ts">
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import { useUserStore } from "~/stores/user";
+import { normalizeCommitmentTermTemplate } from "~/utils/commitmentTermTemplate";
 
 definePageMeta({
   layout: "default",
@@ -204,7 +205,7 @@ const hasChanges = computed(() => {
 });
 
 const previewContent = computed(() => {
-  let content = templateContent.value;
+  let content = normalizeCommitmentTermTemplate(templateContent.value);
   for (const [key, value] of Object.entries(sampleData)) {
     content = content.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
   }
@@ -249,8 +250,9 @@ async function loadSettings() {
     );
 
     savedTemplate.value = response.data.commitmentTermTemplate;
-    templateContent.value =
-      response.data.commitmentTermTemplate || DEFAULT_TEMPLATE;
+    templateContent.value = normalizeCommitmentTermTemplate(
+      response.data.commitmentTermTemplate || DEFAULT_TEMPLATE
+    );
     autoGenerate.value = response.data.autoGenerateCommitmentTerm;
   } catch (error) {
     console.error("Error loading commitment term settings:", error);

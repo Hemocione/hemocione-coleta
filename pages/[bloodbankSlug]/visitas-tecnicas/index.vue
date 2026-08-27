@@ -223,6 +223,19 @@
               </p>
             </UFormField>
 
+            <UFormField label="Instituição" required>
+              <USelect
+                v-model="formData.institutionId"
+                :items="institutionSelectOptions"
+                :disabled="Boolean(formData.requestId)"
+                class="w-full"
+                data-testid="technical-visit-institution-select"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                Vincule a visita à instituição da coleta ou selecione uma instituição relacionada.
+              </p>
+            </UFormField>
+
             <UFormField label="Endereco" required>
               <UInput
                 v-model="formData.address"
@@ -417,6 +430,12 @@ interface OpenCollectionRequest {
   technicalVisitId?: string;
 }
 
+interface InstitutionOption {
+  id: string;
+  name: string;
+  address?: string;
+}
+
 // State
 const selectedFilter = ref("all");
 const currentPage = ref(1);
@@ -438,6 +457,7 @@ const formData = ref({
 
 // Solicitações aguardando visita técnica (para o registro vinculado)
 const openRequests = ref<OpenCollectionRequest[]>([]);
+const institutionOptions = ref<InstitutionOption[]>([]);
 const showRegisterModal = ref(false);
 const isRegistering = ref(false);
 const registerTargetVisit = ref<TechnicalVisit | null>(null);
@@ -467,8 +487,21 @@ const requestOptions = computed(() => [
     })),
 ]);
 
+const institutionSelectOptions = computed(() => [
+  { label: "Sem instituição vinculada", value: "" },
+  ...institutionOptions.value.map((institution) => ({
+    label: institution.name,
+    value: institution.id,
+  })),
+]);
+
 const isFormValid = computed(() => {
-  return formData.value.address.trim() && formData.value.visitDate && formData.value.outcome;
+  return (
+    formData.value.address.trim() &&
+    formData.value.visitDate &&
+    formData.value.outcome &&
+    (formData.value.requestId || formData.value.institutionId)
+  );
 });
 
 // Methods
@@ -477,11 +510,27 @@ const loadOpenRequests = async () => {
 
   try {
     const response = await fetchWithAuth(
-      `/api/v1/bloodbank/${bloodBanksLocationId.value}/collection-requests?status=awaiting_technical_visit&limit=100`
+      `/api/v1/bloodbank/${bloodBanksLocationId.value}/collection-requests?limit=100`
     ) as any;
 
     if (response.success) {
-      openRequests.value = response.data;
+      const allRequests = response.data as OpenCollectionRequest[];
+      openRequests.value = allRequests.filter(
+        (request) => request.status === "awaiting_technical_visit"
+      );
+      const byId = new Map<string, InstitutionOption>();
+      allRequests.forEach((request) => {
+        if (request.institutionId && request.institutionName) {
+          byId.set(request.institutionId, {
+            id: request.institutionId,
+            name: request.institutionName,
+            address: request.institutionAddress,
+          });
+        }
+      });
+      institutionOptions.value = Array.from(byId.values()).sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
     }
   } catch (error) {
     console.error("Error loading awaiting technical visit requests:", error);
@@ -572,6 +621,19 @@ const openCreateModal = () => {
 };
 
 const openEditModal = (visit: TechnicalVisit) => {
+  if (
+    visit.institutionId &&
+    visit.institutionName &&
+    !institutionOptions.value.some(
+      (institution) => institution.id === visit.institutionId
+    )
+  ) {
+    institutionOptions.value.push({
+      id: visit.institutionId,
+      name: visit.institutionName,
+      address: visit.institutionAddress,
+    });
+  }
   editingVisit.value = visit;
   formData.value = {
     address: visit.address,

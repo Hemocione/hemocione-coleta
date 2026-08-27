@@ -113,6 +113,50 @@ describe("detalhes de visitas técnicas", () => {
     });
   });
 
+  it("infere instituição de visita legada pelo endereço sem vínculo", async () => {
+    mocks.technicalVisitFind.mockReturnValue(
+      chainable([
+        {
+          _id: "visit-legacy",
+          bloodBanksLocationId,
+          address: "Rua A, 1, Centro, São Paulo - SP, 01000-000",
+          visitDate: new Date("2026-09-10T12:00:00.000Z"),
+          outcome: "pending",
+          visitedBy: "user-a",
+        },
+      ])
+    );
+    mocks.collectionRequestFind
+      .mockReturnValueOnce(chainable([]))
+      .mockReturnValueOnce(
+        chainable([
+          {
+            institutionId: "institution-a",
+            address: {
+              street: "Rua A",
+              number: "1",
+              neighborhood: "Centro",
+              city: "São Paulo",
+              state: "SP",
+              zipCode: "01000-000",
+            },
+          },
+        ])
+      );
+
+    const result = await getTechnicalVisitsByBloodBank(bloodBanksLocationId);
+
+    expect(result.data[0]).toMatchObject({
+      institutionId: "institution-a",
+      institutionName: "Instituição A",
+    });
+    expect(mocks.collectionRequestFind).toHaveBeenNthCalledWith(2, {
+      bloodBanksLocationId,
+      deletedAt: null,
+      address: { $exists: true },
+    });
+  });
+
   it("vincula uma visita nova à solicitação aguardando visita sem alterar o status", async () => {
     await linkTechnicalVisitToCollectionRequest(
       "request-a",

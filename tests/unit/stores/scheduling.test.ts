@@ -57,6 +57,7 @@ function asyncData(data: BloodBankListItem[]) {
 beforeEach(() => {
   setActivePinia(createPinia());
   mocks.useFetchWithAuth.mockReset();
+  localStorage.clear();
 });
 
 describe("useSchedulingStore", () => {
@@ -122,5 +123,22 @@ describe("useSchedulingStore", () => {
     expect(store.nearbyBloodBanks).toEqual([]);
     expect(store.isLoadingBloodBanks).toBe(false);
     expect(mocks.useFetchWithAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("restaura a instituição selecionada após carregar as instituições", async () => {
+    localStorage.setItem("hemocione:selected-institution-id", institutionB.id);
+    mocks.useFetchWithAuth.mockImplementation((url: string) => {
+      if (url === "/api/v1/me/institutions") {
+        return Promise.resolve({
+          data: { value: { institutions: [institutionA, institutionB] } },
+        });
+      }
+      return asyncData([bankB]);
+    });
+
+    const store = useSchedulingStore();
+    await store.loadUserInstitutions();
+
+    expect(store.selectedInstitution).toEqual(institutionB);
   });
 });

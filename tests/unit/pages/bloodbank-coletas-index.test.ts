@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  definePageMeta: vi.fn(),
   loadCollectionRequests: vi.fn(),
   userStore: {
     currentBloodBankRole: { bloodBanksLocationId: "blood-bank-a" },
@@ -50,7 +51,7 @@ const globalStubs = {
 let CollectionRequestsPage: any;
 
 beforeAll(async () => {
-  vi.stubGlobal("definePageMeta", vi.fn());
+  vi.stubGlobal("definePageMeta", mocks.definePageMeta);
   vi.stubGlobal("useRoute", () => ({ params: { bloodbankSlug: "hemocione" } }));
   vi.stubGlobal("storeToRefs", (store: any) => ({
     collectionRequests: store.collectionRequests,
@@ -82,6 +83,17 @@ function mountPage() {
 }
 
 describe("banco de sangue /coletas", () => {
+  it("não mantém a listagem de coletas em cache", () => {
+    mountPage();
+
+    expect(mocks.definePageMeta).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layout: "default",
+        keepalive: false,
+      })
+    );
+  });
+
   it("carrega a aba Pendentes com solicitações pending e counter_proposed", async () => {
     mountPage();
     await flushPromises();

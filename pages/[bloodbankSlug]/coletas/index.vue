@@ -251,6 +251,7 @@ dayjs.extend(timezone);
 // Define page meta
 definePageMeta({
   layout: "default",
+  keepalive: false,
 });
 
 // Get route params

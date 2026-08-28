@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   AvailableDate: {
     find: vi.fn(),
   },
+  BloodBank: {
+    find: vi.fn(),
+  },
   getInstitutionsByIds: vi.fn(),
 }));
 
@@ -16,11 +19,22 @@ vi.mock("~/server/models", () => ({
   team: { Team: {} },
   collectionRequest: { CollectionRequest: mocks.CollectionRequest },
   availableDate: { AvailableDate: mocks.AvailableDate },
-  bloodBank: { BloodBank: {} },
+  bloodBank: { BloodBank: mocks.BloodBank },
+  commitmentTerm: { CommitmentTerm: {} },
+  technicalVisit: { TechnicalVisit: {} },
 }));
 
 vi.mock("~/server/services/hemocioneId", () => ({
   getInstitutionsByIds: mocks.getInstitutionsByIds,
+}));
+
+vi.mock("~/server/services/technicalVisit", () => ({
+  createTechnicalVisit: vi.fn(),
+  getTechnicalVisitById: vi.fn(),
+}));
+
+vi.mock("~/server/services/collectionRequestNotification", () => ({
+  notifyCollectionRequestStatusTransition: vi.fn(),
 }));
 
 const { getCollectionRequestsByBloodBank } = await import(
@@ -51,6 +65,9 @@ describe("getCollectionRequestsByBloodBank", () => {
     });
     mocks.AvailableDate.find.mockReturnValue({
       populate: vi.fn().mockReturnThis(),
+      lean: vi.fn().mockResolvedValue([]),
+    });
+    mocks.BloodBank.find.mockReturnValue({
       lean: vi.fn().mockResolvedValue([]),
     });
     mocks.getInstitutionsByIds.mockResolvedValue([

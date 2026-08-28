@@ -32,21 +32,6 @@ dayjs.extend(timezone);
 // do calendário e da exibição na instituição).
 const TECHNICAL_VISIT_TIMEZONE = "America/Sao_Paulo";
 
-function normalizeUuid(value: unknown): string {
-  if (
-    value &&
-    typeof value === "object" &&
-    "toUUID" in value &&
-    typeof (value as { toUUID?: unknown }).toUUID === "function"
-  ) {
-    return (
-      value as { toUUID: () => { toString: () => string } }
-    ).toUUID().toString().toLowerCase();
-  }
-
-  return String(value).toLowerCase();
-}
-
 export interface CollectionRequestFilters {
   status?: string;
   institutionId?: string;

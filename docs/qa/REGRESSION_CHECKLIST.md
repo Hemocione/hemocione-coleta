@@ -69,9 +69,9 @@ Estados possíveis (`server/models/collectionRequest.ts`): `pending`, `accepted`
 - [ ] Instituição desiste (`withdraw`) em `pending` — **testar as 3 rotas**: painel
       da instituição, pública, e pública por token de acompanhamento. São 3
       implementações separadas da mesma regra.
-- [ ] Concorrência: duas instituições disputando o mesmo slot — só uma consegue
+- [x] Concorrência: duas instituições disputando o mesmo slot — só uma consegue
       `accepted`, a outra recebe conflito/409 coerente, nenhuma trava o slot sem
-      solicitação válida.
+      solicitação válida. Confirmado em produção em 2026-08-28.
 - [ ] Link de inscrição no digital-event gerado nos dois estados que permitem
       (`GENERATABLE_STATUSES`: `accepted` e `technical_visit_confirmed`), não só
       no caminho de aceite direto.
@@ -80,13 +80,16 @@ Estados possíveis (`server/models/collectionRequest.ts`): `pending`, `accepted`
 
 ## Visita técnica
 
-- [ ] Proposta sequencial: hemocentro propõe, instituição recusa, hemocentro propõe
+- [x] Proposta sequencial: hemocentro propõe, instituição recusa, hemocentro propõe
       de novo — pelo menos 2 rodadas, pra confirmar que não trava depois da 1ª
-      recusa (`previousVisitProposals` deveria reabrir a precondição).
-- [ ] Horário da visita interpretado em `America/Sao_Paulo`, não UTC.
-- [ ] Registro de visita realizada vincula corretamente à solicitação.
-- [ ] Motivo interno (`reason`) da rejeição/recusa não aparece no histórico visível
-      pra instituição.
+      recusa (`previousVisitProposals` deveria reabrir a precondição). Confirmado em
+      produção em 2026-08-28.
+- [x] Horário da visita interpretado em `America/Sao_Paulo`, não UTC. Confirmado em
+      produção em 2026-08-28.
+- [x] Registro de visita realizada vincula corretamente à solicitação. Confirmado em
+      produção em 2026-08-28.
+- [x] Motivo interno (`reason`) da rejeição/recusa não aparece no histórico visível
+      pra instituição. Confirmado em produção em 2026-08-28.
 
 ## Fronteira de confiança (segurança)
 
@@ -99,13 +102,15 @@ instituições sintéticas contra o MESMO hemocentro (não precisa de um segundo
 Se um dia existir um jeito de provisionar login de banco (via DB direto ou uma rota
 nova), reative o item banco↔banco.
 
-- [ ] **(instituição↔instituição, testável hoje)** Duas instituições, mesmo
+- [x] **(instituição↔instituição, testável hoje)** Duas instituições, mesmo
       hemocentro: `respond-counter-proposal`/`respond-technical-visit-proposal` via
       token de acompanhamento de uma tentando agir no `requestId` da outra. Nenhuma das
       duas funções de service filtra por institutionId — só o binding do token na rota.
-      Confirme que o binding impede; se não impedir, pare e reporte, não explore mais.
-- [ ] `withdraw` nas 3 rotas (ver acima) também não deveria permitir agir sobre
-      solicitação de outra instituição.
+      O binding impediu os probes públicos. A rota do painel institucional falhou e
+      gerou o ISSUE-D; a exploração parou após a confirmação.
+- [x] `withdraw` nas 3 rotas (ver acima) também não deveria permitir agir sobre
+      solicitação de outra instituição. As rotas públicas bloquearam. A rota do painel
+      permitiu o IDOR descrito no ISSUE-D.
 - [ ] **(banco↔banco, bloqueado — sem fixture)** `counter-propose` e ações de visita
       técnica chamam `assertUserAccessToBloodBanksLocationId` com o `bloodBanksLocationId`
       da URL antes de agir — parece guardado por leitura de código, mas nunca foi

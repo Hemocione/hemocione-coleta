@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: "agendamento" });
+definePageMeta({ layout: "agendamento", keepalive: false });
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";

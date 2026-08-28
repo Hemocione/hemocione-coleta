@@ -34,11 +34,11 @@
         <section v-if="availableNearbyBloodBanks.length" class="space-y-3">
           <div>
             <h3 class="text-lg font-semibold text-gray-900">
-              Agende sua doação online
+              Agende uma campanha na sua instituição
             </h3>
             <p class="text-sm text-gray-600">
-              Escolha um banco de sangue com agenda disponível e reserve uma
-              data.
+              Escolha um banco de sangue com agenda disponível e agende uma
+              campanha de doação na sua instituição.
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
@@ -56,13 +56,13 @@
         <section v-if="unavailableNearbyBloodBanks.length" class="space-y-3">
           <div>
             <h3 class="text-lg font-semibold text-gray-900">
-              Organize uma coleta externa na sua instituição
+              Registre interesse em uma coleta externa
             </h3>
             <p class="text-sm text-gray-600">
-              Este banco ainda não permite agendamento pela plataforma. Informe
-              que você quer organizar uma coleta externa na sua instituição. Se
-              houver interesse suficiente, a equipe Hemocione entra em contato
-              com o banco para avaliar o evento.
+              Este banco ainda não permite agendamento pela plataforma. Registre
+              seu interesse em organizar uma coleta na sua instituição. A equipe
+              Hemocione usa essa demanda para avaliar o contato com o banco e
+              uma possível coleta externa.
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
@@ -194,7 +194,7 @@
               :disabled="interestLoading"
               data-testid="interest-submit"
             >
-              Organizar coleta externa
+              Enviar interesse
             </UButton>
           </div>
         </form>
@@ -240,19 +240,20 @@ const interestNameError = ref("");
 const interestPhoneError = ref("");
 const interestFormError = ref("");
 const interestLoading = ref(false);
+const INTEREST_REQUEST_TIMEOUT_MS = 15_000;
 
 const interestDialogTitle = computed(() =>
   interestBank.value
-    ? `Organize uma coleta externa com o ${interestBank.value.name}`
-    : "Organize uma coleta externa",
+    ? `Quero organizar uma coleta com o ${interestBank.value.name}`
+    : "Quero organizar uma coleta",
 );
 
 const interestDialogDescription = computed(() =>
   interestBank.value?.availability === "inactive"
-    ? "A agenda online deste banco está indisponível. Seu pedido informa à equipe Hemocione que você quer organizar uma coleta externa na sua instituição. Se houver interesse suficiente, a equipe entra em contato com o banco para avaliar o evento."
+    ? "A agenda online deste banco está indisponível. Registre seu interesse em organizar uma coleta na sua instituição. A equipe Hemocione usa essa demanda para avaliar o contato com o banco e uma possível coleta externa."
     : interestBank.value?.availability === "missing"
-      ? "Este banco ainda não tem agenda na plataforma. Seu pedido informa à equipe Hemocione que você quer organizar uma coleta externa na sua instituição. Se houver interesse suficiente, a equipe entra em contato com o banco para avaliar o evento."
-      : "Seu pedido informa à equipe Hemocione que você quer organizar uma coleta externa na sua instituição.",
+      ? "Este banco ainda não tem agenda na plataforma. Registre seu interesse em organizar uma coleta na sua instituição. A equipe Hemocione usa essa demanda para avaliar o contato com o banco e uma possível coleta externa."
+      : "Registre seu interesse em organizar uma coleta na sua instituição.",
 );
 
 const selectBank = (bank: BloodBankListItem) => {
@@ -310,6 +311,7 @@ const submitInterest = async () => {
   try {
     await fetchWithAuth("/api/v1/public/bloodbank-interests", {
       method: "POST",
+      timeout: INTEREST_REQUEST_TIMEOUT_MS,
       body: {
         bloodBanksLocationId: bank.bloodBanksLocationId,
         bankName: bank.name,
@@ -320,14 +322,14 @@ const submitInterest = async () => {
     });
     interestDialogOpen.value = false;
     useToast().add({
-      title: "Interesse em coleta externa registrado",
+      title: "Interesse registrado",
       color: "success",
     });
     resetInterestForm();
   } catch (error) {
     if (statusCodeOf(error) === 409) {
       interestFormError.value =
-        "Este banco agora tem agenda disponível. Feche esta janela e escolha “Agendar coleta”.";
+        "Este banco agora tem agenda disponível. Feche esta janela e escolha “Agendar campanha”.";
       void store.loadBloodBanksByCoverage();
       return;
     }

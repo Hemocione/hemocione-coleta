@@ -135,6 +135,12 @@ resto em branco — botão habilita.
 **Fix sugerido:** `isFormValid` deveria exigir os campos obrigatórios reais (Nome,
 Endereço, Cidade, Estado), não só "algum campo foi tocado".
 
+**Reprodução adicional em 2026-08-28**
+
+Uma conta institucional sintética nova reproduziu o comportamento. Após um CNPJ válido
+e um tipo selecionado, `Salvar` ficou habilitado com os campos obrigatórios vazios. O
+botão não foi acionado. A sessão foi fechada sem mutação.
+
 ---
 
 ### ISSUE-D: Rota institucional de retirada permite IDOR entre instituições
@@ -251,6 +257,19 @@ solicitação sintética `QA-TESTE`.
 - A aba `Rejeitadas` carregou sem erros do navegador.
 - A evidência sanitizada está em
   `agendamento/screenshots/rejection-post-fix-production-evidence.txt`.
+
+## Onboarding institucional adicional
+
+Uma conta e uma instituição sintéticas novas foram criadas pela interface. O cadastro
+passou e a instituição ficou validada. A página não encontrou banco de sangue próximo,
+mesmo após o endereço sintético ser ajustado para o Rio de Janeiro.
+
+- Nenhum pedido de coleta foi criado nesta etapa.
+- Nenhuma mensagem foi enviada.
+- A sessão foi fechada sem erro do navegador.
+- O fluxo institucional restante exige um banco disponível para a instituição.
+- A evidência sanitizada está em
+  `instituicao/screenshots/onboarding-production-evidence.txt`.
 
 ## QA paralelo pós-fix interrompido
 

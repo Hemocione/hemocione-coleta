@@ -1,4 +1,4 @@
-import { onlyDigits } from "~/utils/cnpj";
+import { formatCnpj } from "~/utils/cnpj";
 
 export interface BloodBankInterestDiscordNotification {
   bloodBanksLocationId: string;
@@ -19,9 +19,8 @@ function cleanDiscordValue(value: string) {
 }
 
 function formatInstitutionDocument(document: string) {
-  const digits = onlyDigits(document);
-  if (digits.length !== 14) return document;
-  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  const formatted = formatCnpj(document);
+  return formatted.length === 18 ? formatted : document;
 }
 
 export async function sendBloodBankInterestToDiscord(

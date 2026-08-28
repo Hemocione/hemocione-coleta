@@ -225,11 +225,10 @@
             </UFormField>
             <UFormField label="CNPJ" key="cnpj" :error="cnpjError">
               <UInput
-                v-maska="'##.###.###/####-##'"
-                v-model="form.document"
+                :model-value="form.document"
                 placeholder="00.000.000/0000-00"
                 @change="onCnpj"
-                @input="onCnpjInput"
+                @update:model-value="onCnpjInput"
                 :disabled="saving || cnpjLoading || geocodeLoading"
               />
             </UFormField>
@@ -437,7 +436,7 @@ import { redirectToID } from "~/utils/redirectToID";
 import { useUserStore } from "~/stores/user";
 import { useSchedulingStore } from "~/stores/scheduling";
 import { geocodeCep } from "~/utils/geocode";
-import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
+import { formatCnpj, isValidCnpj, normalizeCnpj } from "~/utils/cnpj";
 import { vMaska } from "maska/vue";
 
 const route = useRoute();
@@ -536,12 +535,8 @@ const institutionStatusLabel = (status: string) =>
   })[status] || status;
 
 const formatInstitutionDocument = (document: string) => {
-  const digits = onlyDigits(document);
-  if (digits.length !== 14) return document;
-  return digits.replace(
-    /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-    "$1.$2.$3/$4-$5"
-  );
+  const formatted = formatCnpj(document);
+  return formatted.length === 18 ? formatted : document;
 };
 
 const form = reactive({
@@ -668,26 +663,27 @@ const geocode = async () => {
 let cnpjAbort: AbortController | null = null;
 
 const onCnpj = async () => {
-  const digits = onlyDigits(form.document);
-  if (digits.length !== 14) {
+  const document = normalizeCnpj(form.document);
+  if (document.length !== 14) {
     cnpjError.value = "";
     return;
   }
-  if (!isValidCnpj(digits)) {
+  if (!isValidCnpj(document)) {
     cnpjError.value = "CNPJ inválido";
     return;
   }
   cnpjError.value = "";
+  if (!/^\d{14}$/.test(document)) return;
   cnpjAbort?.abort();
   const controller = new AbortController();
   cnpjAbort = controller;
   cnpjLoading.value = true;
   try {
     const data = await $fetch<any>(
-      `https://brasilapi.com.br/api/cnpj/v1/${digits}`,
+      `https://brasilapi.com.br/api/cnpj/v1/${document}`,
       { signal: controller.signal }
     );
-    if (controller.signal.aborted || onlyDigits(form.document) !== digits) {
+    if (controller.signal.aborted || normalizeCnpj(form.document) !== document) {
       return;
     }
     if (!form.name && (data?.nome_fantasia || data?.razao_social)) {
@@ -701,7 +697,7 @@ const onCnpj = async () => {
       await geocode();
     }
   } catch (e) {
-    if (!controller.signal.aborted && onlyDigits(form.document) === digits) {
+    if (!controller.signal.aborted && normalizeCnpj(form.document) === document) {
       cnpjError.value = "Não foi possível consultar o CNPJ";
     }
   } finally {
@@ -712,13 +708,14 @@ const onCnpj = async () => {
   }
 };
 
-// Trigger on typing as soon as reaches 14 digits (masked)
-const onCnpjInput = () => {
-  const digits = onlyDigits(form.document);
-  if (digits.length < 14 && cnpjError.value) {
+// Trigger on typing as soon as reaches 14 characters.
+const onCnpjInput = (value: string) => {
+  form.document = formatCnpj(value);
+  const document = normalizeCnpj(form.document);
+  if (document.length < 14 && cnpjError.value) {
     cnpjError.value = "";
   }
-  if (digits.length === 14 && !cnpjLoading.value) {
+  if (document.length === 14 && !cnpjLoading.value) {
     onCnpj();
   }
 };

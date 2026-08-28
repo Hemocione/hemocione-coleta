@@ -55,6 +55,7 @@ const globalStubs = {
   },
   UModal: {
     props: ["open"],
+    emits: ["update:open"],
     template:
       '<div v-if="open" data-testid="interest-modal"><slot name="content" /></div>',
   },
@@ -289,7 +290,7 @@ describe("/agendar", () => {
     await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
     await wrapper
       .find('[data-testid="interest-phone"]')
-      .setValue("(11) 99999-9999");
+      .setValue("11999999999");
     await wrapper.find('[data-testid="interest-submit"]').trigger("submit");
     await flushPromises();
 
@@ -301,13 +302,69 @@ describe("/agendar", () => {
         body: expect.objectContaining({
           bloodBanksLocationId: "location-inactive",
           name: "Pessoa A",
-          phone: "(11) 99999-9999",
+          phone: "+55 (11) 99999-9999",
           institutionName: "Instituição A",
           institutionCnpj: "04.252.011/0001-10",
           origin: "ondedoar",
         }),
       }),
     );
+  });
+
+  it("aceita CNPJ alfanumérico no interesse anônimo", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    await wrapper
+      .find('[data-testid="interest-institution-name"]')
+      .setValue("Instituição A");
+    await wrapper
+      .find('[data-testid="interest-institution-cnpj"]')
+      .setValue("12abc34501de35");
+    await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
+    await wrapper
+      .find('[data-testid="interest-phone"]')
+      .setValue("11999999999");
+    await wrapper.find('[data-testid="interest-submit"]').trigger("submit");
+    await flushPromises();
+
+    expect(mocks.fetchWithAuth).toHaveBeenCalledWith(
+      "/api/v1/public/bloodbank-interests",
+      expect.objectContaining({
+        body: expect.objectContaining({
+          institutionCnpj: "12.ABC.345/01DE-35",
+          phone: "+55 (11) 99999-9999",
+        }),
+      }),
+    );
+  });
+
+  it("libera o botão do banco quando o usuário fecha o dialog", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    expect(wrapper.find('[data-testid="interest-modal"]').exists()).toBe(true);
+    expect(
+      wrapper
+        .find('[data-testid="interest-bank-bank-inactive"]')
+        .attributes("loading"),
+    ).toBe("false");
+
+    const cancelButton = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "Cancelar");
+    await cancelButton?.trigger("click");
+
+    expect(wrapper.find('[data-testid="interest-modal"]').exists()).toBe(false);
+    expect(
+      wrapper
+        .find('[data-testid="interest-bank-bank-inactive"]')
+        .attributes("loading"),
+    ).toBe("false");
   });
 
   it("rejeita CNPJ inválido no interesse anônimo", async () => {

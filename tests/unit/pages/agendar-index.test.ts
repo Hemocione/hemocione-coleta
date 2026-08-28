@@ -174,10 +174,10 @@ describe("/agendar", () => {
     expect(wrapper.findAll("a")).toHaveLength(0);
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').text()
-    ).toContain("Avisar que quero doar");
+    ).toContain("Organizar coleta externa");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-missing"]').text()
-    ).toContain("Avisar que quero doar");
+    ).toContain("Organizar coleta externa");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').attributes("icon")
     ).toBe("i-lucide-hand-heart");
@@ -212,7 +212,7 @@ describe("/agendar", () => {
     expect(wrapper.text()).not.toContain("Sinalizar interesse");
   });
 
-  it("explica no modal que o aviso ajuda a equipe a avaliar uma coleta externa", async () => {
+  it("explica no modal como a equipe avalia uma coleta externa", async () => {
     const wrapper = mountPage();
 
     await wrapper
@@ -220,11 +220,11 @@ describe("/agendar", () => {
       .trigger("click");
 
     expect(wrapper.text()).toContain(
-      "Avise que você quer doar no Banco sem cadastro de agendamento",
+      "Organize uma coleta externa com o Banco sem cadastro de agendamento",
     );
     expect(wrapper.text()).toContain("Banco sem cadastro de agendamento");
     expect(wrapper.text()).toContain(
-      "Seu aviso ajuda a equipe Hemocione a medir a demanda e entrar em contato com o banco para avaliar uma coleta externa",
+      "Seu pedido informa à equipe Hemocione que você quer organizar uma coleta externa na sua instituição",
     );
   });
 

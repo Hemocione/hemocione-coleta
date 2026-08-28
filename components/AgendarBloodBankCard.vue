@@ -60,12 +60,12 @@
         color="warning"
         size="sm"
         icon="i-lucide-hand-heart"
-        class="w-full shrink-0 justify-center whitespace-nowrap sm:w-52"
+        class="w-full shrink-0 justify-center whitespace-nowrap sm:w-60"
         :loading="interestLoading"
         :disabled="actionDisabled"
         @click="emit('interest', bank)"
       >
-        Avisar que quero doar
+        Organizar coleta externa
       </UButton>
     </div>
   </UCard>

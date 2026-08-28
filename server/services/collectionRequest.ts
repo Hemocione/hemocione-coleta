@@ -325,7 +325,7 @@ async function getCollectionRequestsByScope(
 
   // Get unique institution IDs
   const institutionIds = Array.from(
-    new Set(requests.map((r) => r.institutionId.toString()))
+    new Set(requests.map((r) => normalizeUuid(r.institutionId)))
   );
 
   const allRequestedDateIds = Array.from(
@@ -356,7 +356,9 @@ async function getCollectionRequestsByScope(
       .lean(),
   ]);
   // Create institution lookup map
-  const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
+  const institutionMap = new Map(
+    institutions.map((inst) => [normalizeUuid(inst.id), inst])
+  );
 
   const bloodBankMap = new Map(
     bloodBanks.map((bb) => [normalizeBloodBanksLocationId(bb.bloodBanksLocationId), bb])
@@ -369,7 +371,9 @@ async function getCollectionRequestsByScope(
   // Build requests with details and filter by institution status
   const requestsWithDetails = requests
     .map((request) => {
-      const institution = institutionMap.get(request.institutionId.toString());
+      const institution = institutionMap.get(
+        normalizeUuid(request.institutionId)
+      );
 
       if (!institution) {
         return null;

@@ -170,6 +170,24 @@ export interface PaginatedResult<T> {
   };
 }
 
+function normalizeBloodBanksLocationId(value: unknown): string {
+  if (typeof value === "string") {
+    return value.toLowerCase();
+  }
+
+  if (value && typeof value === "object" && "toUUID" in value) {
+    const binaryUuid = value as {
+      toUUID?: () => { toString: () => string };
+    };
+
+    if (typeof binaryUuid.toUUID === "function") {
+      return binaryUuid.toUUID().toString().toLowerCase();
+    }
+  }
+
+  return String(value).toLowerCase();
+}
+
 export interface StructuredAddress {
   street: string;
   number: string;
@@ -319,7 +337,7 @@ async function getCollectionRequestsByScope(
   );
 
   const bloodBankIds = Array.from(
-    new Set(requests.map((r) => r.bloodBanksLocationId))
+    new Set(requests.map((r) => normalizeBloodBanksLocationId(r.bloodBanksLocationId)))
   );
 
   // Parallelize institution, bloodBank and availableDates calls
@@ -341,7 +359,7 @@ async function getCollectionRequestsByScope(
   const institutionMap = new Map(institutions.map((inst) => [inst.id, inst]));
 
   const bloodBankMap = new Map(
-    bloodBanks.map((bb) => [bb.bloodBanksLocationId, bb])
+    bloodBanks.map((bb) => [normalizeBloodBanksLocationId(bb.bloodBanksLocationId), bb])
   );
 
   const availableDateMap = new Map(
@@ -357,7 +375,9 @@ async function getCollectionRequestsByScope(
         return null;
       }
 
-      const bloodBankDoc = bloodBankMap.get(request.bloodBanksLocationId);
+      const bloodBankDoc = bloodBankMap.get(
+        normalizeBloodBanksLocationId(request.bloodBanksLocationId)
+      );
 
       // Build available slot options for this request
       const availableSlotOptions: Array<{

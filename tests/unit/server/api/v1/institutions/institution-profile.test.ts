@@ -115,4 +115,25 @@ describe("institution profile adapter", () => {
       statusCode: 403,
     });
   });
+
+  it("accepts a logo hosted by the Hemocione CDN", async () => {
+    const body = {
+      logo: "https://cdn.hemocione.com.br/events/dev/uploads/users/logo.png",
+    };
+
+    await patchHandler(makeEvent(body));
+
+    expect(mocks.updateInstitutionProfile).toHaveBeenCalledWith(
+      token,
+      institutionId,
+      body
+    );
+  });
+
+  it("rejects a logo hosted outside the Hemocione CDN", async () => {
+    await expect(
+      patchHandler(makeEvent({ logo: "https://example.test/logo.png" }))
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.updateInstitutionProfile).not.toHaveBeenCalled();
+  });
 });

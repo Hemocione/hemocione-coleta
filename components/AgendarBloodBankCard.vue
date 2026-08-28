@@ -98,6 +98,8 @@ const distanceLabel = computed(() => {
 const cardClass = computed(() =>
   isSchedulable.value
     ? "border-primary-200 bg-primary-50/30 ring-1 ring-primary-200 shadow-sm hover:shadow-md"
-    : "border-gray-200 bg-gray-50/70 hover:shadow",
+    : props.bank.availability === "missing"
+      ? "border-gray-200 bg-white hover:shadow"
+      : "border-gray-200 bg-gray-50/70 hover:shadow",
 );
 </script>

@@ -63,6 +63,7 @@ export interface CreateInstitutionPayload {
   phone: string;
   city: string;
   state: string;
+  logo?: string | null;
   latitude?: number;
   longitude?: number;
 }

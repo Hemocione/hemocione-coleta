@@ -14,6 +14,7 @@ function getStoredInstitutionId(): string | null {
 export interface Institution {
   id: string;
   name: string;
+  legalName?: string | null;
   document?: string;
   kind?: "company" | "ngo" | "school" | string;
   address?: string;
@@ -192,6 +193,7 @@ export const useSchedulingStore = defineStore("scheduling", {
       > & {
         legalName: string;
         kind: string;
+        logo?: string | null;
         latitude?: number;
         longitude?: number;
       }
@@ -222,7 +224,15 @@ export const useSchedulingStore = defineStore("scheduling", {
       payload: Partial<
         Pick<
           Institution,
-          "name" | "legalName" | "address" | "phone" | "city" | "state" | "latitude" | "longitude"
+          "name"
+            | "legalName"
+            | "address"
+            | "phone"
+            | "city"
+            | "state"
+            | "logo"
+            | "latitude"
+            | "longitude"
         >
       >
     ) {

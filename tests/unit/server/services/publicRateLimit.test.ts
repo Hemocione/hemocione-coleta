@@ -37,10 +37,10 @@ beforeEach(() => {
 });
 
 describe("rate limit público em memória", () => {
-  it("permite até 10 tentativas por IP na janela", () => {
+  it("permite até 30 tentativas por IP na janela", () => {
     mocks.getRequestIP.mockReturnValue("198.51.100.10");
 
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       expect(() =>
         enforcePublicRateLimit(makeEvent() as never, "bloodbank-interest"),
       ).not.toThrow();
@@ -49,7 +49,7 @@ describe("rate limit público em memória", () => {
     expect(mocks.setResponseHeader).toHaveBeenCalledWith(
       expect.anything(),
       "x-ratelimit-limit",
-      "10",
+      "30",
     );
     expect(mocks.setResponseHeader).toHaveBeenCalledWith(
       expect.anything(),
@@ -62,7 +62,7 @@ describe("rate limit público em memória", () => {
     mocks.getRequestIP.mockReturnValue("198.51.100.11");
     const event = makeEvent();
 
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       enforcePublicRateLimit(event as never, "bloodbank-interest");
     }
 

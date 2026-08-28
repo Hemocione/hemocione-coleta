@@ -1,0 +1,41 @@
+Cross-institution IDOR probe - casos CORRETAMENTE bloqueados (producao, 2026-08-28)
+
+Fixtures atacante/vitima: QA-TESTE Alpha (91b30035-61f4-462f-9f08-ebbb6331de77) contra
+QA-TESTE Beta (bb061558-6a72-44b1-96e4-e2293be96633), ambas contra o hemocentro hemodemo
+(278588e6-4b1b-4208-91ee-ab2e7a454dc2).
+
+1) POST /api/v1/public/collection-requests/track/{token-de-Beta}/respond-counter-proposal
+   Authorization: Bearer <JWT de Alpha>
+   Body: {"decision":"accepted","selectedDateId":"0"}
+   Resposta: HTTP 403
+   {"statusCode":403,"statusMessage":"Voce nao tem permissao para responder a esta solicitacao"}
+   Motivo: getCollectionRequestIdByToken(token) resolve o requestId a partir do token de
+   Beta, e a rota confere requestInfo.requestedByUserId !== userId (JWT de Alpha) antes de
+   chamar respondToCounterProposal. Bloqueado corretamente.
+
+2) POST /api/v1/public/collection-requests/track/{token-de-Beta}/respond-technical-visit-proposal
+   Authorization: Bearer <JWT de Alpha>
+   Body: {"decision":"accepted","selectedDateId":"0"}
+   Resposta: HTTP 403
+   {"statusCode":403,"statusMessage":"Voce nao tem permissao para responder a esta solicitacao"}
+   Mesmo mecanismo de protecao do caso 1.
+
+3) POST /api/v1/public/collection-requests/{requestId-de-Beta}/withdraw
+   Authorization: Bearer <JWT de Alpha>
+   Resposta: HTTP 404
+   {"statusCode":404,"statusMessage":"Solicitacao nao encontrada ou voce nao tem permissao para retira-la"}
+   Motivo: query inclui requestedByUserId: userId (JWT de Alpha) - nao acha o documento de
+   Beta. Bloqueado corretamente.
+
+4) POST /api/v1/public/collection-requests/track/{token-de-Beta}/withdraw
+   Authorization: Bearer <JWT de Alpha>
+   Resposta: HTTP 403
+   {"statusCode":403,"statusMessage":"Voce nao tem permissao para retirar esta solicitacao"}
+   Mesmo mecanismo de protecao do caso 1.
+
+Contraste: a 3a rota de withdraw (painel da instituicao,
+/api/v1/institutions/{institutionId}/collection-requests/{requestId}/withdraw) NAO tem
+essa protecao - ver idor-critical-institution-withdraw-request-response.txt. Das 4 rotas
+publicas que dependem do binding do accessToken/requestedByUserId, todas se provaram
+seguras nesta bateria; a rota do painel institucional, que usa um mecanismo diferente
+(institutionId da URL), foi a unica vulneravel.

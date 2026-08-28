@@ -1,0 +1,29 @@
+Acceptance post-fix production evidence — 2026-08-28
+
+Deploy: main commit dad09cf, PR #47
+Target: https://coleta.hemocione.com.br
+Account: Hemodemo
+Data: synthetic pending collection request
+Execution: real browser UI only
+
+Before:
+- The pending request details showed status Pendente.
+- The selected date was 2026-09-12, from 08:00 to 17:00.
+- The page showed the Aceitar action.
+
+Action:
+1. Click Aceitar.
+2. Click Confirmar Aceitação.
+3. Wait 2.5 seconds.
+4. Open Coletas and select Pendentes.
+
+Observed:
+- The page showed the alert "Solicitação aceita!".
+- The page showed "A solicitação foi aceita com sucesso.".
+- The details page showed Cancelar Coleta after confirmation.
+- The Pendentes list no longer showed the request.
+- Browser errors returned no lines after the workflow.
+- No network inspection, URL inspection, cookie inspection, or storage inspection was used.
+
+Screenshots remain in the local temporary QA directory. They are not committed because
+the UI includes synthetic contact fields that are not required for the verification.

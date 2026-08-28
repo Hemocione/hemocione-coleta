@@ -1,5 +1,6 @@
 import { withdrawCollectionRequest } from "~/server/services/collectionRequest";
 import { collectionRequest } from "~/server/models";
+import { getUserInstitutions } from "~/server/services/hemocioneId";
 
 const { CollectionRequest } = collectionRequest;
 
@@ -15,7 +16,19 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Verify the request belongs to this institution
+    const token = event.context.auth?.token;
+    if (!token) {
+      throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+    }
+
+    const institutions = await getUserInstitutions(token);
+    if (!institutions.some((institution) => institution.id === institutionId)) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: "User does not have access to this institution",
+      });
+    }
+
     const request = await CollectionRequest.findOne({
       _id: requestId,
       institutionId,
@@ -37,8 +50,6 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const withdrawnByUserId = event.context.auth.user.id;
-
     const body = await readBody(event);
     const reason = body?.reason?.trim() || undefined;
 
@@ -51,7 +62,7 @@ export default defineEventHandler(async (event) => {
 
     const updatedRequest = await withdrawCollectionRequest(
       requestId,
-      withdrawnByUserId,
+      event.context.auth.user.id,
       reason
     );
 

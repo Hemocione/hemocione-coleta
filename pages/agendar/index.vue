@@ -1,73 +1,84 @@
 <template>
   <div class="space-y-4 md:space-y-6">
     <Transition name="fade" mode="out-in">
-      <div v-if="visibleNearbyBloodBanks.length" class="space-y-3">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-semibold">
-              {{
-                selectedInstitution
-                  ? "Bancos de sangue próximos"
-                  : "Bancos de sangue disponíveis"
-              }}
-            </h3>
-            <p v-if="!selectedInstitution" class="text-sm text-gray-600">
-              Escolha um banco de sangue para iniciar o agendamento.
-            </p>
-          </div>
+      <div
+        v-if="visibleNearbyBloodBanks.length"
+        class="space-y-6"
+        data-testid="blood-banks-results"
+        aria-live="polite"
+        :aria-busy="isLoadingBloodBanks"
+      >
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <h2 class="text-base font-semibold text-gray-900">
+            {{
+              selectedInstitution
+                ? "Bancos de sangue próximos"
+                : "Bancos de sangue disponíveis"
+            }}
+          </h2>
           <UButton
             v-if="!hasLatLng"
             data-testid="use-location-button"
             color="neutral"
             variant="soft"
             icon="i-lucide-crosshair"
+            class="w-full shrink-0 sm:w-auto"
             :loading="geolocLoading"
             @click="useMyLocation"
           >
             Usar minha localização
           </UButton>
         </div>
-        <div class="grid md:grid-cols-2 gap-4" v-auto-animate>
-          <UCard
-            v-for="b in visibleNearbyBloodBanks"
-            :key="b._id || b.bloodBanksLocationId || b.name"
-            class="hover:shadow"
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <UAvatar :src="b.logo || undefined" size="md">{{
-                  b.name.charAt(0)
-                }}</UAvatar>
-                <div>
-                  <div class="font-medium">{{ b.name }}</div>
-                  <div class="text-xs text-gray-500" v-if="b.distanceMeters">
-                    {{ (b.distanceMeters / 1000).toFixed(1) }} km
-                  </div>
-                </div>
-              </div>
-              <UButton
-                v-if="isSchedulable(b)"
-                :data-testid="`select-bank-${b._id || b.bloodBanksLocationId}`"
-                color="primary"
-                size="sm"
-                @click="selectBank(b)"
-              >
-                Selecionar
-              </UButton>
-              <UButton
-                v-else
-                :data-testid="`interest-bank-${b._id || b.bloodBanksLocationId}`"
-                color="neutral"
-                variant="soft"
-                size="sm"
-                :loading="interestLoading && interestBank?.bloodBanksLocationId === b.bloodBanksLocationId"
-                @click="openInterest(b)"
-              >
-                Sinalizar Interesse
-              </UButton>
-            </div>
-          </UCard>
-        </div>
+        <section v-if="availableNearbyBloodBanks.length" class="space-y-3">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Agende sua doação online
+            </h3>
+            <p class="text-sm text-gray-600">
+              Escolha um banco de sangue com agenda disponível e reserve uma
+              data.
+            </p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
+            <AgendarBloodBankCard
+              v-for="bank in availableNearbyBloodBanks"
+              :key="bank._id || bank.bloodBanksLocationId || bank.name"
+              :bank="bank"
+              :action-disabled="interestLoading"
+              @select="selectBank"
+              @interest="openInterest"
+            />
+          </div>
+        </section>
+
+        <section v-if="unavailableNearbyBloodBanks.length" class="space-y-3">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Ajude a organizar uma coleta externa
+            </h3>
+            <p class="text-sm text-gray-600">
+              Ainda não é possível agendar nesses bancos pela plataforma. Avise
+              que você quer doar em um deles. Se houver muita procura, a equipe
+              Hemocione usa esses avisos para entrar em contato com o banco e
+              avaliar uma coleta externa.
+            </p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
+            <AgendarBloodBankCard
+              v-for="bank in unavailableNearbyBloodBanks"
+              :key="bank._id || bank.bloodBanksLocationId || bank.name"
+              :bank="bank"
+              :action-disabled="interestLoading"
+              :interest-loading="
+                interestBank?.bloodBanksLocationId === bank.bloodBanksLocationId
+              "
+              @select="selectBank"
+              @interest="openInterest"
+            />
+          </div>
+        </section>
       </div>
       <div
         v-else-if="isLoadingBloodBanks"
@@ -77,7 +88,7 @@
           name="i-lucide-loader-2"
           class="w-10 h-10 mx-auto mb-3 animate-spin text-gray-400"
         />
-        <p>Carregando bancos de sangue disponíveis...</p>
+        <p>Carregando bancos de sangue disponíveis…</p>
       </div>
       <div v-else class="text-center py-12 text-gray-600">
         <UIcon
@@ -102,39 +113,70 @@
       </div>
     </Transition>
 
-    <UModal v-model:open="interestDialogOpen" title="Sinalizar interesse">
+    <UModal v-model:open="interestDialogOpen" :title="interestDialogTitle">
       <template #content>
         <form class="space-y-4 p-6" @submit.prevent="submitInterest">
           <div>
-            <h3 class="text-lg font-semibold">Sinalizar interesse</h3>
+            <h2 class="text-lg font-semibold">{{ interestDialogTitle }}</h2>
             <p class="mt-1 text-sm text-gray-600">
-              Informe seus dados para avisarmos o banco de sangue.
+              {{ interestDialogDescription }}
+            </p>
+            <p
+              v-if="interestBank"
+              class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700"
+            >
+              Banco de sangue: <strong>{{ interestBank.name }}</strong>
             </p>
           </div>
           <div class="space-y-1">
             <label for="interest-name" class="text-sm font-medium">Nome</label>
             <UInput
               id="interest-name"
+              name="name"
               v-model="interestName"
               data-testid="interest-name"
               autocomplete="name"
               :disabled="interestLoading"
+              :aria-invalid="Boolean(interestNameError)"
+              :aria-describedby="interestNameError ? 'interest-name-error' : undefined"
             />
-            <p v-if="interestError" class="text-sm text-red-600">
-              {{ interestError }}
+            <p
+              v-if="interestNameError"
+              id="interest-name-error"
+              class="text-sm text-red-600"
+            >
+              {{ interestNameError }}
             </p>
           </div>
           <div class="space-y-1">
             <label for="interest-phone" class="text-sm font-medium">Telefone</label>
             <UInput
               id="interest-phone"
+              name="phone"
               v-model="interestPhone"
               data-testid="interest-phone"
               type="tel"
               autocomplete="tel"
               :disabled="interestLoading"
+              :aria-invalid="Boolean(interestPhoneError)"
+              :aria-describedby="interestPhoneError ? 'interest-phone-error' : undefined"
             />
+            <p
+              v-if="interestPhoneError"
+              id="interest-phone-error"
+              class="text-sm text-red-600"
+            >
+              {{ interestPhoneError }}
+            </p>
           </div>
+          <p
+            v-if="interestFormError"
+            id="interest-form-error"
+            class="text-sm text-red-600"
+            role="alert"
+          >
+            {{ interestFormError }}
+          </p>
           <div class="flex justify-end gap-2">
             <UButton
               type="button"
@@ -149,9 +191,10 @@
               type="submit"
               color="primary"
               :loading="interestLoading"
+              :disabled="interestLoading"
               data-testid="interest-submit"
             >
-              Enviar interesse
+              Avisar que quero doar
             </UButton>
           </div>
         </form>
@@ -176,6 +219,14 @@ const { nearbyBloodBanks, isLoadingBloodBanks } = storeToRefs(store);
 const visibleNearbyBloodBanks = computed(() =>
   nearbyBloodBanks.value.filter((bank) => bank.hidden !== true),
 );
+const isSchedulable = (bank: BloodBankListItem) =>
+  bank.availability === "active" && Boolean(bank.slug);
+const availableNearbyBloodBanks = computed(() =>
+  visibleNearbyBloodBanks.value.filter(isSchedulable),
+);
+const unavailableNearbyBloodBanks = computed(() =>
+  visibleNearbyBloodBanks.value.filter((bank) => !isSchedulable(bank)),
+);
 
 const selectedInstitution = computed(() => store.selectedInstitution);
 const hasLatLng = computed(() => store.hasLatLng);
@@ -185,13 +236,24 @@ const interestDialogOpen = ref(false);
 const interestBank = ref<BloodBankListItem | null>(null);
 const interestName = ref("");
 const interestPhone = ref("");
-const interestError = ref("");
+const interestNameError = ref("");
+const interestPhoneError = ref("");
+const interestFormError = ref("");
 const interestLoading = ref(false);
 
-const isSchedulable = (bank: BloodBankListItem) =>
-  bank.availability
-    ? bank.availability === "active" && Boolean(bank.slug)
-    : bank.active !== false && Boolean(bank.slug);
+const interestDialogTitle = computed(() =>
+  interestBank.value
+    ? `Avise que você quer doar no ${interestBank.value.name}`
+    : "Avise que você quer doar",
+);
+
+const interestDialogDescription = computed(() =>
+  interestBank.value?.availability === "inactive"
+    ? "A agenda online deste banco está indisponível. Seu aviso ajuda a equipe Hemocione a medir a demanda e entrar em contato com o banco para avaliar uma coleta externa."
+    : interestBank.value?.availability === "missing"
+      ? "Este banco ainda não tem agenda na plataforma. Seu aviso ajuda a equipe Hemocione a medir a demanda e entrar em contato com o banco para avaliar uma coleta externa."
+      : "Seu aviso ajuda a equipe Hemocione a medir a demanda e avaliar uma coleta externa.",
+);
 
 const selectBank = (bank: BloodBankListItem) => {
   if (!isSchedulable(bank)) return;
@@ -202,8 +264,22 @@ const selectBank = (bank: BloodBankListItem) => {
 const resetInterestForm = () => {
   interestName.value = "";
   interestPhone.value = "";
-  interestError.value = "";
+  interestNameError.value = "";
+  interestPhoneError.value = "";
+  interestFormError.value = "";
 };
+
+function statusCodeOf(error: unknown) {
+  if (!error || typeof error !== "object") return undefined;
+  const response = "response" in error ? error.response : undefined;
+  return "statusCode" in error && typeof error.statusCode === "number"
+    ? error.statusCode
+    : "status" in error && typeof error.status === "number"
+      ? error.status
+      : response && typeof response === "object" && "status" in response
+        ? response.status
+        : undefined;
+}
 
 const submitInterest = async () => {
   const bank = interestBank.value;
@@ -216,18 +292,20 @@ const submitInterest = async () => {
     ? undefined
     : interestPhone.value.trim();
   if (!isLoggedIn.value && !name) {
-    interestError.value = "Informe seu nome.";
+    interestNameError.value = "Informe seu nome.";
     return;
   }
   if (!isLoggedIn.value || phone) {
     const phoneDigits = onlyDigits(phone || "");
     if (phoneDigits.length < 10 || phoneDigits.length > 13) {
-      interestError.value = "Informe um telefone válido.";
+      interestPhoneError.value = "Informe um telefone válido.";
       return;
     }
   }
 
-  interestError.value = "";
+  interestNameError.value = "";
+  interestPhoneError.value = "";
+  interestFormError.value = "";
   interestLoading.value = true;
   try {
     await fetchWithAuth("/api/v1/public/bloodbank-interests", {
@@ -241,16 +319,23 @@ const submitInterest = async () => {
       },
     });
     interestDialogOpen.value = false;
-    useToast().add({ title: "Interesse enviado", color: "success" });
+    useToast().add({ title: "Interesse registrado", color: "success" });
     resetInterestForm();
-  } catch {
+  } catch (error) {
+    if (statusCodeOf(error) === 409) {
+      interestFormError.value =
+        "Este banco agora tem agenda disponível. Feche este aviso e escolha “Agendar coleta”.";
+      void store.loadBloodBanksByCoverage();
+      return;
+    }
     if (isLoggedIn.value) {
       useToast().add({
-        title: "Não foi possível enviar o interesse",
+        title: "Não foi possível registrar o aviso",
         color: "error",
       });
     } else {
-      interestError.value = "Não foi possível enviar o interesse. Tente novamente.";
+      interestFormError.value =
+        "Não foi possível registrar o aviso. Tente novamente.";
     }
   } finally {
     interestLoading.value = false;
@@ -258,7 +343,7 @@ const submitInterest = async () => {
 };
 
 const openInterest = async (bank: BloodBankListItem) => {
-  if (!bank.bloodBanksLocationId) return;
+  if (!bank.bloodBanksLocationId || interestLoading.value) return;
   interestBank.value = bank;
   resetInterestForm();
   if (isLoggedIn.value) {

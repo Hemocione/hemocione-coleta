@@ -12,6 +12,7 @@ export interface OpenGraphMetadata {
 
 const IMAGE_WIDTH = 1200;
 const IMAGE_HEIGHT = 630;
+const IMAGE_VERSION = "2";
 const SITE_NAME = "Hemocione Coleta" as const;
 const RESERVED_FIRST_SEGMENTS = new Set([
   "agendar",
@@ -36,6 +37,8 @@ function buildImageMetadata(
     : "/og-images/hemocentro.jpg";
   const baseUrl = normalizeSiteUrl(siteUrl);
   const canonicalUrl = new URL(pathname || "/", `${baseUrl}/`).toString();
+  const imageUrl = new URL(imagePath, `${baseUrl}/`);
+  imageUrl.searchParams.set("v", IMAGE_VERSION);
 
   return {
     title: isSchedule
@@ -50,7 +53,7 @@ function buildImageMetadata(
     imageWidth: IMAGE_WIDTH,
     imageHeight: IMAGE_HEIGHT,
     imageType: "image/jpeg",
-    imageUrl: new URL(imagePath, `${baseUrl}/`).toString(),
+    imageUrl: imageUrl.toString(),
     canonicalUrl,
     siteName: SITE_NAME,
   };

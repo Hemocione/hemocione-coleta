@@ -16,7 +16,10 @@
           {{ bank.name.charAt(0) }}
         </UAvatar>
         <div class="min-w-0">
-          <h3 class="break-words font-medium text-gray-900">
+          <h3
+            :title="bank.name"
+            class="line-clamp-3 break-words font-medium text-gray-900"
+          >
             {{ bank.name }}
           </h3>
           <div
@@ -48,11 +51,11 @@
         color="primary"
         size="sm"
         icon="i-lucide-calendar-plus"
-        class="w-full shrink-0 justify-center sm:w-52"
+        class="w-full shrink-0 justify-center sm:w-auto sm:min-w-52"
         :disabled="actionDisabled"
         @click="emit('select', bank)"
       >
-        Agendar coleta
+        Agendar campanha
       </UButton>
       <UButton
         v-else
@@ -60,12 +63,12 @@
         color="warning"
         size="sm"
         icon="i-lucide-hand-heart"
-        class="w-full shrink-0 justify-center whitespace-nowrap sm:w-60"
+        class="w-full shrink-0 justify-center whitespace-nowrap sm:w-auto sm:min-w-60"
         :loading="interestLoading"
         :disabled="actionDisabled"
         @click="emit('interest', bank)"
       >
-        Organizar coleta externa
+        Quero organizar com este banco
       </UButton>
     </div>
   </UCard>

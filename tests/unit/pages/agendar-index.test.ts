@@ -174,10 +174,10 @@ describe("/agendar", () => {
     expect(wrapper.findAll("a")).toHaveLength(0);
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').text()
-    ).toContain("Organizar coleta externa");
+    ).toContain("Quero organizar com este banco");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-missing"]').text()
-    ).toContain("Organizar coleta externa");
+    ).toContain("Quero organizar com este banco");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').attributes("icon")
     ).toBe("i-lucide-hand-heart");
@@ -193,8 +193,12 @@ describe("/agendar", () => {
     const inactiveCard = wrapper.find('[data-testid="blood-bank-card-bank-inactive"]');
     const missingCard = wrapper.find('[data-testid="blood-bank-card-bank-missing"]');
 
+    expect(wrapper.text()).toContain("Agende uma campanha na sua instituição");
+    expect(wrapper.text()).toContain(
+      "agende uma campanha de doação na sua instituição",
+    );
     expect(activeCard.text()).toContain("Agenda disponível");
-    expect(activeCard.text()).toContain("Agendar coleta");
+    expect(activeCard.text()).toContain("Agendar campanha");
     expect(activeCard.find("button").attributes("icon")).toBe(
       "i-lucide-calendar-plus",
     );
@@ -212,6 +216,19 @@ describe("/agendar", () => {
     expect(wrapper.text()).not.toContain("Sinalizar interesse");
   });
 
+  it("limita o nome do banco a três linhas e preserva o nome completo no título", () => {
+    const longName =
+      "Núcleo de Hemoterapia Zona Sul - Instituto Nacional de Cardiologia do Rio de Janeiro";
+    nearbyBloodBanks.value = [{ ...inactiveBank, name: longName }];
+    const wrapper = mountPage();
+    const bankName = wrapper.find(
+      '[data-testid="blood-bank-card-bank-inactive"] h3',
+    );
+
+    expect(bankName.classes()).toContain("line-clamp-3");
+    expect(bankName.attributes("title")).toBe(longName);
+  });
+
   it("explica no modal como a equipe avalia uma coleta externa", async () => {
     const wrapper = mountPage();
 
@@ -220,11 +237,11 @@ describe("/agendar", () => {
       .trigger("click");
 
     expect(wrapper.text()).toContain(
-      "Organize uma coleta externa com o Banco sem cadastro de agendamento",
+      "Quero organizar uma coleta com o Banco sem cadastro de agendamento",
     );
     expect(wrapper.text()).toContain("Banco sem cadastro de agendamento");
     expect(wrapper.text()).toContain(
-      "Seu pedido informa à equipe Hemocione que você quer organizar uma coleta externa na sua instituição",
+      "Registre seu interesse em organizar uma coleta na sua instituição",
     );
   });
 
@@ -245,6 +262,7 @@ describe("/agendar", () => {
       "/api/v1/public/bloodbank-interests",
       expect.objectContaining({
         method: "POST",
+        timeout: 15000,
         body: expect.objectContaining({
           bloodBanksLocationId: "location-inactive",
           name: "Pessoa A",
@@ -252,6 +270,28 @@ describe("/agendar", () => {
           origin: "ondedoar",
         }),
       }),
+    );
+  });
+
+  it("libera o envio quando o registro de interesse falha", async () => {
+    mocks.fetchWithAuth.mockRejectedValueOnce(new Error("Request timeout"));
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
+    await wrapper
+      .find('[data-testid="interest-phone"]')
+      .setValue("(11) 99999-9999");
+    await wrapper.find('[data-testid="interest-submit"]').trigger("submit");
+    await flushPromises();
+
+    const submitButton = wrapper.find('[data-testid="interest-submit"]');
+    expect(submitButton.attributes("loading")).toBe("false");
+    expect(submitButton.attributes("disabled")).toBeUndefined();
+    expect(wrapper.text()).toContain(
+      "Não foi possível registrar o interesse. Tente novamente.",
     );
   });
 
@@ -272,6 +312,7 @@ describe("/agendar", () => {
       "/api/v1/public/bloodbank-interests",
       expect.objectContaining({
         method: "POST",
+        timeout: 15000,
         body: expect.not.objectContaining({
           name: expect.anything(),
           phone: expect.anything(),

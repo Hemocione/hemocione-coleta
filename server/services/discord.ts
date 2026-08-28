@@ -7,6 +7,8 @@ export interface BloodBankInterestDiscordNotification {
   origin: "ondedoar";
 }
 
+const DISCORD_REQUEST_TIMEOUT_MS = 15_000;
+
 export async function sendBloodBankInterestToDiscord(
   notification: BloodBankInterestDiscordNotification,
 ): Promise<{ status: "sent" | "disabled" }> {
@@ -40,6 +42,7 @@ export async function sendBloodBankInterestToDiscord(
   const userLine = notification.userId ? `Usuário: ${notification.userId}` : "Usuário: anônimo";
   const response = await $fetch(webhookUrl, {
     method: "POST",
+    timeout: DISCORD_REQUEST_TIMEOUT_MS,
     headers: { "content-type": "application/json" },
     body: {
       content: [

@@ -271,6 +271,17 @@ mesmo após o endereço sintético ser ajustado para o Rio de Janeiro.
 - A evidência sanitizada está em
   `instituicao/screenshots/onboarding-production-evidence.txt`.
 
+## Cenários restantes bloqueados
+
+- `accepted → rejected`: a tela de uma solicitação sintética aceita exibiu apenas
+  `Cancelar Coleta`, `Gerar Termo de Compromisso` e ações de navegação. A UI não ofereceu
+  `Rejeitar Solicitação`, então nenhum dado foi alterado.
+- `counter-propose`, respostas da instituição e retirada institucional: exigem uma
+  instituição sintética vinculada a um banco disponível. A nova instituição criada não
+  encontrou banco próximo pela interface.
+- Cenários administrativos de escrita: não foram executados para evitar alteração de
+  calendário compartilhado sem um caso sintético isolado.
+
 ## QA paralelo pós-fix interrompido
 
 A matriz de agendamento iniciou em browser real, mas a ferramenta exibiu um token de

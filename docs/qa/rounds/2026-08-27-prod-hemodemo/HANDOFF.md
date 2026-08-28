@@ -89,6 +89,10 @@ veredito.
 - A matriz completa de agendamento ficou incompleta. O QA administrativo somente leitura
   passou; os cenários administrativos de escrita ficaram incompletos.
 - Os fluxos `pending` para aceitação e rejeição passaram no deploy `dad09cf`.
+- `accepted → rejected` ficou bloqueado: a UI aceita só exibiu `Cancelar Coleta` e
+  `Gerar Termo de Compromisso`.
+- Uma nova conta e uma nova instituição sintéticas foram criadas. A interface não
+  encontrou banco próximo, então os fluxos da instituição não avançaram.
 
 ## Incidente de segurança
 

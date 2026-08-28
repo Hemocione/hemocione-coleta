@@ -11,6 +11,23 @@ export const BloodBankInterestSchema = new Schema(
     name: { type: String, required: true, maxlength: 200 },
     phone: { type: String, required: true, maxlength: 30 },
     phoneNormalized: { type: String, required: true, maxlength: 20 },
+    institutionId: {
+      type: Schema.Types.UUID,
+      default: null,
+      index: true,
+    },
+    institutionName: {
+      type: String,
+      required: true,
+      maxlength: 200,
+      trim: true,
+    },
+    institutionDocument: {
+      type: String,
+      default: null,
+      maxlength: 14,
+      trim: true,
+    },
     userId: { type: String, default: null, maxlength: 200 },
     origin: { type: String, enum: ["ondedoar"], required: true },
     dedupeKey: { type: String, required: true, unique: true, index: true },

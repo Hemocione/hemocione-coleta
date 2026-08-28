@@ -2,7 +2,9 @@ import { z } from "zod";
 import { useHemocioneUserAuth } from "~/server/services/auth";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import { createBloodBankInterest } from "~/server/services/bloodBankInterest";
+import { getUserInstitutions } from "~/server/services/hemocioneId";
 import { getOndeDoarBloodBankByLocationId } from "~/server/services/ondeDoar";
+import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
 
 const phoneSchema = z
   .string()
@@ -15,6 +17,9 @@ const nameSchema = z.string().trim().min(1).max(200);
 const bodySchema = z.object({
   bloodBanksLocationId: z.string().uuid(),
   bankName: z.string().trim().max(200).optional(),
+  institutionId: z.string().uuid().optional(),
+  institutionName: nameSchema.optional(),
+  institutionCnpj: z.string().trim().max(30).optional(),
   name: nameSchema.optional(),
   phone: phoneSchema.optional(),
   origin: z.literal("ondedoar"),
@@ -32,12 +37,20 @@ function normalizePhone(phone: string) {
   return normalized;
 }
 
+function normalizeCnpj(cnpj?: string) {
+  if (!cnpj?.trim()) return undefined;
+  const normalized = onlyDigits(cnpj);
+  if (!isValidCnpj(normalized)) invalidRequest("Invalid institution CNPJ");
+  return normalized;
+}
+
 export default defineEventHandler(async (event) => {
   const parsedBody = bodySchema.safeParse(await readBody(event));
   if (!parsedBody.success) invalidRequest("Invalid interest data");
 
   const body = parsedBody.data;
-  const authorization = event.headers.get("authorization");
+  const authorization = event.headers.get("authorization")?.trim();
+  const token = authorization?.replace(/^Bearer\s+/i, "").trim();
   const user = authorization ? useHemocioneUserAuth(event) : undefined;
   const ondeDoarBloodBank = await getOndeDoarBloodBankByLocationId(
     body.bloodBanksLocationId,
@@ -65,6 +78,39 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  let institutionId: string | undefined;
+  let institutionName: string;
+  let institutionDocument: string | undefined;
+  if (user) {
+    if (!token || !body.institutionId) {
+      invalidRequest("Institution is required");
+    }
+    const institutions = await getUserInstitutions(token);
+    const institution = institutions.find(
+      ({ id }) => id === body.institutionId,
+    );
+    if (!institution) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: "User does not have access to this institution",
+      });
+    }
+    const canonicalName = institution.name?.trim();
+    if (!canonicalName) invalidRequest("Institution name is required");
+    institutionId = institution.id;
+    institutionName = canonicalName;
+    institutionDocument = institution.document
+      ? onlyDigits(institution.document)
+      : undefined;
+  } else {
+    const parsedInstitutionName = nameSchema.safeParse(body.institutionName);
+    if (!parsedInstitutionName.success) {
+      invalidRequest("Institution name is required");
+    }
+    institutionName = parsedInstitutionName.data;
+    institutionDocument = normalizeCnpj(body.institutionCnpj);
+  }
+
   const name = user
     ? [user.givenName, user.surName].filter(Boolean).join(" ").trim()
     : body.name;
@@ -84,6 +130,9 @@ export default defineEventHandler(async (event) => {
     name: parsedName.data,
     phone: parsedPhone.data,
     phoneNormalized,
+    institutionId,
+    institutionName,
+    institutionDocument,
     userId: user?.id,
     origin: body.origin,
     dedupeKey: `${body.bloodBanksLocationId}:${phoneNormalized}`,

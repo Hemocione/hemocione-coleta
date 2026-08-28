@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import mongoose from "mongoose";
 import {
   getCollectionRequestsByBloodBank,
   getCollectionRequestsByInstitution,
@@ -74,6 +75,13 @@ const baseHost = {
   phone: "11999999999",
 };
 
+function uuidBinary(value: string) {
+  return new mongoose.mongo.Binary(
+    Buffer.from(value.replaceAll("-", ""), "hex"),
+    4
+  );
+}
+
 beforeEach(() => {
   mocks.collectionRequestCountDocuments.mockReset();
   mocks.collectionRequestFind.mockReset();
@@ -88,6 +96,43 @@ beforeEach(() => {
 });
 
 describe("getCollectionRequestsByInstitution — dados do banco de sangue", () => {
+  it("resolve o banco quando lean retorna UUIDs como BSON Binary", async () => {
+    const bloodBanksLocationId = "123e4567-e89b-12d3-a456-426614174000";
+
+    mocks.collectionRequestCountDocuments.mockResolvedValue(1);
+    mocks.collectionRequestFind.mockReturnValue(
+      chainable([
+        {
+          _id: "request-a",
+          institutionId: "institution-a",
+          bloodBanksLocationId: uuidBinary(bloodBanksLocationId),
+          requestedDates: [],
+          host: baseHost,
+          status: "pending",
+          statusHistory: [],
+        },
+      ])
+    );
+    mocks.bloodBankFind.mockReturnValue(
+      chainable([
+        {
+          bloodBanksLocationId: uuidBinary(bloodBanksLocationId),
+          name: "Banco de Sangue A",
+          logo: "https://example.com/a.png",
+        },
+      ])
+    );
+
+    const result = await getCollectionRequestsByInstitution("institution-a");
+
+    expect(result.data[0]).toEqual(
+      expect.objectContaining({
+        bloodBankName: "Banco de Sangue A",
+        bloodBankLogo: "https://example.com/a.png",
+      })
+    );
+  });
+
   it("inclui bloodBankName e bloodBankLogo resolvidos em lote por bloodBanksLocationId", async () => {
     mocks.collectionRequestCountDocuments.mockResolvedValue(2);
     mocks.collectionRequestFind.mockReturnValue(

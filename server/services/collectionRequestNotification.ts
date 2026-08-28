@@ -29,6 +29,18 @@ interface NotifyCollectionRequestStatusTransitionData {
   technicalVisitResult?: "Aprovada" | "Reprovada";
 }
 
+// Only these transitions target the institution. Bank-facing transitions must
+// not leak their notification to the institution host phone.
+const INSTITUTION_RECIPIENT_TRANSITIONS =
+  new Set<CollectionRequestNotificationTransition>([
+    "counter_proposed",
+    "awaiting_technical_visit",
+    "technical_visit_proposed",
+    "technical_visit_confirmed",
+    "technical_visit_verdict",
+    "scheduled",
+  ]);
+
 function getCollectionRequestTrackingUrl(accessToken?: unknown): string {
   if (!accessToken) return "";
 
@@ -83,6 +95,31 @@ async function sendPhoneNotification(
   }
 }
 
+async function sendInstitutionNotification(
+  userId: string | undefined,
+  phone: string | undefined,
+  templateName: string,
+  params: Record<string, string>,
+  requestId: string,
+  transition: CollectionRequestNotificationTransition
+): Promise<void> {
+  if (userId) {
+    await sendUserNotification(
+      { userId, templateName, params },
+      requestId,
+      transition
+    );
+  }
+
+  if (phone) {
+    await sendPhoneNotification(
+      { phone, templateName, params },
+      requestId,
+      transition
+    );
+  }
+}
+
 /**
  * Sends the WhatsApp notification associated with a collection-request
  * transition. This function deliberately owns recipient lookup and template
@@ -116,23 +153,27 @@ export async function notifyCollectionRequestStatusTransition({
     const trackingUrl = getCollectionRequestTrackingUrl(request.accessToken);
     const userId =
       recipientUserId || getUserId(request.requestedByUserId);
+    const institutionPhone = INSTITUTION_RECIPIENT_TRANSITIONS.has(transition)
+      ? request.host?.phone
+      : undefined;
 
     if (transition === "counter_proposed") {
       const proposedDate = request.counterProposal?.proposedDates?.[0];
 
-      if (!userId) return;
-
-      await sendUserNotification({
+      await sendInstitutionNotification(
         userId,
-        templateName: "collection_request_counter_proposed",
-        params: {
+        institutionPhone,
+        "collection_request_counter_proposed",
+        {
           contactName,
           bloodBankName,
           proposedDate: formatWhatsAppDate(proposedDate?.date),
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
-      }, requestId, transition);
+        requestId,
+        transition
+      );
       return;
     }
 
@@ -152,36 +193,34 @@ export async function notifyCollectionRequestStatusTransition({
     }
 
     if (transition === "awaiting_technical_visit") {
-      if (!userId) return;
-
-      await sendUserNotification({
+      await sendInstitutionNotification(
         userId,
-        templateName: "collection_request_awaiting_technical_visit",
-        params: {
-          contactName,
-          bloodBankName,
-          trackingUrl,
-        },
-      }, requestId, transition);
+        institutionPhone,
+        "collection_request_awaiting_technical_visit",
+        { contactName, bloodBankName, trackingUrl },
+        requestId,
+        transition
+      );
       return;
     }
 
     if (transition === "technical_visit_proposed") {
-      if (!userId) return;
-
       const proposedDate = request.visitProposal?.proposedDates?.[0];
 
-      await sendUserNotification({
+      await sendInstitutionNotification(
         userId,
-        templateName: "collection_request_technical_visit_proposed",
-        params: {
+        institutionPhone,
+        "collection_request_technical_visit_proposed",
+        {
           contactName,
           bloodBankName,
           proposedDate: formatWhatsAppDate(proposedDate?.date),
           proposedTime: proposedDate?.startTime || "",
           trackingUrl,
         },
-      }, requestId, transition);
+        requestId,
+        transition
+      );
       return;
     }
 
@@ -219,18 +258,19 @@ export async function notifyCollectionRequestStatusTransition({
       transition === "technical_visit_confirmed" ||
       transition === "technical_visit_verdict"
     ) {
-      if (!userId) return;
-
-      await sendUserNotification({
+      await sendInstitutionNotification(
         userId,
-        templateName: "technical_visit_confirmed",
-        params: {
+        institutionPhone,
+        "technical_visit_confirmed",
+        {
           contactName,
           bloodBankName,
           result: technicalVisitResult || "Aprovada",
           trackingUrl,
         },
-      }, requestId, transition);
+        requestId,
+        transition
+      );
       return;
     }
 
@@ -248,21 +288,14 @@ export async function notifyCollectionRequestStatusTransition({
         eventLink,
       };
 
-      if (userId) {
-        await sendUserNotification({
-          userId,
-          templateName: "collection_request_scheduled",
-          params,
-        }, requestId, transition);
-      }
-
-      if (request.host?.phone) {
-        await sendPhoneNotification({
-          phone: request.host.phone,
-          templateName: "collection_request_scheduled",
-          params,
-        }, requestId, transition);
-      }
+      await sendInstitutionNotification(
+        userId,
+        institutionPhone,
+        "collection_request_scheduled",
+        params,
+        requestId,
+        transition
+      );
     }
   } catch (error) {
     console.error(

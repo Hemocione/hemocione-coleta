@@ -226,7 +226,6 @@
         :page-count="collectionRequests.pagination.pages"
         :total="collectionRequests.pagination.total"
         :per-page="collectionRequests.pagination.limit"
-        @update:model-value="loadRequests"
       />
     </div>
   </div>
@@ -420,11 +419,17 @@ const getUniqueDates = (availableSlotOptions: any[]) => {
 
 // Watchers
 watch(selectedFilter, () => {
-  currentPage.value = 1;
-  loadRequests();
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+    return;
+  }
+
+  void loadRequests();
 });
 
-watch(currentPage, loadRequests);
+watch(currentPage, () => {
+  void loadRequests();
+});
 
 // Lifecycle
 onMounted(() => {

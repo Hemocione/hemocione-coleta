@@ -123,6 +123,7 @@ beforeEach(() => {
     success: true,
     data: { deliveryStatus: "disabled" },
   });
+  localStorage.clear();
 });
 
 function mountPage() {
@@ -309,6 +310,9 @@ describe("/agendar", () => {
         }),
       }),
     );
+    expect(
+      localStorage.getItem("hemocione:agendar:interest-draft:v1"),
+    ).toBeNull();
   });
 
   it("aceita CNPJ alfanumérico no interesse anônimo", async () => {
@@ -365,6 +369,45 @@ describe("/agendar", () => {
         .find('[data-testid="interest-bank-bank-inactive"]')
         .attributes("loading"),
     ).toBe("false");
+  });
+
+  it("restaura o formulário anônimo ao organizar outra coleta", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    await wrapper
+      .find('[data-testid="interest-institution-name"]')
+      .setValue("Instituição A");
+    await wrapper
+      .find('[data-testid="interest-institution-cnpj"]')
+      .setValue("12abc34501de35");
+    await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
+    await wrapper
+      .find('[data-testid="interest-phone"]')
+      .setValue("11999999999");
+    await wrapper.findAll("button").find((button) => button.text() === "Cancelar")?.trigger("click");
+
+    const secondWrapper = mountPage();
+    await secondWrapper
+      .find('[data-testid="interest-bank-bank-missing"]')
+      .trigger("click");
+
+    expect(
+      secondWrapper.find('[data-testid="interest-institution-name"]').element,
+    ).toHaveProperty("value", "Instituição A");
+    expect(
+      secondWrapper.find('[data-testid="interest-institution-cnpj"]').element,
+    ).toHaveProperty("value", "12.ABC.345/01DE-35");
+    expect(secondWrapper.find('[data-testid="interest-name"]').element).toHaveProperty(
+      "value",
+      "Pessoa A",
+    );
+    expect(secondWrapper.find('[data-testid="interest-phone"]').element).toHaveProperty(
+      "value",
+      "+55 (11) 99999-9999",
+    );
   });
 
   it("rejeita CNPJ inválido no interesse anônimo", async () => {

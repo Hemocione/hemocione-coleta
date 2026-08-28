@@ -1,6 +1,6 @@
 import { getRequestIP, setResponseHeader, type H3Event } from "h3";
 
-const MAX_REQUESTS = 10;
+const MAX_REQUESTS = 30;
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_TRACKED_KEYS = 10_000;
 

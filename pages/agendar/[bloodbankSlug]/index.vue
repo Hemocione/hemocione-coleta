@@ -545,10 +545,10 @@ onBeforeMount(async () => {
 
   // Load bank info for submission context (only if authenticated and has institution)
   if (isLoggedIn.value && selectedInstitution.value) {
-    const { data: bankData } = await useFetchWithAuth(
+    const bankData = await fetchWithAuth(
       `/api/v1/bloodbanks/${slug.value}`
     );
-    bank.value = (bankData.value?.data as any) || null;
+    bank.value = (bankData?.data as any) || null;
     if (bank.value) {
       store.setSelectedBloodBank({
         _id: "",
@@ -735,11 +735,11 @@ const getSelectedSlotRange = (availableDateId: string) => {
 
 const loadDates = async () => {
   try {
-    const { data } = await useFetchWithAuth(
+    const data = await fetchWithAuth(
       `/api/v1/bloodbanks/${slug.value}/available-dates`,
       { query: { monthsAhead: 12 } }
     );
-    dates.value = data.value?.data || [];
+    dates.value = data?.data || [];
   } catch (error) {
     console.error("Error loading dates:", error);
   }
@@ -747,10 +747,10 @@ const loadDates = async () => {
 
 const loadRestrictions = async () => {
   try {
-    const { data } = await useFetchWithAuth(
+    const data = await fetchWithAuth(
       `/api/v1/bloodbanks/${slug.value}/restrictions`
     );
-    restrictions.value = data.value?.data || [];
+    restrictions.value = data?.data || [];
     // Reset checkbox quando carregar novas restrições
     hasReadRestrictions.value = false;
   } catch (error) {

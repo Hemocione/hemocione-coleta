@@ -5,7 +5,7 @@
 | **Date** | 2026-08-27 |
 | **App URL** | https://coleta.hemocione.com.br |
 | **Deploy inicial validado** | `7f0d516` (main, confirmado como deploy de produção via Vercel API) |
-| **Deploy dos fixes** | `de00511` (PR #45) e `dad09cf` (PR #47), mergeados em `main` e validados em produção |
+| **Deploy dos fixes** | `de00511` (PR #45), `dad09cf` (PR #47) e `dd32eeb` (PR #48), mergeados em `main` e validados em produção |
 | **Fixtures** | hemocentro `hemodemo`; demais fixtures listados na seção Fixtures abaixo |
 | **Scope** | Regressão completa — fluxo público, onboarding de instituição, agendamento (eixo transversal), visita técnica, admin do hemocentro, fronteira de confiança |
 
@@ -23,6 +23,11 @@ A rodada foi retomada após a correção do ISSUE-D. O reteste de autorização 
 produção. O fluxo `pending` para aceitação passou após o PR #47. A matriz restante de
 agendamento continua incompleta. O QA administrativo somente leitura passou; cenários
 administrativos de escrita continuam incompletos.
+
+O PR #48 corrigiu a hidratação de instituições com UUID BSON na lista do hemocentro.
+O build, o type check e 344 testes unitários passaram no CI. O deploy `dd32eeb` passou
+em produção. O reteste com as novas instituições do Rio ficou bloqueado pelo vínculo
+do banco exibido no cadastro, conforme a seção de onboarding.
 
 ## Fixtures criados nesta rodada
 
@@ -233,6 +238,32 @@ sintéticos.
 - A evidência sanitizada está em
   `agendamento/screenshots/acceptance-post-fix-production-evidence.txt`.
 
+### Reteste pós-PR #48 em produção
+
+O HemoDemo executou 3 fluxos com solicitações sintéticas existentes após o deploy
+`dd32eeb`.
+
+- Aceitação: a solicitação passou para `Aceita` e a tela mostrou `Cancelar Coleta`.
+- Contraproposta: a solicitação passou para `Contraproposta enviada` e mostrou a nova
+  data, equipe, notas e estado de espera da instituição.
+- Rejeição: o diálogo exigiu motivo e a solicitação passou para `Rejeitada`.
+- Os 3 fluxos não exibiram erros do navegador.
+
+### Bloqueio de vínculo para as instituições do Rio
+
+Foram criadas 2 instituições sintéticas no Rio de Janeiro com o CEP `22061020`.
+O cadastro encontrou `GSH - Centro RJ` a `0.6 km` e cada instituição criou uma
+solicitação pendente com sucesso.
+
+A conta HemoDemo mostrou área de cobertura no Rio. A tela de cadastro ofereceu apenas
+`GSH - Centro RJ` para o CEP informado. As 2 solicitações permaneceram pendentes nas
+respectivas sessões institucionais, mas não apareceram na lista `Coletas` do HemoDemo.
+
+Este resultado não prova regressão do PR #48. A evidência observada indica vínculo das
+solicitações ao banco exibido no cadastro, não ao banco da conta HemoDemo. A resposta institucional,
+a contraproposta e a retirada destas 2 solicitações continuam bloqueadas até existir
+um banco HemoDemo selecionável para este CEP.
+
 ## Reteste administrativo seguro em produção
 
 O deploy `dad09cf` foi validado em `coleta.hemocione.com.br` com browser real e dados
@@ -260,25 +291,26 @@ solicitação sintética `QA-TESTE`.
 
 ## Onboarding institucional adicional
 
-Contas sintéticas novas e uma instituição sintética foram criadas pela interface. O cadastro
-passou e a instituição ficou validada. A página não encontrou banco de sangue próximo,
-mesmo após o endereço sintético ser ajustado para o Rio de Janeiro.
+Contas sintéticas novas e 2 instituições sintéticas foram criadas pela interface. Os
+cadastros passaram e as instituições ficaram validadas. A página encontrou `GSH - Centro
+RJ` a `0.6 km` para o CEP `22061020`.
 
-- Nenhum pedido de coleta foi criado nesta etapa.
+- 2 pedidos de coleta foram criados nesta etapa.
 - Nenhuma mensagem foi enviada.
-- A sessão foi fechada sem erro do navegador.
-- O fluxo institucional restante exige um banco disponível para a instituição.
-- A evidência sanitizada está em
-  `instituicao/screenshots/onboarding-production-evidence.txt`.
+- As sessões institucionais mostraram os pedidos como `Pendente`.
+- O HemoDemo não mostrou os pedidos na lista `Coletas`.
+- O fluxo institucional restante exige um banco HemoDemo selecionável.
+- As sessões não exibiram erros do navegador.
+- A evidência anterior está em `instituicao/screenshots/onboarding-production-evidence.txt`.
 
 ## Cenários restantes bloqueados
 
 - `accepted → rejected`: a tela de uma solicitação sintética aceita exibiu apenas
   `Cancelar Coleta`, `Gerar Termo de Compromisso` e ações de navegação. A UI não ofereceu
   `Rejeitar Solicitação`, então nenhum dado foi alterado.
-- `counter-propose`, respostas da instituição e retirada institucional: exigem uma
-  instituição sintética vinculada a um banco disponível. A nova instituição criada não
-  encontrou banco próximo pela interface.
+- respostas da instituição e retirada institucional: exigem uma instituição sintética
+  vinculada ao banco HemoDemo. As 2 instituições do Rio ficaram vinculadas a `GSH -
+  Centro RJ`, que não apareceu na lista do HemoDemo.
 - Cenários administrativos de escrita: não foram executados para evitar alteração de
   calendário compartilhado sem um caso sintético isolado.
 

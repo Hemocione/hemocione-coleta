@@ -240,6 +240,18 @@ sintéticos. O reteste usou somente navegação visível e não executou escrita
 - A evidência sanitizada está em
   `admin/screenshots/admin-read-only-production-evidence.txt`.
 
+## Cenário adicional pós-deploy
+
+O fluxo `pending` para rejeição passou no deploy `dad09cf` com browser real e uma
+solicitação sintética `QA-TESTE`.
+
+- O diálogo exigiu um motivo antes de habilitar a confirmação.
+- A confirmação exibiu `Solicitação rejeitada!` e `A solicitação foi rejeitada com sucesso.`
+- A página de detalhes passou a mostrar o motivo da rejeição.
+- A aba `Rejeitadas` carregou sem erros do navegador.
+- A evidência sanitizada está em
+  `agendamento/screenshots/rejection-post-fix-production-evidence.txt`.
+
 ## QA paralelo pós-fix interrompido
 
 A matriz de agendamento iniciou em browser real, mas a ferramenta exibiu um token de
@@ -282,6 +294,8 @@ foi fechada. O diagnóstico de rede não foi usado. O QA restante continua incom
   de retirada bloquearam o acesso indevido com HTTP 403 ou HTTP 404.
 - O teste parou imediatamente após o ISSUE-D. O fluxo de aceitação foi retestado depois
   do PR #47, com dados sintéticos e sem novos erros.
+- O fluxo de rejeição foi retestado depois do PR #47, com dados sintéticos e sem novos
+  erros.
 
 ## Correção de escopo descoberta nesta rodada
 

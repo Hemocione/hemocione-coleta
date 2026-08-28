@@ -88,6 +88,7 @@ veredito.
   permaneceu `pending`. Beta retirou a própria solicitação com HTTP 200.
 - A matriz completa de agendamento ficou incompleta. O QA administrativo somente leitura
   passou; os cenários administrativos de escrita ficaram incompletos.
+- Os fluxos `pending` para aceitação e rejeição passaram no deploy `dad09cf`.
 
 ## Incidente de segurança
 

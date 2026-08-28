@@ -583,5 +583,6 @@ onMounted(() => {
 // Set page meta
 definePageMeta({
   layout: "default",
+  keepalive: false,
 });
 </script>

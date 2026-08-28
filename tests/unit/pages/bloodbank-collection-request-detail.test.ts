@@ -78,6 +78,7 @@ const globalStubs = {
 let CollectionRequestDetailPage: any;
 
 beforeAll(async () => {
+  vi.stubGlobal("definePageMeta", vi.fn());
   vi.stubGlobal("storeToRefs", (store: any) => ({
     bloodbankData: store.bloodbankData,
     currentCollectionRequest: store.currentCollectionRequest,

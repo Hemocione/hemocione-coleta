@@ -624,7 +624,7 @@ import timezone from "dayjs/plugin/timezone";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-definePageMeta({ layout: false });
+definePageMeta({ layout: false, keepalive: false });
 
 const route = useRoute();
 const accessToken = route.params.token as string;

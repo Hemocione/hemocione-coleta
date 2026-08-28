@@ -1,7 +1,7 @@
 <template>
   <UApp :locale="pt_br">
     <NuxtLayout>
-      <NuxtPage keepalive />
+      <NuxtPage :keepalive="route.meta.keepalive" />
     </NuxtLayout>
   </UApp>
 </template>

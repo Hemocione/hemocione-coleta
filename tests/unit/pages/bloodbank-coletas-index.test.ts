@@ -1,8 +1,9 @@
 import { mount, flushPromises } from "@vue/test-utils";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  definePageMeta: vi.fn(),
   loadCollectionRequests: vi.fn(),
   userStore: {
     currentBloodBankRole: { bloodBanksLocationId: "blood-bank-a" },
@@ -44,13 +45,17 @@ const globalStubs = {
     props: { to: { type: String, required: true } },
     template: '<a :href="to" v-bind="$attrs"><slot /></a>',
   },
-  UPagination: { template: "<div />" },
+  UPagination: {
+    props: { modelValue: { type: Number, required: true } },
+    template:
+      '<button data-testid="pagination-next" @click="$emit(\'update:modelValue\', modelValue + 1)" />',
+  },
 };
 
 let CollectionRequestsPage: any;
 
 beforeAll(async () => {
-  vi.stubGlobal("definePageMeta", vi.fn());
+  vi.stubGlobal("definePageMeta", mocks.definePageMeta);
   vi.stubGlobal("useRoute", () => ({ params: { bloodbankSlug: "hemocione" } }));
   vi.stubGlobal("storeToRefs", (store: any) => ({
     collectionRequests: store.collectionRequests,
@@ -82,6 +87,17 @@ function mountPage() {
 }
 
 describe("banco de sangue /coletas", () => {
+  it("não mantém a listagem de coletas em cache", () => {
+    mountPage();
+
+    expect(mocks.definePageMeta).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layout: "default",
+        keepalive: false,
+      })
+    );
+  });
+
   it("carrega a aba Pendentes com solicitações pending e counter_proposed", async () => {
     mountPage();
     await flushPromises();
@@ -174,6 +190,46 @@ describe("banco de sangue /coletas", () => {
     expect(mocks.loadCollectionRequests).toHaveBeenLastCalledWith(
       "blood-bank-a",
       { status: "accepted,technical_visit_confirmed,scheduled" },
+      1
+    );
+  });
+
+  it("faz uma chamada ao avançar uma página", async () => {
+    collectionRequests.value = {
+      data: [],
+      pagination: { total: 21, page: 1, limit: 20, pages: 2 },
+    };
+
+    const wrapper = mountPage();
+    await flushPromises();
+    mocks.loadCollectionRequests.mockClear();
+
+    await wrapper.find('[data-testid="pagination-next"]').trigger("click");
+    await flushPromises();
+
+    expect(mocks.loadCollectionRequests).toHaveBeenCalledTimes(1);
+    expect(mocks.loadCollectionRequests).toHaveBeenCalledWith(
+      "blood-bank-a",
+      { status: "pending,counter_proposed,awaiting_technical_visit" },
+      2
+    );
+  });
+
+  it("faz uma chamada ao trocar o filtro mesmo quando reseta a página", async () => {
+    const wrapper = mountPage();
+    await flushPromises();
+
+    (wrapper.vm as any).currentPage = 2;
+    await nextTick();
+    mocks.loadCollectionRequests.mockClear();
+
+    (wrapper.vm as any).selectedFilter = "accepted";
+    await flushPromises();
+
+    expect(mocks.loadCollectionRequests).toHaveBeenCalledTimes(1);
+    expect(mocks.loadCollectionRequests).toHaveBeenCalledWith(
+      "blood-bank-a",
+      { status: "accepted,technical_visit_confirmed" },
       1
     );
   });

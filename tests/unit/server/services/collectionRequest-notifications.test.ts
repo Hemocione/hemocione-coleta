@@ -100,6 +100,42 @@ describe("notificações das transições de collection request", () => {
           "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
+    expect(mocks.sendWhatsAppNotificationToPhone).toHaveBeenCalledWith({
+      phone: "5511999999999",
+      templateName: "collection_request_counter_proposed",
+      params: {
+        contactName: "Pessoa responsável",
+        bloodBankName: "Banco Central",
+        proposedDate: "10/09/2026",
+        proposedTime: "08:30",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
+      },
+    });
+  });
+
+  it("usa o telefone do ponto focal mesmo sem destinatário por usuário", async () => {
+    mocks.collectionRequestFindOne.mockReturnValue({
+      lean: async () => ({ ...request, requestedByUserId: undefined }),
+    });
+
+    await notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId,
+      transition: "awaiting_technical_visit",
+    });
+
+    expect(mocks.sendWhatsAppNotification).not.toHaveBeenCalled();
+    expect(mocks.sendWhatsAppNotificationToPhone).toHaveBeenCalledWith({
+      phone: "5511999999999",
+      templateName: "collection_request_awaiting_technical_visit",
+      params: {
+        contactName: "Pessoa responsável",
+        bloodBankName: "Banco Central",
+        trackingUrl:
+          "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
+      },
+    });
   });
 
   it("notifica o banco quando a contraproposta é recusada", async () => {
@@ -120,6 +156,7 @@ describe("notificações das transições de collection request", () => {
           "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
+    expect(mocks.sendWhatsAppNotificationToPhone).not.toHaveBeenCalled();
   });
 
   it("notifica a instituição enquanto aguarda visita técnica", async () => {
@@ -139,6 +176,38 @@ describe("notificações das transições de collection request", () => {
           "https://coleta.hemocione.com.br/agendar/acompanhar/tracking-token",
       },
     });
+  });
+
+  it.each([
+    "technical_visit_proposed",
+    "technical_visit_confirmed",
+    "technical_visit_verdict",
+  ] as const)("envia %s também ao telefone do ponto focal", async (transition) => {
+    await notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId,
+      transition,
+    });
+
+    expect(mocks.sendWhatsAppNotificationToPhone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phone: "5511999999999",
+      })
+    );
+  });
+
+  it("não envia ao ponto focal a notificação de visita técnica agendada", async () => {
+    await notifyCollectionRequestStatusTransition({
+      requestId,
+      bloodBanksLocationId,
+      transition: "technical_visit_scheduled",
+      recipientUserId: "blood-bank-user",
+    });
+
+    expect(mocks.sendWhatsAppNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "blood-bank-user" })
+    );
+    expect(mocks.sendWhatsAppNotificationToPhone).not.toHaveBeenCalled();
   });
 
   it.each([

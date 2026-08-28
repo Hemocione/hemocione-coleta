@@ -21,7 +21,8 @@
 
 A rodada foi retomada após a correção do ISSUE-D. O reteste de autorização passou em
 produção. O fluxo `pending` para aceitação passou após o PR #47. A matriz restante de
-agendamento e o QA administrativo continuam incompletos.
+agendamento continua incompleta. O QA administrativo somente leitura passou; cenários
+administrativos de escrita continuam incompletos.
 
 ## Fixtures criados nesta rodada
 
@@ -226,6 +227,19 @@ sintéticos.
 - A evidência sanitizada está em
   `agendamento/screenshots/acceptance-post-fix-production-evidence.txt`.
 
+## Reteste administrativo seguro em produção
+
+O deploy `dad09cf` foi validado em `coleta.hemocione.com.br` com browser real e dados
+sintéticos. O reteste usou somente navegação visível e não executou escritas.
+
+- `Calendário`: passou.
+- `Equipes de Coleta`: passou.
+- `Área de Cobertura`: passou.
+- `Restrições`: passou.
+- As 4 telas carregaram sem erro do navegador ou do console.
+- A evidência sanitizada está em
+  `admin/screenshots/admin-read-only-production-evidence.txt`.
+
 ## QA paralelo pós-fix interrompido
 
 A matriz de agendamento iniciou em browser real, mas a ferramenta exibiu um token de
@@ -236,7 +250,7 @@ sessão em uma URL de redirecionamento durante o diagnóstico de rede.
 - Nenhuma mensagem real foi enviada.
 - Nenhum dado foi excluído.
 - A matriz de agendamento não recebeu um veredito.
-- O QA administrativo e o QA de visita técnica foram encerrados por segurança.
+- O QA de visita técnica foi encerrado por segurança.
 
 O dono da conta confirmou a rotação após o incidente. A sessão usada no novo reteste
 foi fechada. O diagnóstico de rede não foi usado. O QA restante continua incompleto.
@@ -254,7 +268,7 @@ foi fechada. O diagnóstico de rede não foi usado. O QA restante continua incom
 - axe-core em `/agendar` desktop: 0 violations, 0 incomplete; `<html lang="pt-BR">`
   presente, 1 `<h1>` — ISSUE-003 não regrediu.
 - axe-core no modal (mobile + desktop): 0 violations.
-- Console limpo de exceções JS (fora do warning do Bugsnag, ISSUE-A).
+- Console limpo de exceções JS.
 
 ## Resultados adicionais da rodada interrompida
 

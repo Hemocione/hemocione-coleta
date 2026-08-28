@@ -86,7 +86,8 @@ veredito.
 - O teste histórico confirmou que a rota de retirada permitia que Alpha cancelasse uma
   solicitação pendente de Beta. Após o fix, Alpha recebeu HTTP 403 e a solicitação
   permaneceu `pending`. Beta retirou a própria solicitação com HTTP 200.
-- A matriz completa de agendamento e o QA administrativo ficaram incompletos.
+- A matriz completa de agendamento ficou incompleta. O QA administrativo somente leitura
+  passou; os cenários administrativos de escrita ficaram incompletos.
 
 ## Incidente de segurança
 
@@ -96,10 +97,13 @@ paralelo. A sessão foi fechada. O valor não foi salvo nos artefatos.
 O dono da conta confirmou a rotação antes da retomada. O novo reteste não usou
 diagnóstico de rede. A sessão nova foi fechada após o teste.
 
+O reteste administrativo somente leitura passou no deploy `dad09cf`. Calendário,
+Equipes de Coleta, Área de Cobertura e Restrições carregaram sem erros.
+
 ## O que falta fazer depois da interrupção
 
-1. Concluir a matriz de agendamento, visita técnica e QA administrativo com dados
-   sintéticos separados.
+1. Concluir a matriz de agendamento, visita técnica e os cenários administrativos de
+   escrita com dados sintéticos separados.
 2. Manter diagnóstico de rede fora do QA de produção até existir redaction comprovado.
 3. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
    não testar, já documentado no checklist.

@@ -62,6 +62,24 @@ export async function getBloodBanksByBloodBanksLocationIds(
   return bloodBanks;
 }
 
+export async function updateBloodBankSettings(
+  bloodBanksLocationId: string,
+  settings: { hidden: boolean }
+) {
+  const updated = await BloodBank.findOneAndUpdate(
+    { bloodBanksLocationId },
+    { $set: { hidden: settings.hidden } },
+    { new: true, lean: true, runValidators: true }
+  );
+
+  if (!updated) return null;
+
+  return {
+    bloodBanksLocationId: updated.bloodBanksLocationId.toString(),
+    hidden: updated.hidden === true,
+  };
+}
+
 export async function updateBloodBankCoverageArea(
   bloodBanksLocationId: string,
   coverageArea: {

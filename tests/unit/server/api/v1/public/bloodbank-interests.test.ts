@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createBloodBankInterest: vi.fn(),
   useHemocioneUserAuth: vi.fn(),
   getUserInstitutions: vi.fn(),
+  enforcePublicRateLimit: vi.fn(),
 }));
 
 vi.mock("~/server/services/bloodBank", () => ({
@@ -29,6 +30,10 @@ vi.mock("~/server/services/auth", () => ({
 
 vi.mock("~/server/services/hemocioneId", () => ({
   getUserInstitutions: (...args: unknown[]) => mocks.getUserInstitutions(...args),
+}));
+
+vi.mock("~/server/services/publicRateLimit", () => ({
+  enforcePublicRateLimit: (...args: unknown[]) => mocks.enforcePublicRateLimit(...args),
 }));
 
 interface FakeEvent {
@@ -78,9 +83,33 @@ beforeEach(() => {
   });
   mocks.useHemocioneUserAuth.mockReset();
   mocks.getUserInstitutions.mockReset().mockResolvedValue([]);
+  mocks.enforcePublicRateLimit.mockReset();
 });
 
 describe("POST /api/v1/public/bloodbank-interests", () => {
+  it("aplica o rate limit antes das consultas externas", async () => {
+    mocks.enforcePublicRateLimit.mockImplementation(() => {
+      throw Object.assign(new Error("Too many requests"), { statusCode: 429 });
+    });
+
+    await expect(
+      handler(
+        makeEvent({
+          bloodBanksLocationId: locationId,
+          name: "Pessoa",
+          phone: "11999999999",
+          institutionName: "Instituição A",
+          origin: "ondedoar",
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 429 });
+    expect(mocks.enforcePublicRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      "bloodbank-interest",
+    );
+    expect(mocks.getOndeDoarBloodBankByLocationId).not.toHaveBeenCalled();
+  });
+
   it("aceita anônimo e usa nome e telefone do corpo", async () => {
     const response = await handler(
       makeEvent({

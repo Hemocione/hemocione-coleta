@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isValidCnpj, onlyDigits } from '~/utils/cnpj';
+import {
+  formatCnpj,
+  isValidCnpj,
+  normalizeCnpj,
+  onlyDigits,
+} from "~/utils/cnpj";
 
 describe('onlyDigits', () => {
   it('strips non-digit characters', () => {
@@ -32,5 +37,18 @@ describe('isValidCnpj', () => {
   it('rejects wrong length', () => {
     expect(isValidCnpj('1122233300018')).toBe(false);
     expect(isValidCnpj('')).toBe(false);
+  });
+
+  it('accepts a valid alphanumeric CNPJ', () => {
+    expect(isValidCnpj('12.ABC.345/01DE-35')).toBe(true);
+  });
+
+  it('rejects invalid alphanumeric check digits', () => {
+    expect(isValidCnpj('12.ABC.345/01DE-36')).toBe(false);
+  });
+
+  it('normalizes and formats alphanumeric CNPJ values', () => {
+    expect(normalizeCnpj('12.abc.345/01de-35')).toBe('12ABC34501DE35');
+    expect(formatCnpj('12abc34501de35')).toBe('12.ABC.345/01DE-35');
   });
 });

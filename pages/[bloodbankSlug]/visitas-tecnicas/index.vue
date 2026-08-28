@@ -92,7 +92,7 @@
                     class="font-semibold text-gray-900 truncate"
                     data-testid="technical-visit-institution"
                   >
-                    {{ visit.institutionName || "Instituição não vinculada" }}
+                    {{ visit.institutionName || "Instituição não identificada" }}
                   </h4>
                   <p class="text-sm text-gray-600 truncate">
                     {{ visit.address }}
@@ -210,7 +210,7 @@
 
           <div class="space-y-4">
             <!-- Address -->
-            <UFormField v-if="!editingVisit" label="Solicitação vinculada">
+            <UFormField v-if="!editingVisit" label="Solicitação de coleta relacionada">
               <USelect
                 v-model="formData.requestId"
                 :items="requestOptions"
@@ -220,7 +220,8 @@
                 @update:model-value="handleRequestSelection"
               />
               <p class="text-xs text-gray-500 mt-1">
-                A instituição será carregada da solicitação escolhida.
+                Opcional. Se esta visita avalia uma solicitação de coleta já aberta, selecione-a
+                aqui — a instituição e o endereço serão pré-preenchidos, mas você pode ajustá-los.
               </p>
             </UFormField>
 
@@ -235,7 +236,7 @@
                 @update:model-value="handleInstitutionSelection"
               />
               <p class="text-xs text-gray-500 mt-1">
-                Vincule a visita à instituição da coleta ou selecione uma instituição relacionada.
+                Selecione a instituição responsável por este local de visita.
               </p>
             </UFormField>
 
@@ -245,7 +246,6 @@
                 placeholder="Endereco do local visitado"
                 class="w-full"
                 :maxlength="500"
-                :readonly="isAddressDerived"
               />
             </UFormField>
 
@@ -508,18 +508,6 @@ const isFormValid = computed(() => {
     formData.value.visitDate &&
     formData.value.outcome &&
     (formData.value.requestId || formData.value.institutionId)
-  );
-});
-
-const isAddressDerived = computed(() => {
-  if (editingVisit.value) return false;
-  if (formData.value.requestId) return true;
-  if (!formData.value.institutionId) return false;
-
-  return Boolean(
-    institutionOptions.value.find(
-      (institution) => institution.id === formData.value.institutionId
-    )?.address
   );
 });
 

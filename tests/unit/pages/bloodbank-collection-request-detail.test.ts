@@ -108,4 +108,35 @@ describe("detalhe da coleta", () => {
 
     expect(wrapper.find('[data-modal-dismissible="false"]').exists()).toBe(true);
   });
+
+  it("mostra a proposta de visita técnica já enviada, com as datas propostas", async () => {
+    currentCollectionRequest.value = {
+      ...currentCollectionRequest.value,
+      status: "awaiting_technical_visit",
+      visitProposal: {
+        proposedDates: [
+          {
+            date: "2026-09-15",
+            startTime: "09:00",
+            endTime: "10:00",
+            note: "Levar crachá",
+          },
+        ],
+        note: "Preferência pela manhã",
+        proposedBy: "user-a",
+        proposedAt: "2026-08-27T12:00:00.000Z",
+      },
+    };
+
+    const wrapper = mount(CollectionRequestDetailPage, {
+      global: { stubs: globalStubs },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Visita Técnica Proposta");
+    expect(wrapper.text()).toContain("Preferência pela manhã");
+    expect(wrapper.text()).toContain("Levar crachá");
+    expect(wrapper.text()).toContain("Aguardando resposta da instituição");
+    expect(wrapper.text()).not.toContain("Visita técnica necessária");
+  });
 });

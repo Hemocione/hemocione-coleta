@@ -30,6 +30,9 @@ const input = {
   name: "Pessoa A",
   phone: "11999999999",
   phoneNormalized: "5511999999999",
+  institutionId: "123e4567-e89b-12d3-a456-426614174001",
+  institutionName: "Instituição A",
+  institutionDocument: "04252011000110",
   userId: "user-a",
   origin: "ondedoar" as const,
   dedupeKey: "123e4567-e89b-12d3-a456-426614174000:5511999999999",
@@ -66,7 +69,12 @@ describe("persistência de interesse", () => {
       }),
     );
     expect(mocks.sendBloodBankInterestToDiscord).toHaveBeenCalledWith(
-      expect.objectContaining({ bankName: "Banco A" }),
+      expect.objectContaining({
+        bankName: "Banco A",
+        institutionId: input.institutionId,
+        institutionName: input.institutionName,
+        institutionDocument: input.institutionDocument,
+      }),
     );
     expect(mocks.updateOne).toHaveBeenCalledWith(
       { _id: "interest-a" },

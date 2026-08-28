@@ -8,16 +8,7 @@
         aria-live="polite"
         :aria-busy="isLoadingBloodBanks"
       >
-        <div
-          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <h2 class="text-base font-semibold text-gray-900">
-            {{
-              selectedInstitution
-                ? "Bancos de sangue próximos"
-                : "Bancos de sangue disponíveis"
-            }}
-          </h2>
+        <div class="flex justify-end">
           <UButton
             v-if="!hasLatLng"
             data-testid="use-location-button"
@@ -37,8 +28,8 @@
               Agende uma campanha na sua instituição
             </h3>
             <p class="text-sm text-gray-600">
-              Escolha um banco de sangue com agenda disponível e agende uma
-              campanha de doação na sua instituição.
+              Escolha um banco de sangue próximo com agenda disponível e agende
+              uma campanha de doação na sua instituição.
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
@@ -59,10 +50,8 @@
               Registre interesse em uma coleta externa
             </h3>
             <p class="text-sm text-gray-600">
-              Este banco ainda não permite agendamento pela plataforma. Registre
-              seu interesse em organizar uma coleta na sua instituição. A equipe
-              Hemocione usa essa demanda para avaliar o contato com o banco e
-              uma possível coleta externa.
+              Os bancos de sangue próximos de você ainda não permitem
+              agendamento pela plataforma.
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2" v-auto-animate>
@@ -128,14 +117,84 @@
               Banco de sangue: <strong>{{ interestBank.name }}</strong>
             </p>
           </div>
-          <div class="space-y-1">
-            <label for="interest-name" class="text-sm font-medium">Nome</label>
+          <div v-if="!isLoggedIn" class="space-y-1.5">
+            <label
+              for="interest-institution-name"
+              class="block text-sm font-medium text-gray-700"
+            >
+              Nome da instituição
+              <span class="font-normal text-gray-500">(obrigatório)</span>
+            </label>
+            <UInput
+              id="interest-institution-name"
+              name="institutionName"
+              v-model="interestInstitutionName"
+              data-testid="interest-institution-name"
+              autocomplete="organization"
+              class="w-full"
+              aria-required="true"
+              :disabled="interestLoading"
+              :aria-invalid="Boolean(interestInstitutionNameError)"
+              :aria-describedby="
+                interestInstitutionNameError
+                  ? 'interest-institution-name-error'
+                  : undefined
+              "
+            />
+            <p
+              v-if="interestInstitutionNameError"
+              id="interest-institution-name-error"
+              class="text-sm text-red-600"
+            >
+              {{ interestInstitutionNameError }}
+            </p>
+          </div>
+          <div v-if="!isLoggedIn" class="space-y-1.5">
+            <label
+              for="interest-institution-cnpj"
+              class="block text-sm font-medium text-gray-700"
+            >
+              CNPJ <span class="font-normal text-gray-500">(opcional)</span>
+            </label>
+            <UInput
+              id="interest-institution-cnpj"
+              name="institutionCnpj"
+              v-model="interestInstitutionCnpj"
+              data-testid="interest-institution-cnpj"
+              placeholder="00.000.000/0000-00"
+              inputmode="numeric"
+              autocomplete="organization"
+              class="w-full"
+              :disabled="interestLoading"
+              :aria-invalid="Boolean(interestInstitutionCnpjError)"
+              :aria-describedby="
+                interestInstitutionCnpjError
+                  ? 'interest-institution-cnpj-error'
+                  : undefined
+              "
+            />
+            <p
+              v-if="interestInstitutionCnpjError"
+              id="interest-institution-cnpj-error"
+              class="text-sm text-red-600"
+            >
+              {{ interestInstitutionCnpjError }}
+            </p>
+          </div>
+          <div v-if="!isLoggedIn" class="space-y-1.5">
+            <label
+              for="interest-name"
+              class="block text-sm font-medium text-gray-700"
+            >
+              Nome
+            </label>
             <UInput
               id="interest-name"
               name="name"
               v-model="interestName"
               data-testid="interest-name"
               autocomplete="name"
+              class="w-full"
               :disabled="interestLoading"
               :aria-invalid="Boolean(interestNameError)"
               :aria-describedby="interestNameError ? 'interest-name-error' : undefined"
@@ -148,8 +207,13 @@
               {{ interestNameError }}
             </p>
           </div>
-          <div class="space-y-1">
-            <label for="interest-phone" class="text-sm font-medium">Telefone</label>
+          <div v-if="!isLoggedIn" class="space-y-1.5">
+            <label
+              for="interest-phone"
+              class="block text-sm font-medium text-gray-700"
+            >
+              Telefone
+            </label>
             <UInput
               id="interest-phone"
               name="phone"
@@ -157,6 +221,7 @@
               data-testid="interest-phone"
               type="tel"
               autocomplete="tel"
+              class="w-full"
               :disabled="interestLoading"
               :aria-invalid="Boolean(interestPhoneError)"
               :aria-describedby="interestPhoneError ? 'interest-phone-error' : undefined"
@@ -211,7 +276,7 @@ import {
 } from "~/stores/scheduling";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import { useUserStore } from "~/stores/user";
-import { onlyDigits } from "~/utils/cnpj";
+import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
 
 const store = useSchedulingStore();
 const userStore = useUserStore();
@@ -234,8 +299,12 @@ const isLoggedIn = computed(() => Boolean(userStore.user));
 
 const interestDialogOpen = ref(false);
 const interestBank = ref<BloodBankListItem | null>(null);
+const interestInstitutionName = ref("");
+const interestInstitutionCnpj = ref("");
 const interestName = ref("");
 const interestPhone = ref("");
+const interestInstitutionNameError = ref("");
+const interestInstitutionCnpjError = ref("");
 const interestNameError = ref("");
 const interestPhoneError = ref("");
 const interestFormError = ref("");
@@ -248,12 +317,8 @@ const interestDialogTitle = computed(() =>
     : "Quero organizar uma coleta",
 );
 
-const interestDialogDescription = computed(() =>
-  interestBank.value?.availability === "inactive"
-    ? "A agenda online deste banco está indisponível. Registre seu interesse em organizar uma coleta na sua instituição. A equipe Hemocione usa essa demanda para avaliar o contato com o banco e uma possível coleta externa."
-    : interestBank.value?.availability === "missing"
-      ? "Este banco ainda não tem agenda na plataforma. Registre seu interesse em organizar uma coleta na sua instituição. A equipe Hemocione usa essa demanda para avaliar o contato com o banco e uma possível coleta externa."
-      : "Registre seu interesse em organizar uma coleta na sua instituição.",
+const interestDialogDescription = computed(
+  () => "Informe a instituição onde você quer realizar a coleta.",
 );
 
 const selectBank = (bank: BloodBankListItem) => {
@@ -263,8 +328,12 @@ const selectBank = (bank: BloodBankListItem) => {
 };
 
 const resetInterestForm = () => {
+  interestInstitutionName.value = "";
+  interestInstitutionCnpj.value = "";
   interestName.value = "";
   interestPhone.value = "";
+  interestInstitutionNameError.value = "";
+  interestInstitutionCnpjError.value = "";
   interestNameError.value = "";
   interestPhoneError.value = "";
   interestFormError.value = "";
@@ -286,12 +355,35 @@ const submitInterest = async () => {
   const bank = interestBank.value;
   if (!bank?.bloodBanksLocationId) return;
 
+  const institution = selectedInstitution.value;
+  if (isLoggedIn.value && !institution?.id) {
+    useToast().add({
+      title: "Selecione uma instituição antes de enviar o interesse",
+      color: "warning",
+    });
+    return;
+  }
+
+  const institutionName = isLoggedIn.value
+    ? undefined
+    : interestInstitutionName.value.trim();
+  const institutionCnpj = isLoggedIn.value
+    ? undefined
+    : interestInstitutionCnpj.value.trim();
   const name = isLoggedIn.value
     ? undefined
     : interestName.value.trim();
   const phone = isLoggedIn.value
     ? undefined
     : interestPhone.value.trim();
+  if (!isLoggedIn.value && !institutionName) {
+    interestInstitutionNameError.value = "Informe o nome da instituição.";
+    return;
+  }
+  if (institutionCnpj && !isValidCnpj(institutionCnpj)) {
+    interestInstitutionCnpjError.value = "Informe um CNPJ válido.";
+    return;
+  }
   if (!isLoggedIn.value && !name) {
     interestNameError.value = "Informe seu nome.";
     return;
@@ -304,6 +396,8 @@ const submitInterest = async () => {
     }
   }
 
+  interestInstitutionNameError.value = "";
+  interestInstitutionCnpjError.value = "";
   interestNameError.value = "";
   interestPhoneError.value = "";
   interestFormError.value = "";
@@ -315,6 +409,9 @@ const submitInterest = async () => {
       body: {
         bloodBanksLocationId: bank.bloodBanksLocationId,
         bankName: bank.name,
+        ...(institution?.id ? { institutionId: institution.id } : {}),
+        ...(institutionName ? { institutionName } : {}),
+        ...(institutionCnpj ? { institutionCnpj } : {}),
         ...(name ? { name } : {}),
         ...(phone ? { phone } : {}),
         origin: "ondedoar",
@@ -349,6 +446,13 @@ const submitInterest = async () => {
 
 const openInterest = async (bank: BloodBankListItem) => {
   if (!bank.bloodBanksLocationId || interestLoading.value) return;
+  if (isLoggedIn.value && !selectedInstitution.value?.id) {
+    useToast().add({
+      title: "Selecione uma instituição antes de enviar o interesse",
+      color: "warning",
+    });
+    return;
+  }
   interestBank.value = bank;
   resetInterestForm();
   if (isLoggedIn.value) {

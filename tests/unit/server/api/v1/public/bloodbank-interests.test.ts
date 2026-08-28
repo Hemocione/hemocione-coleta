@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getOndeDoarBloodBankByLocationId: vi.fn(),
   createBloodBankInterest: vi.fn(),
   useHemocioneUserAuth: vi.fn(),
+  getUserInstitutions: vi.fn(),
 }));
 
 vi.mock("~/server/services/bloodBank", () => ({
@@ -26,12 +27,17 @@ vi.mock("~/server/services/auth", () => ({
   useHemocioneUserAuth: (...args: unknown[]) => mocks.useHemocioneUserAuth(...args),
 }));
 
+vi.mock("~/server/services/hemocioneId", () => ({
+  getUserInstitutions: (...args: unknown[]) => mocks.getUserInstitutions(...args),
+}));
+
 interface FakeEvent {
   body: unknown;
   headers: { get: (name: string) => string | null };
 }
 
 const locationId = "123e4567-e89b-12d3-a456-426614174000";
+const institutionId = "123e4567-e89b-12d3-a456-426614174001";
 
 let handler: (event: FakeEvent) => Promise<unknown>;
 
@@ -71,6 +77,7 @@ beforeEach(() => {
     deliveryStatus: "disabled",
   });
   mocks.useHemocioneUserAuth.mockReset();
+  mocks.getUserInstitutions.mockReset().mockResolvedValue([]);
 });
 
 describe("POST /api/v1/public/bloodbank-interests", () => {
@@ -81,6 +88,8 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
         bankName: "Banco A",
         name: "Pessoa Anônima",
         phone: "(11) 99999-9999",
+        institutionName: "Instituição Anônima",
+        institutionCnpj: "04.252.011/0001-10",
         origin: "ondedoar",
       }),
     );
@@ -95,6 +104,8 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
       name: "Pessoa Anônima",
       phone: "(11) 99999-9999",
       phoneNormalized: "11999999999",
+      institutionName: "Instituição Anônima",
+      institutionDocument: "04252011000110",
       userId: undefined,
       origin: "ondedoar",
       dedupeKey: `${locationId}:11999999999`,
@@ -108,6 +119,13 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
       surName: "Da Sessão",
       phone: "+55 (11) 98888-7777",
     });
+    mocks.getUserInstitutions.mockResolvedValue([
+      {
+        id: institutionId,
+        name: "Instituição Canônica",
+        document: "04252011000110",
+      },
+    ]);
 
     await handler(
       makeEvent(
@@ -116,6 +134,9 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
           bankName: "Banco A",
           name: "Nome falso",
           phone: "11911111111",
+          institutionId,
+          institutionName: "Nome falso",
+          institutionCnpj: "12.345.678/0001-00",
           origin: "ondedoar",
         },
         "Bearer valid-token",
@@ -124,14 +145,126 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
 
     expect(mocks.useHemocioneUserAuth).toHaveBeenCalled();
     expect(mocks.createBloodBankInterest).toHaveBeenCalledWith(
-        expect.objectContaining({
+      expect.objectContaining({
         name: "Nome Da Sessão",
         phone: "+55 (11) 98888-7777",
         userId: "user-a",
         phoneNormalized: "5511988887777",
         bankName: "Banco canônico do OndeDoar",
+        institutionId,
+        institutionName: "Instituição Canônica",
+        institutionDocument: "04252011000110",
       }),
     );
+  });
+
+  it("resolve a instituição autenticada por dados canônicos da sessão", async () => {
+    mocks.useHemocioneUserAuth.mockReturnValue({
+      id: "user-a",
+      givenName: "Nome",
+      surName: "Da Sessão",
+      phone: "+55 (11) 98888-7777",
+    });
+    mocks.getUserInstitutions.mockResolvedValue([
+      {
+        id: institutionId,
+        name: "Instituição Canônica",
+        document: "04.252.011/0001-10",
+      },
+    ]);
+
+    await handler(
+      makeEvent(
+        {
+          bloodBanksLocationId: locationId,
+          institutionId,
+          institutionName: "Instituição forjada",
+          institutionCnpj: "12.345.678/0001-00",
+          origin: "ondedoar",
+        },
+        "Bearer valid-token",
+      ),
+    );
+
+    expect(mocks.getUserInstitutions).toHaveBeenCalledWith("valid-token");
+    expect(mocks.createBloodBankInterest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        institutionId,
+        institutionName: "Instituição Canônica",
+        institutionDocument: "04252011000110",
+      }),
+    );
+  });
+
+  it("rejeita instituição autenticada sem vínculo do usuário", async () => {
+    mocks.useHemocioneUserAuth.mockReturnValue({
+      id: "user-a",
+      givenName: "Nome",
+      surName: "Da Sessão",
+      phone: "+55 (11) 98888-7777",
+    });
+    mocks.getUserInstitutions.mockResolvedValue([
+      { id: "123e4567-e89b-12d3-a456-426614174009", name: "Outra Instituição" },
+    ]);
+
+    await expect(
+      handler(
+        makeEvent(
+          { bloodBanksLocationId: locationId, institutionId, origin: "ondedoar" },
+          "Bearer valid-token",
+        ),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mocks.createBloodBankInterest).not.toHaveBeenCalled();
+  });
+
+  it("exige instituição no interesse anônimo", async () => {
+    await expect(
+      handler(
+        makeEvent({
+          bloodBanksLocationId: locationId,
+          name: "Pessoa",
+          phone: "11999999999",
+          origin: "ondedoar",
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.createBloodBankInterest).not.toHaveBeenCalled();
+  });
+
+  it("rejeita CNPJ anônimo inválido", async () => {
+    await expect(
+      handler(
+        makeEvent({
+          bloodBanksLocationId: locationId,
+          name: "Pessoa",
+          phone: "11999999999",
+          institutionName: "Instituição A",
+          institutionCnpj: "12.345.678/0001-00",
+          origin: "ondedoar",
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.createBloodBankInterest).not.toHaveBeenCalled();
+  });
+
+  it("exige instituição selecionada no interesse autenticado", async () => {
+    mocks.useHemocioneUserAuth.mockReturnValue({
+      id: "user-a",
+      givenName: "Nome",
+      surName: "Da Sessão",
+      phone: "+55 (11) 98888-7777",
+    });
+
+    await expect(
+      handler(
+        makeEvent(
+          { bloodBanksLocationId: locationId, origin: "ondedoar" },
+          "Bearer valid-token",
+        ),
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.createBloodBankInterest).not.toHaveBeenCalled();
   });
 
   it("não usa telefone do cliente quando a sessão autenticada não tem telefone", async () => {
@@ -141,6 +274,9 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
       surName: "Da Sessão",
       phone: "",
     });
+    mocks.getUserInstitutions.mockResolvedValue([
+      { id: institutionId, name: "Instituição A" },
+    ]);
 
     await expect(
       handler(
@@ -149,6 +285,8 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
             bloodBanksLocationId: locationId,
             name: "Nome falso",
             phone: "11911111111",
+            institutionId,
+            institutionName: "Instituição A",
             origin: "ondedoar",
           },
           "Bearer valid-token",
@@ -165,6 +303,9 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
       surName: "",
       phone: "11999999999",
     });
+    mocks.getUserInstitutions.mockResolvedValue([
+      { id: institutionId, name: "Instituição A" },
+    ]);
 
     await expect(
       handler(
@@ -173,6 +314,8 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
             bloodBanksLocationId: locationId,
             name: "Nome falso",
             phone: "11911111111",
+            institutionId,
+            institutionName: "Instituição A",
             origin: "ondedoar",
           },
           "Bearer valid-token",
@@ -208,6 +351,7 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
           bankName: "Banco A",
           name: " ",
           phone: "telefone inválido",
+          institutionName: "Instituição A",
           origin: "ondedoar",
         }),
       ),
@@ -228,6 +372,7 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
             bankName: "Banco A",
             name: "Nome falso",
             phone: "11911111111",
+            institutionName: "Instituição A",
             origin: "ondedoar",
           },
           "Bearer invalid-token",
@@ -251,6 +396,7 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
           bankName: "Banco A",
           name: "Pessoa",
           phone: "11999999999",
+          institutionName: "Instituição A",
           origin: "ondedoar",
         }),
       ),
@@ -272,6 +418,7 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
           bankName: "Banco A",
           name: "Pessoa",
           phone: "11999999999",
+          institutionName: "Instituição A",
           origin: "ondedoar",
         }),
       ),
@@ -293,6 +440,7 @@ describe("POST /api/v1/public/bloodbank-interests", () => {
           bankName: "Banco A",
           name: "Pessoa",
           phone: "11999999999",
+          institutionName: "Instituição A",
           origin: "ondedoar",
         }),
       ),

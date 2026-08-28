@@ -15,7 +15,11 @@ const mocks = vi.hoisted(() => ({
 const nearbyBloodBanks = ref<BloodBankListItem[]>([]);
 const isLoadingBloodBanks = ref(false);
 const schedulingStore = {
-  selectedInstitution: null as { id: string } | null,
+  selectedInstitution: null as {
+    id: string;
+    name?: string;
+    document?: string;
+  } | null,
   hasLatLng: false,
   latitude: null as number | null,
   longitude: null as number | null,
@@ -142,6 +146,8 @@ describe("/agendar", () => {
     expect(wrapper.find('[data-testid="use-location-button"]').exists()).toBe(
       true
     );
+    expect(wrapper.text()).not.toContain("Bancos de sangue próximos");
+    expect(wrapper.text()).not.toContain("Bancos de sangue disponíveis");
   });
 
   it("mantém bancos com agenda no início da listagem", () => {
@@ -174,10 +180,10 @@ describe("/agendar", () => {
     expect(wrapper.findAll("a")).toHaveLength(0);
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').text()
-    ).toContain("Quero organizar com este banco");
+    ).toContain("Quero organizar com esse banco");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-missing"]').text()
-    ).toContain("Quero organizar com este banco");
+    ).toContain("Quero organizar com esse banco");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').attributes("icon")
     ).toBe("i-lucide-hand-heart");
@@ -195,7 +201,7 @@ describe("/agendar", () => {
 
     expect(wrapper.text()).toContain("Agende uma campanha na sua instituição");
     expect(wrapper.text()).toContain(
-      "agende uma campanha de doação na sua instituição",
+      "Escolha um banco de sangue próximo com agenda disponível e agende uma campanha de doação na sua instituição.",
     );
     expect(activeCard.text()).toContain("Agenda disponível");
     expect(activeCard.text()).toContain("Agendar campanha");
@@ -205,15 +211,19 @@ describe("/agendar", () => {
     expect(activeCard.attributes("data-availability")).toBe("active");
     expect(activeCard.classes()).toContain("border-primary-200");
 
-    expect(inactiveCard.text()).toContain("Agenda online indisponível.");
+    expect(inactiveCard.text()).not.toContain("Agenda online indisponível.");
     expect(inactiveCard.attributes("data-availability")).toBe("inactive");
     expect(inactiveCard.classes()).toContain("border-gray-200");
 
-    expect(missingCard.text()).toContain("Ainda não está na plataforma.");
+    expect(missingCard.text()).not.toContain("Ainda não está na plataforma.");
     expect(missingCard.attributes("data-availability")).toBe("missing");
     expect(missingCard.classes()).toContain("border-gray-200");
 
     expect(wrapper.text()).not.toContain("Sinalizar interesse");
+    expect(wrapper.text()).toContain(
+      "Os bancos de sangue próximos de você ainda não permitem agendamento pela plataforma.",
+    );
+    expect(wrapper.text()).not.toContain("A equipe Hemocione usa essa demanda");
   });
 
   it("limita o nome do banco a três linhas e preserva o nome completo no título", () => {
@@ -229,7 +239,7 @@ describe("/agendar", () => {
     expect(bankName.attributes("title")).toBe(longName);
   });
 
-  it("explica no modal como a equipe avalia uma coleta externa", async () => {
+  it("orienta o modal sem explicar o processo interno do Hemocione", async () => {
     const wrapper = mountPage();
 
     await wrapper
@@ -241,16 +251,41 @@ describe("/agendar", () => {
     );
     expect(wrapper.text()).toContain("Banco sem cadastro de agendamento");
     expect(wrapper.text()).toContain(
-      "Registre seu interesse em organizar uma coleta na sua instituição",
+      "Informe a instituição onde você quer realizar a coleta.",
     );
+    expect(wrapper.text()).not.toContain("A equipe Hemocione usa essa demanda");
   });
 
-  it("envia interesse anônimo pelo dialog com nome e telefone", async () => {
+  it("exige o nome da instituição no interesse anônimo", async () => {
     const wrapper = mountPage();
 
     await wrapper
       .find('[data-testid="interest-bank-bank-inactive"]')
       .trigger("click");
+    await wrapper.find('[data-testid="interest-submit"]').trigger("submit");
+
+    expect(wrapper.text()).toContain("Informe o nome da instituição.");
+    expect(mocks.fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  it("envia interesse anônimo pelo dialog com dados da instituição, nome e telefone", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    expect(wrapper.find('label[for="interest-name"]').classes()).toContain(
+      "block",
+    );
+    expect(wrapper.find('[data-testid="interest-name"]').classes()).toContain(
+      "w-full",
+    );
+    await wrapper
+      .find('[data-testid="interest-institution-name"]')
+      .setValue("Instituição A");
+    await wrapper
+      .find('[data-testid="interest-institution-cnpj"]')
+      .setValue("04.252.011/0001-10");
     await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
     await wrapper
       .find('[data-testid="interest-phone"]')
@@ -267,10 +302,34 @@ describe("/agendar", () => {
           bloodBanksLocationId: "location-inactive",
           name: "Pessoa A",
           phone: "(11) 99999-9999",
+          institutionName: "Instituição A",
+          institutionCnpj: "04.252.011/0001-10",
           origin: "ondedoar",
         }),
       }),
     );
+  });
+
+  it("rejeita CNPJ inválido no interesse anônimo", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    await wrapper
+      .find('[data-testid="interest-institution-name"]')
+      .setValue("Instituição A");
+    await wrapper
+      .find('[data-testid="interest-institution-cnpj"]')
+      .setValue("12.345.678/0001-00");
+    await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
+    await wrapper
+      .find('[data-testid="interest-phone"]')
+      .setValue("(11) 99999-9999");
+    await wrapper.find('[data-testid="interest-submit"]').trigger("submit");
+
+    expect(wrapper.text()).toContain("Informe um CNPJ válido.");
+    expect(mocks.fetchWithAuth).not.toHaveBeenCalled();
   });
 
   it("libera o envio quando o registro de interesse falha", async () => {
@@ -280,6 +339,9 @@ describe("/agendar", () => {
     await wrapper
       .find('[data-testid="interest-bank-bank-inactive"]')
       .trigger("click");
+    await wrapper
+      .find('[data-testid="interest-institution-name"]')
+      .setValue("Instituição A");
     await wrapper.find('[data-testid="interest-name"]').setValue("Pessoa A");
     await wrapper
       .find('[data-testid="interest-phone"]')
@@ -301,6 +363,11 @@ describe("/agendar", () => {
       surName: "Sessão",
       phone: "+55 (11) 98888-7777",
     };
+    schedulingStore.selectedInstitution = {
+      id: "institution-a",
+      name: "Instituição A",
+      document: "04252011000110",
+    };
     const wrapper = mountPage();
 
     await wrapper
@@ -319,7 +386,37 @@ describe("/agendar", () => {
         }),
       }),
     );
+    expect(mocks.fetchWithAuth).toHaveBeenCalledWith(
+      "/api/v1/public/bloodbank-interests",
+      expect.objectContaining({
+        body: expect.objectContaining({ institutionId: "institution-a" }),
+      }),
+    );
+    const requestBody = mocks.fetchWithAuth.mock.calls[0][1].body;
+    expect(requestBody).not.toHaveProperty("institutionName");
+    expect(requestBody).not.toHaveProperty("institutionCnpj");
     expect(wrapper.find('[data-testid="interest-modal"]').exists()).toBe(false);
+  });
+
+  it("não envia interesse autenticado sem instituição selecionada", async () => {
+    userStore.user = {
+      givenName: "Pessoa",
+      surName: "Sessão",
+      phone: "+55 (11) 98888-7777",
+    };
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-inactive"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(mocks.fetchWithAuth).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Selecione uma instituição antes de enviar o interesse",
+      }),
+    );
   });
 
   it("não exibe banco hidden mesmo quando o catálogo cliente o contém", async () => {

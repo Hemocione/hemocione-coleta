@@ -54,6 +54,7 @@ describe("delivery Discord", () => {
       "https://discord.com/api/webhooks/example-id/example-value",
       expect.objectContaining({
         method: "POST",
+        timeout: 15000,
         body: expect.objectContaining({
           allowed_mentions: { parse: [] },
           content: expect.stringContaining("Pessoa A"),

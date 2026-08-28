@@ -109,6 +109,7 @@ export const BloodBankSchema = new Schema(
       unique: true,
     },
     active: { type: Boolean, default: false, required: true },
+    hidden: { type: Boolean, default: false, required: true },
     logo: { type: String, default: null, required: false },
     activatedAt: { type: Date, default: null },
     deactivatedAt: { type: Date, default: null },

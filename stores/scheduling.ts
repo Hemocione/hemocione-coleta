@@ -29,11 +29,14 @@ export interface Institution {
 }
 
 export interface BloodBankListItem {
-  _id: string;
+  _id?: string | null;
   name: string;
-  slug: string;
-  bloodBanksLocationId: string;
+  slug?: string | null;
+  bloodBanksLocationId?: string | null;
   logo?: string | null;
+  availability?: "active" | "inactive" | "missing";
+  hidden?: boolean;
+  active?: boolean;
   distanceMeters?: number;
 }
 
@@ -243,7 +246,7 @@ export const useSchedulingStore = defineStore("scheduling", {
       return selected || null;
     },
 
-    async loadBloodBanksByCoverage() {
+    async loadPublicBloodBanks() {
       const requestVersion = ++this.coverageRequestVersion;
       this.nearbyBloodBanks = [];
       if (!this.hasLatLng) {
@@ -256,9 +259,12 @@ export const useSchedulingStore = defineStore("scheduling", {
           success: boolean;
           data: BloodBankListItem[];
         }>(
-          `/api/v1/bloodbanks/by-location?lat=${this.latitude}&lng=${this.longitude}`
+          `/api/v1/public/bloodbanks/by-location?lat=${this.latitude}&lng=${this.longitude}`
         );
-        if (requestVersion === this.coverageRequestVersion && data.value?.success) {
+        if (
+          requestVersion === this.coverageRequestVersion &&
+          data.value?.success
+        ) {
           this.nearbyBloodBanks = data.value.data;
         }
       } finally {
@@ -266,6 +272,9 @@ export const useSchedulingStore = defineStore("scheduling", {
           this.isLoadingBloodBanks = false;
         }
       }
+    },
+    async loadBloodBanksByCoverage() {
+      await this.loadPublicBloodBanks();
     },
   },
 });

@@ -38,6 +38,9 @@ export default defineNuxtConfig({
       "https://eventos.d.hemocione.com.br",
     coletaIntegrationSecret:
       process.env.COLETA_INTEGRATION_SECRET ?? "secret",
+    ondedoarApiUrl: process.env.ONDEDOAR_API_URL || "",
+    discordBloodBankInterestWebhookUrl:
+      process.env.DISCORD_BLOODBANK_INTEREST_WEBHOOK_URL || "",
   },
   nitro: {
     preset: "vercel", // Deploy no Vercel

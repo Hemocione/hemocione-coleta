@@ -135,6 +135,12 @@ HEMOCIONE_ID_INTEGRATION_SECRET=secret
 # API do Hemocione ID (validação de tokens e dados do usuário)
 HEMOCIONE_ID_API_URL=https://hemocione-id-dev.cpt.hemocione.com.br
 
+# API pública do OndeDoar para bancos próximos. Vazio desativa a fonte externa.
+ONDEDOAR_API_URL=
+
+# Webhook privado do Discord para interesses. Vazio persiste sem delivery externo.
+DISCORD_BLOODBANK_INTEREST_WEBHOOK_URL=
+
 # URL do portal do Hemocione ID (redirecionamento de login)
 HEMOCIONE_ID_URL=https://id.d.hemocione.com.br
 
@@ -147,6 +153,24 @@ BUGSNAG_API_KEY=
 ```
 
 > **Nota:** As variáveis sem valor padrão marcado como obrigatórias devem ser configuradas para o funcionamento completo da aplicação. Para desenvolvimento local, os valores padrão embutidos no `nuxt.config.ts` já cobrem o básico.
+
+### Interesse em bancos de sangue
+
+`GET /api/v1/public/bloodbanks/by-location?lat={latitude}&lng={longitude}` retorna a união dos bancos ativos do Coleta e dos bancos do OndeDoar em raio fixo de 50 km.
+
+O catálogo usa somente `bloodBanksLocationId` para o match. Pontos OndeDoar sem esse identificador não entram no catálogo.
+
+No sync do OndeDoar, `point.id` vem de `bloodBanksLocations.id` do Hemocione ID. Esse UUID é a chave principal da localização. O Coleta normaliza `point.id` para `bloodBanksLocationId` antes do match e do submit.
+
+O Coleta não usa o `_id` do MongoDB do OndeDoar. O Coleta também não usa o nome para fazer match.
+
+`POST /api/v1/public/bloodbank-interests` recebe `bloodBanksLocationId`, `bankName` e `origin: "ondedoar"`.
+
+O usuário autenticado usa nome e telefone da sessão. O usuário anônimo informa `name` e `phone` no corpo.
+
+O Coleta persiste o interesse antes do delivery. O registro usa `pending`, `delivering`, `sent`, `failed` ou `disabled` para o Discord.
+
+O Coleta reivindica o registro com uma atualização atômica antes do delivery. Uma requisição concorrente retorna `pending` sem enviar outra mensagem. Falha do Discord marca `failed` e retorna erro 502 após a persistência. Nova tentativa reutiliza o registro `failed` ou uma reivindicação `delivering` expirada pelo mesmo banco e telefone.
 
 ---
 

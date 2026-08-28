@@ -1,5 +1,6 @@
 import { updateInstitutionProfile } from "~/server/services/hemocioneId";
 import { z } from "zod";
+import { isHemocioneCdnUrl } from "~/utils/institutionLogo";
 
 const bodySchema = z
   .object({
@@ -11,6 +12,12 @@ const bodySchema = z
     state: z.string().trim().length(2).optional(),
     latitude: z.number().finite().min(-90).max(90).nullable().optional(),
     longitude: z.number().finite().min(-180).max(180).nullable().optional(),
+    logo: z
+      .string()
+      .url()
+      .refine(isHemocioneCdnUrl, "A logo deve usar a CDN do Hemocione")
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {

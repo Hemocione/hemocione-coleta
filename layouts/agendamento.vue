@@ -287,6 +287,11 @@
                 :disabled="saving || cnpjLoading || geocodeLoading"
               />
             </UFormField>
+            <InstitutionLogoField
+              v-model="form.logo"
+              :disabled="saving || cnpjLoading || geocodeLoading"
+              @uploading="createLogoUploading = $event"
+            />
             <div
               v-if="discardConfirm"
               class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
@@ -311,8 +316,12 @@
               >
               <UButton
                 color="primary"
-                :loading="saving || cnpjLoading || geocodeLoading"
-                :disabled="cnpjLoading || geocodeLoading || !isFormValid"
+                :loading="
+                  saving || cnpjLoading || geocodeLoading || createLogoUploading
+                "
+                :disabled="
+                  cnpjLoading || geocodeLoading || createLogoUploading || !isFormValid
+                "
                 @click="createInst"
                 >Salvar</UButton
               >
@@ -360,6 +369,11 @@
             <UFormField label="Telefone">
               <UInput v-model="editInstitutionForm.phone" />
             </UFormField>
+            <InstitutionLogoField
+              v-model="editInstitutionForm.logo"
+              :disabled="editInstitutionSaving"
+              @uploading="editLogoUploading = $event"
+            />
             <div class="flex justify-end gap-2">
               <UButton
                 variant="ghost"
@@ -371,7 +385,7 @@
               <UButton
                 color="primary"
                 :loading="editInstitutionSaving"
-                :disabled="!isEditInstitutionValid"
+                :disabled="!isEditInstitutionValid || editLogoUploading"
                 data-testid="save-institution-button"
                 @click="saveEditInstitution"
               >
@@ -471,6 +485,8 @@ const discardConfirm = ref(false);
 const editInstitutionOpen = ref(false);
 const editInstitutionSaving = ref(false);
 const editInstitutionError = ref("");
+const createLogoUploading = ref(false);
+const editLogoUploading = ref(false);
 const editInstitutionForm = reactive({
   name: "",
   legalName: "",
@@ -478,6 +494,7 @@ const editInstitutionForm = reactive({
   city: "",
   state: "",
   phone: "",
+  logo: null as string | null,
 });
 const userInstitutions = computed(() => scheduling.userInstitutions || []);
 const institutionItems = computed(() =>
@@ -553,6 +570,7 @@ const form = reactive({
   city: "",
   state: "",
   phone: "",
+  logo: null as string | null,
   kind: "company" as string,
 });
 
@@ -572,7 +590,8 @@ const isFormDirty = computed(() => {
     form.address.trim() !== "" ||
     form.city.trim() !== "" ||
     form.state.trim() !== "" ||
-    form.phone.trim() !== ""
+    form.phone.trim() !== "" ||
+    Boolean(form.logo)
   );
 });
 
@@ -787,6 +806,7 @@ const createInst = async () => {
       phone: `+${(form.phone || "").replace(/[^a-zA-Z0-9]/g, "")}`,
       city: form.city,
       state: form.state,
+      logo: form.logo,
       latitude: scheduling.latitude ?? undefined,
       longitude: scheduling.longitude ?? undefined,
     });
@@ -825,6 +845,7 @@ const openEditInstitution = () => {
     city: institution.city || "",
     state: institution.state || "",
     phone: institution.phone || "",
+    logo: institution.logo || null,
   });
   editInstitutionError.value = "";
   editInstitutionOpen.value = true;
@@ -843,6 +864,7 @@ const saveEditInstitution = async () => {
       city: editInstitutionForm.city.trim(),
       state: editInstitutionForm.state,
       phone: editInstitutionForm.phone.trim() || null,
+      logo: editInstitutionForm.logo,
     });
     editInstitutionOpen.value = false;
     useToast().add({ title: "Instituição atualizada", color: "success" });

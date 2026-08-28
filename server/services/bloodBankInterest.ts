@@ -9,6 +9,9 @@ export interface CreateBloodBankInterestInput {
   name: string;
   phone: string;
   phoneNormalized: string;
+  institutionId?: string;
+  institutionName: string;
+  institutionDocument?: string;
   userId?: string;
   origin: "ondedoar";
   dedupeKey: string;
@@ -78,6 +81,9 @@ async function deliverInterest(
       bankName: input.bankName,
       name: input.name,
       phone: input.phone,
+      institutionId: input.institutionId,
+      institutionName: input.institutionName,
+      institutionDocument: input.institutionDocument,
       userId: input.userId,
       origin: input.origin,
     });

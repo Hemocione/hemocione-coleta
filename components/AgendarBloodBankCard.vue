@@ -39,9 +39,6 @@
             />
             <span>Agenda disponível</span>
           </div>
-          <p v-else class="mt-2 max-w-prose text-xs leading-relaxed text-gray-600">
-            {{ unavailableMessage }}
-          </p>
         </div>
       </div>
 
@@ -68,7 +65,7 @@
         :disabled="actionDisabled"
         @click="emit('interest', bank)"
       >
-        Quero organizar com este banco
+        Quero organizar com esse banco
       </UButton>
     </div>
   </UCard>
@@ -96,16 +93,6 @@ const distanceLabel = computed(() => {
   const distanceMeters = props.bank.distanceMeters;
   if (typeof distanceMeters !== "number") return "";
   return `${(distanceMeters / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`;
-});
-
-const unavailableMessage = computed(() => {
-  if (props.bank.availability === "inactive") {
-    return "Agenda online indisponível.";
-  }
-  if (props.bank.availability === "missing") {
-    return "Ainda não está na plataforma.";
-  }
-  return "Ainda não é possível agendar neste banco.";
 });
 
 const cardClass = computed(() =>

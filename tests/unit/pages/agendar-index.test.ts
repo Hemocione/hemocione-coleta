@@ -1,6 +1,7 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { computed, onMounted, ref } from "vue";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import AgendarBloodBankCard from "~/components/AgendarBloodBankCard.vue";
 import type { BloodBankListItem } from "~/stores/scheduling";
 
 const mocks = vi.hoisted(() => ({
@@ -123,6 +124,7 @@ function mountPage() {
   return mount(AgendarPage, {
     global: {
       stubs: globalStubs,
+      components: { AgendarBloodBankCard },
       directives: { "auto-animate": {} },
     },
   });
@@ -142,6 +144,19 @@ describe("/agendar", () => {
     );
   });
 
+  it("mantém bancos com agenda no início da listagem", () => {
+    nearbyBloodBanks.value = [inactiveBank, bankWithoutSlug, activeBank];
+    const wrapper = mountPage();
+
+    const cards = wrapper.findAll('[data-testid^="blood-bank-card-"]');
+
+    expect(cards.map((card) => card.attributes("data-availability"))).toEqual([
+      "active",
+      "inactive",
+      "missing",
+    ]);
+  });
+
   it("mantém o fluxo atual para banco ativo", async () => {
     const wrapper = mountPage();
 
@@ -159,10 +174,58 @@ describe("/agendar", () => {
     expect(wrapper.findAll("a")).toHaveLength(0);
     expect(
       wrapper.find('[data-testid="interest-bank-bank-inactive"]').text()
-    ).toContain("Sinalizar Interesse");
+    ).toContain("Avisar que quero doar");
     expect(
       wrapper.find('[data-testid="interest-bank-bank-missing"]').text()
-    ).toContain("Sinalizar Interesse");
+    ).toContain("Avisar que quero doar");
+    expect(
+      wrapper.find('[data-testid="interest-bank-bank-inactive"]').attributes("icon")
+    ).toBe("i-lucide-hand-heart");
+    expect(
+      wrapper.find('[data-testid="interest-bank-bank-missing"]').attributes("icon")
+    ).toBe("i-lucide-hand-heart");
+  });
+
+  it("explica a disponibilidade de cada banco e destaca somente o CTA indisponível", () => {
+    const wrapper = mountPage();
+
+    const activeCard = wrapper.find('[data-testid="blood-bank-card-bank-active"]');
+    const inactiveCard = wrapper.find('[data-testid="blood-bank-card-bank-inactive"]');
+    const missingCard = wrapper.find('[data-testid="blood-bank-card-bank-missing"]');
+
+    expect(activeCard.text()).toContain("Agenda disponível");
+    expect(activeCard.text()).toContain("Agendar coleta");
+    expect(activeCard.find("button").attributes("icon")).toBe(
+      "i-lucide-calendar-plus",
+    );
+    expect(activeCard.attributes("data-availability")).toBe("active");
+    expect(activeCard.classes()).toContain("border-primary-200");
+
+    expect(inactiveCard.text()).toContain("Agenda online indisponível.");
+    expect(inactiveCard.attributes("data-availability")).toBe("inactive");
+    expect(inactiveCard.classes()).toContain("border-gray-200");
+
+    expect(missingCard.text()).toContain("Ainda não está na plataforma.");
+    expect(missingCard.attributes("data-availability")).toBe("missing");
+    expect(missingCard.classes()).toContain("border-gray-200");
+
+    expect(wrapper.text()).not.toContain("Sinalizar interesse");
+  });
+
+  it("explica no modal que o aviso ajuda a equipe a avaliar uma coleta externa", async () => {
+    const wrapper = mountPage();
+
+    await wrapper
+      .find('[data-testid="interest-bank-bank-missing"]')
+      .trigger("click");
+
+    expect(wrapper.text()).toContain(
+      "Avise que você quer doar no Banco sem cadastro de agendamento",
+    );
+    expect(wrapper.text()).toContain("Banco sem cadastro de agendamento");
+    expect(wrapper.text()).toContain(
+      "Seu aviso ajuda a equipe Hemocione a medir a demanda e entrar em contato com o banco para avaliar uma coleta externa",
+    );
   });
 
   it("envia interesse anônimo pelo dialog com nome e telefone", async () => {

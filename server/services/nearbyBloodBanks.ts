@@ -202,7 +202,15 @@ export async function getNearbyBloodBanks(
     });
   }
 
+  const availabilityPriority: Record<NearbyBloodBankAvailability, number> = {
+    active: 0,
+    inactive: 1,
+    missing: 1,
+  };
+
   return [...resultById.values()].sort(
-    (a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity),
+    (a, b) =>
+      availabilityPriority[a.availability] - availabilityPriority[b.availability] ||
+      (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity),
   );
 }

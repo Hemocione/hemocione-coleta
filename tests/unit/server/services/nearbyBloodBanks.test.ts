@@ -107,6 +107,68 @@ beforeEach(() => {
 });
 
 describe("listagem unificada de bancos próximos", () => {
+  it("prioriza bancos com agenda antes da distância", async () => {
+    mocks.bloodBankFind
+      .mockReset()
+      .mockReturnValueOnce(
+        chainable([
+          {
+            _id: "local-active-id",
+            name: "Banco ativo distante",
+            slug: "banco-ativo-distante",
+            bloodBanksLocationId: locationActive,
+            logo: null,
+            active: true,
+            hidden: false,
+            location: { coordinates: [-46.9, -23.9] },
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainable([
+          {
+            _id: "local-inactive-id",
+            name: "Banco inativo próximo",
+            slug: "banco-inativo-proximo",
+            bloodBanksLocationId: locationInactive,
+            logo: null,
+            active: false,
+            hidden: false,
+          },
+        ]),
+      );
+    mocks.getNearbyOndeDoarBloodBanks.mockResolvedValue([
+      {
+        bloodBanksLocationId: locationInactive,
+        name: "Banco inativo próximo",
+        origin: "ondedoar",
+        distanceMeters: 100,
+      },
+      {
+        bloodBanksLocationId: locationMissing,
+        name: "Banco ainda não cadastrado",
+        origin: "ondedoar",
+        distanceMeters: 200,
+      },
+    ]);
+    const { getNearbyBloodBanks } = await import("~/server/services/nearbyBloodBanks");
+
+    await expect(getNearbyBloodBanks(-23.5505, -46.6333)).resolves.toEqual([
+      expect.objectContaining({
+        bloodBanksLocationId: locationActive,
+        availability: "active",
+      }),
+      expect.objectContaining({
+        bloodBanksLocationId: locationInactive,
+        availability: "inactive",
+      }),
+      expect.objectContaining({
+        bloodBanksLocationId: locationMissing,
+        availability: "missing",
+      }),
+    ]);
+  });
+
   it("une OndeDoar e Coleta por bloodBanksLocationId", async () => {
     const { getNearbyBloodBanks } = await import("~/server/services/nearbyBloodBanks");
 

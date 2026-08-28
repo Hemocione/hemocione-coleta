@@ -241,6 +241,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
     isLoadingRestrictions: false,
     isLoadingAvailableDates: false,
     isLoadingCollectionRequests: false,
+    collectionRequestsLoadVersion: 0,
     isLoadingDashboard: false,
     error: null as string | null,
   }),
@@ -1008,6 +1009,7 @@ export const useBloodbankStore = defineStore("bloodbank", {
       filters: { status?: string; dateFrom?: string; dateTo?: string } = {},
       page: number = 1
     ) {
+      const loadVersion = ++this.collectionRequestsLoadVersion;
       this.isLoadingCollectionRequests = true;
       this.error = null;
 
@@ -1023,7 +1025,11 @@ export const useBloodbankStore = defineStore("bloodbank", {
           `/api/v1/bloodbank/${bloodBanksLocationId}/collection-requests?${queryParams.toString()}`
         );
 
-        if (response.success) {
+        if (!response.success) {
+          throw new Error("Failed to load collection requests");
+        }
+
+        if (loadVersion === this.collectionRequestsLoadVersion) {
           this.collectionRequests = {
             data: response.data.map((request: any) => ({
               ...request,
@@ -1045,16 +1051,19 @@ export const useBloodbankStore = defineStore("bloodbank", {
             })),
             pagination: response.pagination,
           };
-          return response.data;
-        } else {
-          throw new Error("Failed to load collection requests");
         }
+
+        return response.data;
       } catch (error: any) {
-        this.error = error.message || "Error loading collection requests";
-        console.error("Error loading collection requests:", error);
+        if (loadVersion === this.collectionRequestsLoadVersion) {
+          this.error = error.message || "Error loading collection requests";
+          console.error("Error loading collection requests:", error);
+        }
         throw error;
       } finally {
-        this.isLoadingCollectionRequests = false;
+        if (loadVersion === this.collectionRequestsLoadVersion) {
+          this.isLoadingCollectionRequests = false;
+        }
       }
     },
 

@@ -153,7 +153,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { useSchedulingStore } from "~/stores/scheduling";
-import { useFetchWithAuth } from "~/composables/useFetchWithAuth";
+import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import { getCollectionRequestPhase } from "~/utils/collectionRequestPhase";
 
 interface InstitutionCollectionRequestListItem {
@@ -258,15 +258,15 @@ async function loadRequests() {
 
   isLoading.value = true;
   try {
-    const { data } = await useFetchWithAuth<CollectionRequestsResponse>(
+    const response = await fetchWithAuth<CollectionRequestsResponse>(
       `/api/v1/institutions/${institutionId}/collection-requests`,
       {
         query: { page: currentPage.value, limit: pagination.value.limit },
       }
     );
-    if (loadVersion === requestsLoadVersion && data.value) {
-      requests.value = data.value.data;
-      pagination.value = data.value.pagination;
+    if (loadVersion === requestsLoadVersion && response.success) {
+      requests.value = response.data;
+      pagination.value = response.pagination;
     }
   } catch {
     useToast().add({

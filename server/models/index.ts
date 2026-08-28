@@ -4,6 +4,7 @@ import * as availableDate from "./availableDate";
 import * as collectionRequest from "./collectionRequest";
 import * as technicalVisit from "./technicalVisit";
 import * as commitmentTerm from "./commitmentTerm";
+import * as bloodBankInterest from "./bloodBankInterest";
 
 export {
   bloodBank,
@@ -12,4 +13,5 @@ export {
   team,
   technicalVisit,
   commitmentTerm,
+  bloodBankInterest,
 };

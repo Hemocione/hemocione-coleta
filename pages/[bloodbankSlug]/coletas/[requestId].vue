@@ -1170,6 +1170,11 @@ import timezone from "dayjs/plugin/timezone";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+definePageMeta({
+  layout: "default",
+  keepalive: false,
+});
+
 const route = useRoute();
 const router = useRouter();
 const bloodbankStore = useBloodbankStore();

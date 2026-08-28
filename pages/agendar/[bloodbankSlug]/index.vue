@@ -446,7 +446,7 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: "agendamento" });
+definePageMeta({ layout: "agendamento", keepalive: false });
 import { useSchedulingStore } from "~/stores/scheduling";
 import { useUserStore } from "~/stores/user";
 import { redirectToID } from "~/utils/redirectToID";

@@ -182,8 +182,8 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
       accessToken: "token-a",
       institutionName: "Instituição A",
       availableSlotOptions: [
-        { date: "10/09/2026", isRequested: true },
-        { date: "11/09/2026", isRequested: true },
+        { date: "2026-09-10", isRequested: true },
+        { date: "2026-09-11", isRequested: true },
       ],
     });
     mocks.sendWhatsAppNotification.mockReturnValue(notificationPromise);

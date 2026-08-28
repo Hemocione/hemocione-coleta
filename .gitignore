@@ -100,3 +100,6 @@ bruno
 .chief/
 .env*
 !.env.example
+
+# Superpowers planning docs (local only, never committed)
+docs/superpowers/

@@ -72,6 +72,8 @@ beforeEach(() => {
     status: "sent",
     sentAt: null,
     acknowledgedAt: null,
+    signedByName: "Ana Silva",
+    signedAt: new Date("2026-08-27T12:30:00.000Z"),
     createdAt: new Date("2026-08-27T12:00:00.000Z"),
   });
   mocks.getBloodBankByBloodBanksLocationId.mockResolvedValue({
@@ -84,6 +86,35 @@ describe("termo público", () => {
     const response = await publicHandler(makeEvent());
 
     expect(response.data.generatedContent).toBe("Banco: Hemodemo");
+  });
+
+  it("retorna a identificação da assinatura sem expor o id interno", async () => {
+    const response = await publicHandler(makeEvent());
+
+    expect(response.data).toMatchObject({
+      signedByName: "Ana Silva",
+      signedAt: new Date("2026-08-27T12:30:00.000Z"),
+    });
+    expect(response.data).not.toHaveProperty("_id");
+  });
+
+  it("retorna campos nulos para termos antigos sem assinatura", async () => {
+    mocks.getCommitmentTermByToken.mockResolvedValue({
+      _id: "legacy-term",
+      bloodBanksLocationId: "blood-bank-a",
+      generatedContent: "Banco: {{Grupo Pulsa}}",
+      status: "sent",
+      sentAt: null,
+      acknowledgedAt: null,
+      createdAt: new Date("2025-01-01T12:00:00.000Z"),
+    });
+
+    const response = await publicHandler(makeEvent());
+
+    expect(response.data).toMatchObject({
+      signedByName: null,
+      signedAt: null,
+    });
   });
 
   it("retorna PDF como download", async () => {

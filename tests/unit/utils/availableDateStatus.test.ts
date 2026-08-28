@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { getCalendarAvailabilityColor } from "~/utils/availableDateStatus";
+import {
+  getCalendarAvailabilityColor,
+  isAvailableDateFullyBooked,
+} from "~/utils/availableDateStatus";
 
 describe("getCalendarAvailabilityColor", () => {
   it("returns undefined when there is no available date record", () => {
@@ -58,5 +61,32 @@ describe("getCalendarAvailabilityColor", () => {
         slots: [{ locked: true }, { lockedBy: "collection-request-a" }],
       })
     ).toBe("error");
+  });
+});
+
+describe("isAvailableDateFullyBooked", () => {
+  it("retorna true quando todos os slots estão locked", () => {
+    expect(
+      isAvailableDateFullyBooked({
+        slots: [{ locked: true }, { locked: false, lockedBy: "req-a" }],
+      })
+    ).toBe(true);
+  });
+
+  it("retorna false quando pelo menos um slot está livre", () => {
+    expect(
+      isAvailableDateFullyBooked({
+        slots: [{ locked: true }, { locked: false }],
+      })
+    ).toBe(false);
+  });
+
+  it("retorna false quando não há slots (isAllTeams ainda não configurado)", () => {
+    expect(isAvailableDateFullyBooked({ slots: [] })).toBe(false);
+  });
+
+  it("retorna false para null/undefined", () => {
+    expect(isAvailableDateFullyBooked(null)).toBe(false);
+    expect(isAvailableDateFullyBooked(undefined)).toBe(false);
   });
 });

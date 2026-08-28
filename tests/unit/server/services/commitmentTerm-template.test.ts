@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CommitmentTermSchema } from "~/server/models/commitmentTerm";
 import {
   DEFAULT_COMMITMENT_TERM_TEMPLATE,
   renderTemplate,
@@ -15,5 +16,16 @@ describe("template do termo de compromisso", () => {
 
   it("mantém somente placeholders suportados no template padrão", () => {
     expect(DEFAULT_COMMITMENT_TERM_TEMPLATE).not.toContain("{{Grupo Pulsa}}");
+  });
+
+  it("mantém a assinatura identificada opcional no schema", () => {
+    expect(CommitmentTermSchema.path("signedByName").options).toMatchObject({
+      required: false,
+      default: null,
+    });
+    expect(CommitmentTermSchema.path("signedAt").options).toMatchObject({
+      required: false,
+      default: null,
+    });
   });
 });

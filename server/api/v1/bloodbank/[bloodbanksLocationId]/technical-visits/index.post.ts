@@ -1,7 +1,7 @@
 import { z } from "zod";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 import { assertUserAccessToBloodBanksLocationId } from "~/server/services/auth";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import {
@@ -24,6 +24,28 @@ import {
 dayjs.extend(utc);
 dayjs.extend(timezone);
 const SCHEDULE_TIMEZONE = "America/Sao_Paulo";
+
+function formatRequestAddress(address?: {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}) {
+  if (!address) return "";
+
+  return [
+    `${address.street}, ${address.number}`,
+    address.complement,
+    address.neighborhood,
+    `${address.city} - ${address.state}`,
+    address.zipCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
 
 const createTechnicalVisitSchema = z.object({
   requestId: z.string().trim().min(1).nullish(),
@@ -98,6 +120,7 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    let institutionAddress: string | undefined;
     if (!selectedRequest && parsed.data.institutionId) {
       const institutionRequests = await getCollectionRequestsByBloodBank(
         bloodBanksLocationId,
@@ -110,8 +133,14 @@ export default defineEventHandler(async (event) => {
           statusMessage: "Institution is not associated with this blood bank",
         });
       }
+
+      institutionAddress = institutionRequests.data[0]?.institutionAddress;
     }
 
+    const linkedAddress = selectedRequest
+      ? formatRequestAddress(selectedRequest.address) ||
+        selectedRequest.institutionAddress
+      : undefined;
     const visitDate = parsed.data.visitDate.includes("T")
       ? new Date(parsed.data.visitDate)
       : dayjs
@@ -122,7 +151,7 @@ export default defineEventHandler(async (event) => {
       bloodBanksLocationId,
       institutionId:
         selectedRequest?.institutionId || parsed.data.institutionId || undefined,
-      address: parsed.data.address,
+      address: linkedAddress || institutionAddress || parsed.data.address,
       location: parsed.data.location ?? undefined,
       visitDate,
       outcome: parsed.data.outcome,
@@ -201,9 +230,14 @@ export default defineEventHandler(async (event) => {
 
             const term = await createCommitmentTerm({
               bloodBanksLocationId,
+              collectionRequestId: parsed.data.requestId,
               technicalVisitId: responseVisit._id?.toString(),
               generatedContent,
               sentTo,
+              signedByName:
+                [user.givenName, user.surName].filter(Boolean).join(" ") ||
+                user.email,
+              signedAt: new Date(),
               status: "sent",
             });
 

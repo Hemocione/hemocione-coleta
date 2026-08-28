@@ -28,116 +28,135 @@
     <main class="max-w-5xl mx-auto px-4 py-6">
       <!-- Institution bar -->
       <UCard class="mb-3 md:mb-4" :ui="{ body: 'p-3 md:p-4' }">
-        <div
-          class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4"
-        >
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium mb-1 md:mb-2">Instituição</div>
-            <div
-              v-if="isLoggedIn && userInstitutions.length"
-              class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
-            >
-              <USelect
-                v-model="selectedInstitutionId"
-                :items="institutionItems"
-                placeholder="Selecione sua instituição"
-                class="w-full md:w-80"
-              />
-              <div
-                v-if="selectedInstitution"
-                class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3"
-                data-testid="selected-institution-details"
+        <div class="flex flex-col gap-4">
+          <div
+            class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"
+          >
+            <div class="flex min-w-0 flex-1 items-start gap-3">
+              <UAvatar
+                :src="selectedInstitution?.logo || undefined"
+                icon="i-lucide-building-2"
+                size="md"
+                class="shrink-0"
               >
-                <div class="flex items-start gap-3">
-                  <UAvatar
-                    :src="selectedInstitution.logo || undefined"
-                    icon="i-lucide-building-2"
-                    size="md"
+                {{ selectedInstitution?.name?.charAt(0) }}
+              </UAvatar>
+              <div class="min-w-0 flex-1">
+                <div
+                  class="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500"
+                >
+                  Instituição da coleta
+                </div>
+                <USelect
+                  v-if="isLoggedIn && userInstitutions.length"
+                  v-model="selectedInstitutionId"
+                  :items="institutionItems"
+                  placeholder="Selecione sua instituição"
+                  variant="none"
+                  size="lg"
+                  aria-label="Instituição da coleta"
+                  data-testid="institution-select"
+                  class="mt-0.5 w-full max-w-xl"
+                  :ui="{
+                    base: 'px-0 text-base font-semibold text-gray-900 focus-visible:ring-2 focus-visible:ring-red-500',
+                  }"
+                />
+                <div v-else class="mt-1 text-sm text-gray-600 leading-snug">
+                  Entre para selecionar sua instituição ou crie uma nova.
+                </div>
+                <div
+                  v-if="selectedInstitution"
+                  class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"
+                >
+                  <UBadge
+                    v-if="selectedInstitution.status"
+                    color="neutral"
+                    variant="subtle"
                   >
-                    {{ selectedInstitution.name.charAt(0) }}
-                  </UAvatar>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <div class="font-semibold truncate">
-                        {{ selectedInstitution.name }}
-                      </div>
-                      <UBadge
-                        v-if="selectedInstitution.status"
-                        color="neutral"
-                        variant="subtle"
-                      >
-                        {{ institutionStatusLabel(selectedInstitution.status) }}
-                      </UBadge>
-                    </div>
-                    <dl
-                      class="mt-2 grid gap-x-4 gap-y-1 text-xs text-gray-600 sm:grid-cols-2"
+                    {{ institutionStatusLabel(selectedInstitution.status) }}
+                  </UBadge>
+                  <span v-if="selectedInstitution.kind">
+                    {{ institutionKindLabel(selectedInstitution.kind) }}
+                  </span>
+                  <span
+                    v-if="selectedInstitution.city || selectedInstitution.state"
                     >
-                      <div v-if="selectedInstitution.document">
-                        <dt class="font-medium text-gray-500">CNPJ</dt>
-                        <dd>
-                          {{ formatInstitutionDocument(selectedInstitution.document) }}
-                        </dd>
-                      </div>
-                      <div v-if="selectedInstitution.kind">
-                        <dt class="font-medium text-gray-500">Tipo</dt>
-                        <dd>
-                          {{ institutionKindLabel(selectedInstitution.kind) }}
-                        </dd>
-                      </div>
-                      <div
-                        v-if="
-                          selectedInstitution.address ||
-                          selectedInstitution.city ||
-                          selectedInstitution.state
-                        "
-                        class="sm:col-span-2"
-                      >
-                        <dt class="font-medium text-gray-500">Endereço</dt>
-                        <dd>
-                          {{
-                            [
-                              selectedInstitution.address,
-                              selectedInstitution.city,
-                              selectedInstitution.state,
-                            ]
-                              .filter(Boolean)
-                              .join(", ")
-                          }}
-                        </dd>
-                      </div>
-                      <div v-if="selectedInstitution.phone">
-                        <dt class="font-medium text-gray-500">Telefone</dt>
-                        <dd>{{ selectedInstitution.phone }}</dd>
-                      </div>
-                    </dl>
-                    <UButton
-                      v-if="canEditSelectedInstitution"
-                      size="xs"
-                      variant="soft"
-                      icon="i-lucide-pencil"
-                      class="mt-3"
-                      data-testid="edit-institution-button"
-                      @click="openEditInstitution"
-                    >
-                      Editar dados
-                    </UButton>
-                  </div>
+                    {{
+                      [selectedInstitution.city, selectedInstitution.state]
+                        .filter(Boolean)
+                        .join(" · ")
+                    }}
+                  </span>
                 </div>
               </div>
             </div>
-            <div v-else class="text-sm text-gray-600 leading-snug">
-              Entre para selecionar sua instituição ou crie uma nova.
-            </div>
-          </div>
-          <div class="flex flex-wrap items-center gap-2 md:justify-end">
             <UButton
               color="neutral"
               variant="soft"
               icon="i-lucide-building"
-              class="w-full sm:w-auto"
+              class="w-full shrink-0 sm:w-auto"
               @click="onCreateClick"
             >
               Registrar Instituição
+            </UButton>
+          </div>
+
+          <div
+            v-if="selectedInstitution"
+            class="border-t border-gray-100 pt-3"
+            data-testid="selected-institution-details"
+          >
+            <dl
+              class="grid gap-x-6 gap-y-3 text-xs text-gray-600 sm:grid-cols-2 lg:grid-cols-4"
+            >
+              <div v-if="selectedInstitution.document">
+                <dt class="font-medium text-gray-500">CNPJ</dt>
+                <dd class="mt-0.5">
+                  {{ formatInstitutionDocument(selectedInstitution.document) }}
+                </dd>
+              </div>
+              <div v-if="selectedInstitution.kind">
+                <dt class="font-medium text-gray-500">Tipo</dt>
+                <dd class="mt-0.5">
+                  {{ institutionKindLabel(selectedInstitution.kind) }}
+                </dd>
+              </div>
+              <div
+                v-if="
+                  selectedInstitution.address ||
+                  selectedInstitution.city ||
+                  selectedInstitution.state
+                "
+                class="sm:col-span-2"
+              >
+                <dt class="font-medium text-gray-500">Endereço</dt>
+                <dd class="mt-0.5">
+                  {{
+                    [
+                      selectedInstitution.address,
+                      selectedInstitution.city,
+                      selectedInstitution.state,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")
+                  }}
+                </dd>
+              </div>
+              <div v-if="selectedInstitution.phone">
+                <dt class="font-medium text-gray-500">Telefone</dt>
+                <dd class="mt-0.5">{{ selectedInstitution.phone }}</dd>
+              </div>
+            </dl>
+            <UButton
+              v-if="canEditSelectedInstitution"
+              size="xs"
+              variant="soft"
+              icon="i-lucide-pencil"
+              class="mt-3"
+              data-testid="edit-institution-button"
+              @click="openEditInstitution"
+            >
+              Editar dados
             </UButton>
           </div>
         </div>

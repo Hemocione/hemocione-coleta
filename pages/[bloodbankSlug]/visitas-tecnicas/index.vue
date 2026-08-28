@@ -92,7 +92,7 @@
                     class="font-semibold text-gray-900 truncate"
                     data-testid="technical-visit-institution"
                   >
-                    {{ visit.institutionName || "Instituição não vinculada" }}
+                    {{ visit.institutionName || "Instituição não identificada" }}
                   </h4>
                   <p class="text-sm text-gray-600 truncate">
                     {{ visit.address }}
@@ -210,16 +210,18 @@
 
           <div class="space-y-4">
             <!-- Address -->
-            <UFormField v-if="!editingVisit" label="Solicitação vinculada">
+            <UFormField v-if="!editingVisit" label="Solicitação de coleta relacionada">
               <USelect
                 v-model="formData.requestId"
                 :items="requestOptions"
+                placeholder="Selecione uma solicitação (opcional)"
                 class="w-full"
                 data-testid="technical-visit-request-select"
                 @update:model-value="handleRequestSelection"
               />
               <p class="text-xs text-gray-500 mt-1">
-                A instituição será carregada da solicitação escolhida.
+                Opcional. Se esta visita avalia uma solicitação de coleta já aberta, selecione-a
+                aqui — a instituição e o endereço serão pré-preenchidos, mas você pode ajustá-los.
               </p>
             </UFormField>
 
@@ -228,11 +230,13 @@
                 v-model="formData.institutionId"
                 :items="institutionSelectOptions"
                 :disabled="Boolean(formData.requestId)"
+                placeholder="Selecione uma instituição"
                 class="w-full"
                 data-testid="technical-visit-institution-select"
+                @update:model-value="handleInstitutionSelection"
               />
               <p class="text-xs text-gray-500 mt-1">
-                Vincule a visita à instituição da coleta ou selecione uma instituição relacionada.
+                Selecione a instituição responsável por este local de visita.
               </p>
             </UFormField>
 
@@ -401,6 +405,11 @@ interface TechnicalVisit {
     institutionId: string;
     status: string;
     eventSlug?: string;
+    host?: {
+      name: string;
+      email: string;
+      phone: string;
+    };
   };
   address: string;
   visitDate: string;
@@ -478,7 +487,6 @@ const outcomeOptions = [
 ];
 
 const requestOptions = computed(() => [
-  { label: "Sem solicitação vinculada", value: "" },
   ...openRequests.value
     .filter((request) => !request.technicalVisitId)
     .map((request) => ({
@@ -488,7 +496,6 @@ const requestOptions = computed(() => [
 ]);
 
 const institutionSelectOptions = computed(() => [
-  { label: "Sem instituição vinculada", value: "" },
   ...institutionOptions.value.map((institution) => ({
     label: institution.name,
     value: institution.id,
@@ -571,8 +578,17 @@ const handleRequestSelection = (value: string | null) => {
   formData.value.institutionId = request?.institutionId || null;
   if (request) {
     const requestAddress = getRequestAddress(request);
-    if (requestAddress) formData.value.address = requestAddress;
+    formData.value.address = requestAddress;
   }
+};
+
+const handleInstitutionSelection = (value: string | null) => {
+  if (formData.value.requestId) return;
+
+  const institution = institutionOptions.value.find(
+    (candidate) => candidate.id === value
+  );
+  formData.value.address = institution?.address || "";
 };
 
 const loadVisits = async () => {
@@ -809,14 +825,18 @@ const generateTermForVisit = async (visit: TechnicalVisit) => {
       {
         method: "POST",
         body: {
+          collectionRequestId: visit.collectionRequest?._id,
           technicalVisitId: visit._id,
-          sentTo: visit.address,
+          sentTo:
+            visit.collectionRequest?.host?.phone ||
+            visit.collectionRequest?.host?.email ||
+            visit.address,
           templateParams: {
             bloodBankName: bloodbankData.value?.name || "",
             address: visit.address,
             date: new Date().toLocaleDateString("pt-BR"),
-            institutionName: "",
-            hostName: "",
+            institutionName: visit.institutionName || "",
+            hostName: visit.collectionRequest?.host?.name || "",
           },
           status: "draft",
         },

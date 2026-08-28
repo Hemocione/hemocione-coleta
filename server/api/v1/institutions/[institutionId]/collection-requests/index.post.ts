@@ -6,6 +6,7 @@ import {
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
 import { sendWhatsAppNotification } from "~/server/services/notification";
 import { buildPublicUrl } from "~/utils/publicUrl";
+import { formatWhatsAppDate } from "~/server/utils/formatWhatsAppDate";
 
 const hostSchema = z.object({
   name: z.string().min(1).max(200),
@@ -82,7 +83,7 @@ export default defineEventHandler(async (event) => {
 
       const requestedDatesStr = result.availableSlotOptions
         .filter((slot) => slot.isRequested)
-        .map((slot) => slot.date)
+        .map((slot) => formatWhatsAppDate(slot.date))
         .filter((date, index, dates) => dates.indexOf(date) === index)
         .join(", ");
 

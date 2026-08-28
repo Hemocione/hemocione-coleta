@@ -87,5 +87,139 @@ describe("visitas técnicas", () => {
     expect(
       wrapper.find('[data-testid="technical-visit-institution-select"]').exists()
     ).toBe(true);
+    expect((wrapper.vm as any).institutionSelectOptions).toEqual([]);
+    expect((wrapper.vm as any).requestOptions).toEqual([]);
+  });
+
+  it("envia instituição e ponto focal ao gerar termo pela visita vinculada", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    mocks.fetchWithAuth.mockImplementation((url: string) => {
+      if (url.includes("commitment-terms")) {
+        return Promise.resolve({
+          success: true,
+          data: { accessToken: "term-token" },
+        });
+      }
+
+      if (url.includes("technical-visits?")) {
+        return Promise.resolve({
+          success: true,
+          data: [],
+          pagination: { total: 0, page: 1, limit: 20, totalPages: 0 },
+        });
+      }
+
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    const wrapper = mount(TechnicalVisitsPage, {
+      global: {
+        stubs: globalStubs,
+        directives: { "auto-animate": {} },
+      },
+    });
+    await flushPromises();
+
+    await (wrapper.vm as any).generateTermForVisit({
+      _id: "visit-a",
+      address: "Rua A, 1",
+      institutionName: "Instituição A",
+      collectionRequest: {
+        _id: "request-a",
+        institutionId: "institution-a",
+        status: "scheduled",
+        host: {
+          name: "Ana Silva",
+          email: "ana@example.com",
+          phone: "5511999999999",
+        },
+      },
+    });
+
+    const termCall = mocks.fetchWithAuth.mock.calls.find(([url]) =>
+      String(url).includes("commitment-terms")
+    );
+    expect(termCall?.[1]?.body).toMatchObject({
+      collectionRequestId: "request-a",
+      sentTo: "5511999999999",
+      templateParams: {
+        institutionName: "Instituição A",
+        hostName: "Ana Silva",
+      },
+    });
+    expect(open).toHaveBeenCalledWith(
+      expect.stringContaining("/termo/term-token"),
+      "_blank"
+    );
+    open.mockRestore();
+  });
+
+  it("mantém o endereço editável ao selecionar uma instituição com endereço cadastrado", async () => {
+    const wrapper = mount(TechnicalVisitsPage, {
+      global: {
+        stubs: globalStubs,
+        directives: { "auto-animate": {} },
+      },
+    });
+    await flushPromises();
+
+    (wrapper.vm as any).openCreateModal();
+    (wrapper.vm as any).institutionOptions = [
+      { id: "institution-a", name: "Instituição A", address: "Rua A, 100" },
+    ];
+    (wrapper.vm as any).formData.institutionId = "institution-a";
+    (wrapper.vm as any).handleInstitutionSelection("institution-a");
+    await flushPromises();
+
+    expect((wrapper.vm as any).formData.address).toBe("Rua A, 100");
+
+    const addressInput = wrapper.find(
+      '[placeholder="Endereco do local visitado"]'
+    );
+    expect(addressInput.attributes("readonly")).toBeUndefined();
+
+  });
+
+  it("usa textos claros para solicitação/instituição e para o fallback sem instituição resolvida", async () => {
+    mocks.fetchWithAuth.mockImplementation((url: string) => {
+      if (url.includes("technical-visits?")) {
+        return Promise.resolve({
+          success: true,
+          data: [
+            {
+              _id: "visit-a",
+              address: "Rua A, 1",
+              visitDate: "2026-09-01",
+              outcome: "pending",
+              institutionName: "",
+            },
+          ],
+          pagination: { total: 1, page: 1, limit: 20, totalPages: 1 },
+        });
+      }
+      return Promise.resolve({ success: true, data: [] });
+    });
+
+    const wrapper = mount(TechnicalVisitsPage, {
+      global: {
+        stubs: globalStubs,
+        directives: { "auto-animate": {} },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Instituição não identificada");
+    expect(wrapper.text()).not.toContain("Instituição não vinculada");
+
+    (wrapper.vm as any).openCreateModal();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain(
+      "Opcional. Se esta visita avalia uma solicitação de coleta já aberta"
+    );
+    expect(wrapper.text()).toContain(
+      "Selecione a instituição responsável por este local de visita."
+    );
+    expect(wrapper.text()).not.toContain("Vincule a visita à instituição da coleta");
   });
 });

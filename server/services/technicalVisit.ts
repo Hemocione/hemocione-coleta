@@ -58,6 +58,11 @@ export interface TechnicalVisitData {
     institutionId: string;
     status: string;
     eventSlug?: string;
+    host?: {
+      name: string;
+      email: string;
+      phone: string;
+    };
   };
 }
 
@@ -172,6 +177,13 @@ async function enrichTechnicalVisits(
           institutionId: request.institutionId.toString(),
           status: request.status,
           ...(request.eventSlug && { eventSlug: request.eventSlug }),
+          ...(request.host && {
+            host: {
+              name: request.host.name,
+              email: request.host.email,
+              phone: request.host.phone,
+            },
+          }),
         },
       }),
     };

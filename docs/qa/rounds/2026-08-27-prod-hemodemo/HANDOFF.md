@@ -8,15 +8,13 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
 
 - Repo: `/home/guima/Projects/Hemocione/.worktrees/prod-dogfood-fixes` (worktree, branch
   `chore/coleta-dogfood-qa-infra`, a partir de `main`).
-- Branch já commitada e **pushada** (`aaa42cb`): `AGENTS.md`, `.claude/skills/coleta-dogfood-qa/SKILL.md`,
-  `docs/qa/REGRESSION_CHECKLIST.md`.
-- Esta rodada: `docs/qa/rounds/2026-08-27-prod-hemodemo/report.md` (parcialmente
-  preenchido — ver abaixo) + este arquivo. **Ainda não commitados** (faça isso ao
-  continuar).
+- Branch já commitada e **pushada** (`47c4e76`): relatório, handoff e evidência do
+  reteste do ISSUE-D.
+- Esta rodada: `docs/qa/rounds/2026-08-27-prod-hemodemo/report.md` + este arquivo.
 - Prod inicial confirmada == `main` HEAD `7f0d516` via Vercel API (projeto
   `hemocione-coleta`, team `hemocione`, domínio `coleta.hemocione.com.br`).
-- O fix do ISSUE-D foi mergeado no PR #45. O deploy atual usa `main` HEAD
-  `de00511`.
+- O fix do ISSUE-D foi mergeado no PR #45. O fix do ISSUE-E foi mergeado no PR #47.
+- O deploy atual usa `main` HEAD `dad09cf`.
 
 ## Credenciais (não estão neste arquivo por segurança — repo público)
 
@@ -29,15 +27,16 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
 
 ## O que já está confirmado e escrito no report.md
 
-- **ISSUE-A** (high): Bugsnag nunca recebe nada em produção real —
-  `enabledReleaseStages: ["prod","dev"]` em `nuxt.config.ts` não bate com
-  `VERCEL_ENV === "production"`. Fix de 1 linha, não aplicado ainda.
+- **ISSUE-A** (high): Bugsnag nunca recebia nada em produção real. Corrigido e
+  verificado em produção.
 - **ISSUE-B** (low): `/agendar/nao-existe` mostra prompt de login genérico, não 404 —
   decisão de produto pendente, não necessariamente bug.
 - **ISSUE-C** (low): `isFormValid` em `layouts/agendamento.vue` habilita "Salvar" no
   cadastro de instituição sem Nome/Endereço/Cidade/Estado preenchidos.
 - **ISSUE-D** (critical): corrigido no PR #45. A validação de associação atual ocorre
   antes da consulta e da alteração da solicitação.
+- **ISSUE-E** (high): corrigido no PR #47. A aceitação de uma solicitação passou em
+  produção após a normalização de UUIDs BSON.
 - Fluxo público (a11y, mobile, termo, acompanhar-inválido) — tudo verificado sem
   regressão.
 - Onboarding de instituição (CNPJ bloqueia salvar, sessão sobrevive a reload, "Meus
@@ -89,19 +88,18 @@ veredito.
   permaneceu `pending`. Beta retirou a própria solicitação com HTTP 200.
 - A matriz completa de agendamento e o QA administrativo ficaram incompletos.
 
-## Bloqueio de segurança
+## Incidente de segurança
 
 Uma ferramenta exibiu um token de sessão em uma URL de redirecionamento durante o QA
 paralelo. A sessão foi fechada. O valor não foi salvo nos artefatos.
 
+O dono da conta confirmou a rotação antes da retomada. O novo reteste não usou
+diagnóstico de rede. A sessão nova foi fechada após o teste.
+
 ## O que falta fazer depois da interrupção
 
-1. Invalidar a sessão exposta do Hemodemo antes de qualquer nova ação.
-2. Corrigir o diagnóstico de rede para ocultar tokens e validar a correção fora de
-   produção.
-3. Concluir a matriz de agendamento, visita técnica e QA administrativo com dados
+1. Concluir a matriz de agendamento, visita técnica e QA administrativo com dados
    sintéticos separados.
-4. Commit + push da pasta `docs/qa/rounds/2026-08-27-prod-hemodemo/` inteira (report.md
-   + HANDOFF.md + screenshots) e do checklist atualizado.
-5. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
+2. Manter diagnóstico de rede fora do QA de produção até existir redaction comprovado.
+3. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
    não testar, já documentado no checklist.

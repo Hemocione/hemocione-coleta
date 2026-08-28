@@ -5,7 +5,7 @@
 | **Date** | 2026-08-27 |
 | **App URL** | https://coleta.hemocione.com.br |
 | **Deploy inicial validado** | `7f0d516` (main, confirmado como deploy de produção via Vercel API) |
-| **Deploy do fix** | `de00511` (PR #45, mergeado em `main` e validado em produção) |
+| **Deploy dos fixes** | `de00511` (PR #45) e `dad09cf` (PR #47), mergeados em `main` e validados em produção |
 | **Fixtures** | hemocentro `hemodemo`; demais fixtures listados na seção Fixtures abaixo |
 | **Scope** | Regressão completa — fluxo público, onboarding de instituição, agendamento (eixo transversal), visita técnica, admin do hemocentro, fronteira de confiança |
 
@@ -14,13 +14,14 @@
 | Severity | Count |
 |---|---:|
 | Critical | 1 |
-| High | 1 |
+| High | 2 |
 | Medium | 0 |
 | Low | 2 |
-| **Total** | **4** |
+| **Total** | **5** |
 
 A rodada foi retomada após a correção do ISSUE-D. O reteste de autorização passou em
-produção. A matriz restante de agendamento e o QA administrativo continuam em execução.
+produção. O fluxo `pending` para aceitação passou após o PR #47. A matriz restante de
+agendamento e o QA administrativo continuam incompletos.
 
 ## Fixtures criados nesta rodada
 
@@ -142,7 +143,7 @@ Endereço, Cidade, Estado), não só "algum campo foi tocado".
 | **Severity** | critical |
 | **Category** | security / authorization |
 | **URL** | `POST /api/v1/institutions/{institutionId}/collection-requests/{requestId}/withdraw` |
-| **Status** | found, not fixed |
+| **Status** | fixed and verified in production |
 
 **Descrição**
 
@@ -187,6 +188,44 @@ sintéticos.
 - A evidência sanitizada está em
   `agendamento/screenshots/idor-post-fix-production-evidence.txt`.
 
+### ISSUE-E: Aceitação de solicitação retorna HTTP 500 após confirmar o horário
+
+| Field | Value |
+|-------|-------|
+| **Severity** | high |
+| **Category** | functional / data serialization |
+| **URL** | painel do hemocentro, detalhes de solicitação pendente |
+| **Status** | fixed and verified in production |
+
+**Descrição**
+
+Ao aceitar uma solicitação pendente, a confirmação retornava HTTP 500. O botão ficava
+carregando e a lista continuava mostrando a solicitação como `pending`.
+
+**Causa raiz**
+
+O serviço enviava um UUID BSON serializado como bytes para a consulta externa de
+instituições. A consulta falhava depois da atualização da solicitação. A interface
+ficava desatualizada após o erro.
+
+**Fix**
+
+O PR #47 normaliza UUIDs BSON e textuais antes da consulta externa. O fix inclui um
+teste unitário para o valor BSON e passou na suíte unitária e no build.
+
+**Reteste pós-fix em produção**
+
+O deploy `dad09cf` foi validado em `coleta.hemocione.com.br` com browser real e dados
+sintéticos.
+
+- A solicitação pendente abriu com a opção de horário selecionada.
+- A confirmação exibiu `Solicitação aceita!` e `A solicitação foi aceita com sucesso.`
+- A página de detalhes passou a mostrar `Cancelar Coleta`.
+- A lista `Pendentes` não mostrou mais a solicitação.
+- `agent-browser errors` não retornou erros.
+- A evidência sanitizada está em
+  `agendamento/screenshots/acceptance-post-fix-production-evidence.txt`.
+
 ## QA paralelo pós-fix interrompido
 
 A matriz de agendamento iniciou em browser real, mas a ferramenta exibiu um token de
@@ -199,8 +238,8 @@ sessão em uma URL de redirecionamento durante o diagnóstico de rede.
 - A matriz de agendamento não recebeu um veredito.
 - O QA administrativo e o QA de visita técnica foram encerrados por segurança.
 
-A sessão do Hemodemo deve ser invalidada antes de qualquer nova rodada. O QA restante
-fica bloqueado até a invalidação e a correção da ferramenta de diagnóstico.
+O dono da conta confirmou a rotação após o incidente. A sessão usada no novo reteste
+foi fechada. O diagnóstico de rede não foi usado. O QA restante continua incompleto.
 
 ---
 
@@ -227,7 +266,8 @@ fica bloqueado até a invalidação e a correção da ferramenta de diagnóstico
   permaneceu `pending`.
 - Probes públicos cross-institution: as rotas públicas de resposta e as rotas públicas
   de retirada bloquearam o acesso indevido com HTTP 403 ou HTTP 404.
-- O teste parou imediatamente após o ISSUE-D. Não foram executadas novas mutações.
+- O teste parou imediatamente após o ISSUE-D. O fluxo de aceitação foi retestado depois
+  do PR #47, com dados sintéticos e sem novos erros.
 
 ## Correção de escopo descoberta nesta rodada
 
@@ -258,17 +298,13 @@ segundo login de hemocentro.
 
 ## Direções para quem for corrigir os achados
 
-- **ISSUE-A é o mais importante de corrigir primeiro**, mesmo sendo classificado
-  "monitoring": enquanto ele não for corrigido, toda checagem de "Bugsnag limpo" em
-  qualquer dogfood futuro (incluindo o fechamento desta própria rodada) é um falso
-  positivo estrutural, não uma confirmação real. Fix é de uma linha em
-  `nuxt.config.ts`; valide comparando `console.log(process.env.VERCEL_ENV)` num
-  preview deploy real antes de assumir o valor.
+- **ISSUE-A foi corrigido e validado em produção.** Mantenha uma checagem de sessão do
+  Bugsnag em cada rodada futura.
 - ISSUE-B: antes de "corrigir", confirme com o dono do produto se um 404 dedicado é
   realmente o comportamento esperado — pode ser trabalho desnecessário se o gate de
   login em `/agendar/[bloodbankSlug]` for intencional.
 
 ---
 
-_A rodada foi interrompida após a exposição acidental de um token de sessão. A sessão
-deve ser invalidada antes da continuação do QA em produção._
+_A rodada foi interrompida após a exposição acidental de um token de sessão. O dono da
+conta confirmou a rotação. O reteste seguinte não usou diagnóstico de rede._

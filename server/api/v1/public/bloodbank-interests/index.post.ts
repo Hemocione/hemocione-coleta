@@ -4,7 +4,8 @@ import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank"
 import { createBloodBankInterest } from "~/server/services/bloodBankInterest";
 import { getUserInstitutions } from "~/server/services/hemocioneId";
 import { getOndeDoarBloodBankByLocationId } from "~/server/services/ondeDoar";
-import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
+import { enforcePublicRateLimit } from "~/server/services/publicRateLimit";
+import { isValidCnpj, normalizeCnpj, onlyDigits } from "~/utils/cnpj";
 
 const phoneSchema = z
   .string()
@@ -37,9 +38,9 @@ function normalizePhone(phone: string) {
   return normalized;
 }
 
-function normalizeCnpj(cnpj?: string) {
+function normalizeInstitutionCnpj(cnpj?: string) {
   if (!cnpj?.trim()) return undefined;
-  const normalized = onlyDigits(cnpj);
+  const normalized = normalizeCnpj(cnpj);
   if (!isValidCnpj(normalized)) invalidRequest("Invalid institution CNPJ");
   return normalized;
 }
@@ -49,6 +50,7 @@ export default defineEventHandler(async (event) => {
   if (!parsedBody.success) invalidRequest("Invalid interest data");
 
   const body = parsedBody.data;
+  enforcePublicRateLimit(event, "bloodbank-interest");
   const authorization = event.headers.get("authorization")?.trim();
   const token = authorization?.replace(/^Bearer\s+/i, "").trim();
   const user = authorization ? useHemocioneUserAuth(event) : undefined;
@@ -100,7 +102,7 @@ export default defineEventHandler(async (event) => {
     institutionId = institution.id;
     institutionName = canonicalName;
     institutionDocument = institution.document
-      ? onlyDigits(institution.document)
+      ? normalizeCnpj(institution.document)
       : undefined;
   } else {
     const parsedInstitutionName = nameSchema.safeParse(body.institutionName);
@@ -108,7 +110,7 @@ export default defineEventHandler(async (event) => {
       invalidRequest("Institution name is required");
     }
     institutionName = parsedInstitutionName.data;
-    institutionDocument = normalizeCnpj(body.institutionCnpj);
+    institutionDocument = normalizeInstitutionCnpj(body.institutionCnpj);
   }
 
   const name = user

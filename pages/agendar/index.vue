@@ -61,6 +61,7 @@
               :bank="bank"
               :action-disabled="interestLoading"
               :interest-loading="
+                interestLoading &&
                 interestBank?.bloodBanksLocationId === bank.bloodBanksLocationId
               "
               @select="selectBank"
@@ -102,7 +103,11 @@
       </div>
     </Transition>
 
-    <UModal v-model:open="interestDialogOpen" :title="interestDialogTitle">
+    <UModal
+      v-model:open="interestDialogOpen"
+      :title="interestDialogTitle"
+      @update:open="handleInterestDialogUpdate"
+    >
       <template #content>
         <form class="space-y-4 p-6" @submit.prevent="submitInterest">
           <div>
@@ -159,10 +164,12 @@
             <UInput
               id="interest-institution-cnpj"
               name="institutionCnpj"
-              v-model="interestInstitutionCnpj"
+              :model-value="interestInstitutionCnpj"
+              @update:model-value="handleInstitutionCnpjInput"
               data-testid="interest-institution-cnpj"
               placeholder="00.000.000/0000-00"
-              inputmode="numeric"
+              inputmode="text"
+              autocapitalize="characters"
               autocomplete="organization"
               class="w-full"
               :disabled="interestLoading"
@@ -217,9 +224,11 @@
             <UInput
               id="interest-phone"
               name="phone"
-              v-model="interestPhone"
+              :model-value="interestPhone"
+              @update:model-value="handleInterestPhoneInput"
               data-testid="interest-phone"
               type="tel"
+              placeholder="+55 (DD) 99999-9999"
               autocomplete="tel"
               class="w-full"
               :disabled="interestLoading"
@@ -248,7 +257,7 @@
               color="neutral"
               variant="ghost"
               :disabled="interestLoading"
-              @click="interestDialogOpen = false"
+              @click="closeInterestDialog"
             >
               Cancelar
             </UButton>
@@ -276,7 +285,8 @@ import {
 } from "~/stores/scheduling";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import { useUserStore } from "~/stores/user";
-import { isValidCnpj, onlyDigits } from "~/utils/cnpj";
+import { formatCnpj, isValidCnpj } from "~/utils/cnpj";
+import { formatBrazilPhone, isValidBrazilPhone } from "~/utils/phone";
 
 const store = useSchedulingStore();
 const userStore = useUserStore();
@@ -331,12 +341,36 @@ const resetInterestForm = () => {
   interestInstitutionName.value = "";
   interestInstitutionCnpj.value = "";
   interestName.value = "";
-  interestPhone.value = "";
+  interestPhone.value = formatBrazilPhone("");
   interestInstitutionNameError.value = "";
   interestInstitutionCnpjError.value = "";
   interestNameError.value = "";
   interestPhoneError.value = "";
   interestFormError.value = "";
+};
+
+const closeInterestDialog = () => {
+  interestDialogOpen.value = false;
+  interestBank.value = null;
+  resetInterestForm();
+};
+
+const handleInterestDialogUpdate = (open: boolean) => {
+  if (open) {
+    interestDialogOpen.value = true;
+    return;
+  }
+  closeInterestDialog();
+};
+
+const handleInstitutionCnpjInput = (value: string) => {
+  interestInstitutionCnpj.value = formatCnpj(value);
+  interestInstitutionCnpjError.value = "";
+};
+
+const handleInterestPhoneInput = (value: string) => {
+  interestPhone.value = formatBrazilPhone(value);
+  interestPhoneError.value = "";
 };
 
 function statusCodeOf(error: unknown) {
@@ -389,8 +423,7 @@ const submitInterest = async () => {
     return;
   }
   if (!isLoggedIn.value || phone) {
-    const phoneDigits = onlyDigits(phone || "");
-    if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+    if (!isValidBrazilPhone(phone || "")) {
       interestPhoneError.value = "Informe um telefone válido.";
       return;
     }
@@ -417,7 +450,7 @@ const submitInterest = async () => {
         origin: "ondedoar",
       },
     });
-    interestDialogOpen.value = false;
+    closeInterestDialog();
     useToast().add({
       title: "Interesse registrado",
       color: "success",

@@ -37,6 +37,7 @@ const bankA: BloodBankListItem = {
   name: "Banco A",
   slug: "banco-a",
   bloodBanksLocationId: "location-a",
+  availability: "active",
 };
 
 const bankB: BloodBankListItem = {
@@ -44,6 +45,7 @@ const bankB: BloodBankListItem = {
   name: "Banco B",
   slug: "banco-b",
   bloodBanksLocationId: "location-b",
+  availability: "active",
 };
 
 function asyncData(data: BloodBankListItem[]) {
@@ -76,7 +78,29 @@ describe("useSchedulingStore", () => {
     expect(store.selectedBloodBank).toBeNull();
     expect(store.selectedDates).toEqual([]);
     expect(mocks.useFetchWithAuth).toHaveBeenCalledWith(
-      "/api/v1/bloodbanks/by-location?lat=-22.9&lng=-47.06"
+      "/api/v1/public/bloodbanks/by-location?lat=-22.9&lng=-47.06"
+    );
+  });
+
+  it("carrega a listagem pública com localização e sem instituição", async () => {
+    const publicBank: BloodBankListItem = {
+      _id: "public-bank",
+      name: "Banco Público",
+      slug: "banco-publico",
+      bloodBanksLocationId: "public-location",
+      availability: "active",
+    };
+    mocks.useFetchWithAuth.mockImplementation(() => asyncData([publicBank]));
+    const store = useSchedulingStore();
+    store.latitude = -23.55;
+    store.longitude = -46.63;
+
+    await store.loadPublicBloodBanks();
+
+    expect(store.selectedInstitution).toBeNull();
+    expect(store.nearbyBloodBanks).toEqual([publicBank]);
+    expect(mocks.useFetchWithAuth).toHaveBeenCalledWith(
+      "/api/v1/public/bloodbanks/by-location?lat=-23.55&lng=-46.63"
     );
   });
 

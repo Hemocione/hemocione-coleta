@@ -133,7 +133,8 @@
             <UInput
               id="interest-institution-name"
               name="institutionName"
-              v-model="interestInstitutionName"
+              :model-value="interestInstitutionName"
+              @update:model-value="handleInterestInstitutionNameInput"
               data-testid="interest-institution-name"
               autocomplete="organization"
               class="w-full"
@@ -198,7 +199,8 @@
             <UInput
               id="interest-name"
               name="name"
-              v-model="interestName"
+              :model-value="interestName"
+              @update:model-value="handleInterestNameInput"
               data-testid="interest-name"
               autocomplete="name"
               class="w-full"
@@ -320,6 +322,7 @@ const interestPhoneError = ref("");
 const interestFormError = ref("");
 const interestLoading = ref(false);
 const INTEREST_REQUEST_TIMEOUT_MS = 15_000;
+const INTEREST_DRAFT_STORAGE_KEY = "hemocione:agendar:interest-draft:v1";
 
 const interestDialogTitle = computed(() =>
   interestBank.value
@@ -349,6 +352,71 @@ const resetInterestForm = () => {
   interestFormError.value = "";
 };
 
+function getInterestDraftStorage() {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+const saveInterestDraft = () => {
+  const storage = getInterestDraftStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(
+      INTEREST_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        institutionName: interestInstitutionName.value,
+        institutionCnpj: interestInstitutionCnpj.value,
+        name: interestName.value,
+        phone: interestPhone.value,
+      }),
+    );
+  } catch {
+    // Continue without a local draft when browser storage is unavailable.
+  }
+};
+
+const restoreInterestDraft = () => {
+  const storage = getInterestDraftStorage();
+  if (!storage) return;
+  try {
+    const rawDraft = storage.getItem(INTEREST_DRAFT_STORAGE_KEY);
+    if (!rawDraft) return;
+    const draft: unknown = JSON.parse(rawDraft);
+    if (!draft || typeof draft !== "object") return;
+    const values = draft as Record<string, unknown>;
+    interestInstitutionName.value =
+      typeof values.institutionName === "string"
+        ? values.institutionName.slice(0, 200)
+        : "";
+    interestInstitutionCnpj.value =
+      typeof values.institutionCnpj === "string"
+        ? formatCnpj(values.institutionCnpj)
+        : "";
+    interestName.value =
+      typeof values.name === "string" ? values.name.slice(0, 200) : "";
+    interestPhone.value =
+      typeof values.phone === "string"
+        ? formatBrazilPhone(values.phone)
+        : formatBrazilPhone("");
+  } catch {
+    // Ignore malformed or unavailable local drafts.
+  }
+};
+
+const clearInterestDraft = () => {
+  const storage = getInterestDraftStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(INTEREST_DRAFT_STORAGE_KEY);
+  } catch {
+    // Continue after a storage cleanup failure.
+  }
+};
+
 const closeInterestDialog = () => {
   interestDialogOpen.value = false;
   interestBank.value = null;
@@ -366,11 +434,25 @@ const handleInterestDialogUpdate = (open: boolean) => {
 const handleInstitutionCnpjInput = (value: string) => {
   interestInstitutionCnpj.value = formatCnpj(value);
   interestInstitutionCnpjError.value = "";
+  saveInterestDraft();
 };
 
 const handleInterestPhoneInput = (value: string) => {
   interestPhone.value = formatBrazilPhone(value);
   interestPhoneError.value = "";
+  saveInterestDraft();
+};
+
+const handleInterestInstitutionNameInput = (value: string) => {
+  interestInstitutionName.value = value;
+  interestInstitutionNameError.value = "";
+  saveInterestDraft();
+};
+
+const handleInterestNameInput = (value: string) => {
+  interestName.value = value;
+  interestNameError.value = "";
+  saveInterestDraft();
 };
 
 function statusCodeOf(error: unknown) {
@@ -451,6 +533,7 @@ const submitInterest = async () => {
       },
     });
     closeInterestDialog();
+    clearInterestDraft();
     useToast().add({
       title: "Interesse registrado",
       color: "success",
@@ -492,6 +575,7 @@ const openInterest = async (bank: BloodBankListItem) => {
     await submitInterest();
     return;
   }
+  restoreInterestDraft();
   interestDialogOpen.value = true;
 };
 

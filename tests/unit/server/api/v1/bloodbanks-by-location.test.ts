@@ -1,16 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  bloodBankFind: vi.fn(),
+  getNearbyBloodBanks: vi.fn(),
 }));
 
-vi.mock("~/server/models", () => ({
-  bloodBank: {
-    BloodBank: {
-      find: (...args: unknown[]) => mocks.bloodBankFind(...args),
-    },
-  },
-}));
+vi.mock("~/server/services/nearbyBloodBanks", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/server/services/nearbyBloodBanks")>();
+  return {
+    ...actual,
+    getNearbyBloodBanks: (...args: unknown[]) =>
+      mocks.getNearbyBloodBanks(...args),
+  };
+});
 
 interface FakeEvent {
   query: Record<string, string>;
@@ -27,8 +29,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  mocks.bloodBankFind.mockReset();
-  const exec = vi.fn().mockResolvedValue([
+  mocks.getNearbyBloodBanks.mockReset().mockResolvedValue([
     {
       _id: { toString: () => "bank-id" },
       name: "Banco visível",
@@ -36,30 +37,16 @@ beforeEach(() => {
       logo: null,
       bloodBanksLocationId: { toString: () => "location-id" },
       location: { coordinates: [-46.6333, -23.5505] },
+      availability: "active",
     },
   ]);
-  mocks.bloodBankFind.mockReturnValue({ lean: () => ({ exec }) });
 });
 
 describe("GET /api/v1/bloodbanks/by-location", () => {
   it("não lista bancos marcados como hidden", async () => {
     const response = await handler({ query: { lat: "-23.5505", lng: "-46.6333" } });
 
-    expect(mocks.bloodBankFind).toHaveBeenCalledWith(
-      {
-        active: true,
-        hidden: { $ne: true },
-        coverageArea: {
-          $geoIntersects: {
-            $geometry: {
-              type: "Point",
-              coordinates: [-46.6333, -23.5505],
-            },
-          },
-        },
-      },
-      { name: 1, slug: 1, logo: 1, bloodBanksLocationId: 1, location: 1 },
-    );
+    expect(mocks.getNearbyBloodBanks).toHaveBeenCalledWith(-23.5505, -46.6333);
     expect(response).toMatchObject({
       success: true,
       data: [{ slug: "banco-visivel" }],

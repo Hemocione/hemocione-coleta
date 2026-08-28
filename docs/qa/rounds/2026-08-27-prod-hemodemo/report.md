@@ -4,7 +4,8 @@
 |-------|-------|
 | **Date** | 2026-08-27 |
 | **App URL** | https://coleta.hemocione.com.br |
-| **Deploy validado** | `7f0d516` (main, confirmado == deploy de produção via Vercel API) |
+| **Deploy inicial validado** | `7f0d516` (main, confirmado como deploy de produção via Vercel API) |
+| **Deploy do fix** | `de00511` (PR #45, mergeado em `main` e validado em produção) |
 | **Fixtures** | hemocentro `hemodemo`; demais fixtures listados na seção Fixtures abaixo |
 | **Scope** | Regressão completa — fluxo público, onboarding de instituição, agendamento (eixo transversal), visita técnica, admin do hemocentro, fronteira de confiança |
 
@@ -18,8 +19,8 @@
 | Low | 2 |
 | **Total** | **4** |
 
-A rodada foi interrompida após a confirmação do ISSUE-D. A matriz completa de
-agendamento e o QA administrativo ficaram incompletos.
+A rodada foi retomada após a correção do ISSUE-D. O reteste de autorização passou em
+produção. A matriz restante de agendamento e o QA administrativo continuam em execução.
 
 ## Fixtures criados nesta rodada
 
@@ -50,7 +51,7 @@ bug do coleta.
 | **Severity** | high |
 | **Category** | monitoring |
 | **URL** | todas as rotas |
-| **Status** | found, not fixed |
+| **Status** | fixed and verified in production |
 
 **Descrição**
 
@@ -145,34 +146,61 @@ Endereço, Cidade, Estado), não só "algum campo foi tocado".
 
 **Descrição**
 
-Uma instituição autenticada consegue retirar uma solicitação pertencente a outra
-instituição. O teste usou somente dados sintéticos de duas instituições.
+Antes do fix, uma instituição autenticada conseguia retirar uma solicitação pertencente
+a outra instituição. O teste usou somente dados sintéticos de duas instituições.
 
 **Reprodução**
 
 1. Crie uma solicitação pendente como a instituição vítima.
 2. Autentique como a instituição atacante.
 3. Envie `POST` para a rota usando o `institutionId` e o `requestId` da vítima.
-4. **Observe:** a resposta retorna HTTP 200 e o status da solicitação muda para
+4. **Observe no teste histórico:** a resposta retornava HTTP 200 e o status mudava para
    `cancelled`.
-5. **Observe:** o motivo enviado pelo atacante aparece no histórico da vítima.
+5. **Observe no teste histórico:** o motivo enviado pelo atacante aparecia no histórico
+   da vítima.
 
 **Evidência**
 
 O JWT da instituição atacante não tinha papel na instituição vítima. Mesmo assim, a
-solicitação da vítima foi cancelada. O resultado está em
+solicitação da vítima foi cancelada no teste histórico. O resultado está em
 `agendamento/screenshots/idor-critical-institution-withdraw-request-response.txt`.
 
 **Causa provável**
 
-A rota confia no `institutionId` da URL e não verifica o papel da identidade autenticada
-nesse `institutionId`. O helper `assertUserAccessToInstitutionId` existe, mas não é
-chamado nessa rota.
+A rota confiava no `institutionId` da URL e não verificava a associação atual da
+identidade autenticada com essa instituição.
 
 **Ação imediata**
 
-Corrija a autorização antes de qualquer novo teste de mutação. Retorne 403 ou 404 sem
-alterar a solicitação quando a identidade não tiver acesso à instituição da URL.
+O fix valida a associação atual antes de consultar ou alterar a solicitação. A rota
+retorna 403 sem alterar a solicitação quando a identidade não tem acesso à URL.
+
+### Reteste pós-fix em produção
+
+O deploy `de00511` foi validado em `coleta.hemocione.com.br` com browser real e dados
+sintéticos.
+
+- Alpha tentou retirar uma solicitação de Beta e recebeu HTTP 403.
+- A solicitação de Beta permaneceu `pending` após a tentativa não autorizada.
+- Beta retirou a própria solicitação e recebeu HTTP 200.
+- A solicitação autorizada passou para `cancelled` e o histórico recebeu o evento.
+- A evidência sanitizada está em
+  `agendamento/screenshots/idor-post-fix-production-evidence.txt`.
+
+## QA paralelo pós-fix interrompido
+
+A matriz de agendamento iniciou em browser real, mas a ferramenta exibiu um token de
+sessão em uma URL de redirecionamento durante o diagnóstico de rede.
+
+- O valor não foi salvo no relatório nem nas evidências.
+- A sessão foi fechada imediatamente.
+- Nenhuma mensagem real foi enviada.
+- Nenhum dado foi excluído.
+- A matriz de agendamento não recebeu um veredito.
+- O QA administrativo e o QA de visita técnica foram encerrados por segurança.
+
+A sessão do Hemodemo deve ser invalidada antes de qualquer nova rodada. O QA restante
+fica bloqueado até a invalidação e a correção da ferramenta de diagnóstico.
 
 ---
 
@@ -221,9 +249,9 @@ URL antes de agir — parecem guardados, mas isso não foi confirmado com um tes
 O lado instituição↔instituição foi testado com os 3 fixtures de instituição e o
 hemodemo. As rotas públicas bloquearam os casos cross-institution.
 
-A rota de retirada do painel institucional falhou no mesmo tipo de fronteira. Alpha
-cancelou uma solicitação pendente de Beta com um JWT válido de Alpha. O ISSUE-D é
-crítico. A exploração parou após a confirmação.
+A rota de retirada do painel institucional falhou no mesmo tipo de fronteira no teste
+histórico. Alpha cancelou uma solicitação pendente de Beta com um JWT válido de Alpha.
+Após o fix, o mesmo teste retornou HTTP 403 sem alterar a solicitação.
 
 O lado banco↔banco não foi testado. Não existe caminho disponível para provisionar um
 segundo login de hemocentro.
@@ -242,5 +270,5 @@ segundo login de hemocentro.
 
 ---
 
-_A rodada foi interrompida após a confirmação do ISSUE-D. A matriz restante requer
-correção de autorização e nova autorização para mutações em produção._
+_A rodada foi interrompida após a exposição acidental de um token de sessão. A sessão
+deve ser invalidada antes da continuação do QA em produção._

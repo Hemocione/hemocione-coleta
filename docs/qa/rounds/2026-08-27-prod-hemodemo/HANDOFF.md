@@ -13,8 +13,10 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
 - Esta rodada: `docs/qa/rounds/2026-08-27-prod-hemodemo/report.md` (parcialmente
   preenchido — ver abaixo) + este arquivo. **Ainda não commitados** (faça isso ao
   continuar).
-- Prod confirmada == `main` HEAD `7f0d516` via Vercel API (projeto
+- Prod inicial confirmada == `main` HEAD `7f0d516` via Vercel API (projeto
   `hemocione-coleta`, team `hemocione`, domínio `coleta.hemocione.com.br`).
+- O fix do ISSUE-D foi mergeado no PR #45. O deploy atual usa `main` HEAD
+  `de00511`.
 
 ## Credenciais (não estão neste arquivo por segurança — repo público)
 
@@ -34,6 +36,8 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
   decisão de produto pendente, não necessariamente bug.
 - **ISSUE-C** (low): `isFormValid` em `layouts/agendamento.vue` habilita "Salvar" no
   cadastro de instituição sem Nome/Endereço/Cidade/Estado preenchidos.
+- **ISSUE-D** (critical): corrigido no PR #45. A validação de associação atual ocorre
+  antes da consulta e da alteração da solicitação.
 - Fluxo público (a11y, mobile, termo, acompanhar-inválido) — tudo verificado sem
   regressão.
 - Onboarding de instituição (CNPJ bloqueia salvar, sessão sobrevive a reload, "Meus
@@ -48,7 +52,9 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
 ## Trabalho despachado em paralelo e resultado coletado antes da interrupção
 
 Três tarefas foram disparadas como subagentes do Claude Code e retomadas com Codex.
-Os resultados disponíveis estão registrados no `report.md` e nos arquivos de evidência.
+O primeiro agente expôs um token de sessão durante diagnóstico de rede. O valor não foi
+persistido. Os demais agentes foram encerrados. Nenhum resultado parcial foi aceito como
+veredito.
 
 1. **Agendamento — matriz de status principal** (contra hemodemo, usando as 3
    instituições, datas 10-16 dias a partir de 2026-08-27): pending→accepted (slot
@@ -78,18 +84,24 @@ Os resultados disponíveis estão registrados no `report.md` e nos arquivos de e
 - A concorrência de slot retornou HTTP 409 para a segunda aceitação e manteve a
   solicitação como `pending`.
 - As rotas públicas cross-institution bloquearam os probes indevidos.
-- A rota de retirada do painel institucional permitiu que Alpha cancelasse uma
-  solicitação pendente de Beta. Esse achado é crítico e encerrou a exploração.
+- O teste histórico confirmou que a rota de retirada permitia que Alpha cancelasse uma
+  solicitação pendente de Beta. Após o fix, Alpha recebeu HTTP 403 e a solicitação
+  permaneceu `pending`. Beta retirou a própria solicitação com HTTP 200.
 - A matriz completa de agendamento e o QA administrativo ficaram incompletos.
+
+## Bloqueio de segurança
+
+Uma ferramenta exibiu um token de sessão em uma URL de redirecionamento durante o QA
+paralelo. A sessão foi fechada. O valor não foi salvo nos artefatos.
 
 ## O que falta fazer depois da interrupção
 
-1. Corrigir ou mitigar o achado crítico antes de qualquer nova mutação em produção.
-2. Perguntar ao Guima, achado por achado: corrige agora (branch nova a partir de
-   `main`, TDD, PR) ou só registra pra depois — não decidir sozinho.
-3. Commit + push da pasta `docs/qa/rounds/2026-08-27-prod-hemodemo/` inteira (report.md
+1. Invalidar a sessão exposta do Hemodemo antes de qualquer nova ação.
+2. Corrigir o diagnóstico de rede para ocultar tokens e validar a correção fora de
+   produção.
+3. Concluir a matriz de agendamento, visita técnica e QA administrativo com dados
+   sintéticos separados.
+4. Commit + push da pasta `docs/qa/rounds/2026-08-27-prod-hemodemo/` inteira (report.md
    + HANDOFF.md + screenshots) e do checklist atualizado.
-4. Publicar um Claude Artifact com o relatório final (pedido explícito do Guima —
-   ainda não feito).
 5. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
    não testar, já documentado no checklist.

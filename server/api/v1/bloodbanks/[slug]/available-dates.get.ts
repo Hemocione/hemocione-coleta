@@ -32,8 +32,11 @@ export default defineEventHandler(async (event) => {
     start,
     end,
     monthsAhead: monthsAhead ?? 12,
-    // Doador só pode ver/agendar datas liberadas.
+    // Doador só pode ver/agendar datas liberadas e com pelo menos uma
+    // equipe livre — datas com todas as equipes já aceitas em outras
+    // coletas não devem aparecer como disponíveis.
     excludeStatuses: ["blocked", "pending"],
+    excludeFullyLocked: true,
   });
 
   // Strip sensitive fields if any (none currently)

@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAvailableDate } from "~/server/services/availableDate";
+import {
+  createAvailableDate,
+  getAvailableDatesByBloodBank,
+} from "~/server/services/availableDate";
 
 const mocks = vi.hoisted(() => ({
   availableDateFindOne: vi.fn(),
+  availableDateFind: vi.fn(),
   availableDateSave: vi.fn(),
   teamFind: vi.fn(),
   getBloodBank: vi.fn(),
@@ -20,6 +24,9 @@ vi.mock("~/server/models", () => {
   (AvailableDateMock as unknown as { findOne: unknown }).findOne = (
     ...args: unknown[]
   ) => mocks.availableDateFindOne(...args);
+  (AvailableDateMock as unknown as { find: unknown }).find = (
+    ...args: unknown[]
+  ) => mocks.availableDateFind(...args);
 
   return {
     availableDate: { AvailableDate: AvailableDateMock },
@@ -116,5 +123,61 @@ describe("createAvailableDate — status bloqueada/pendente", () => {
     expect(result.slots).toHaveLength(2);
     expect(mocks.teamFind).toHaveBeenCalled();
     expect(mocks.getBloodBank).toHaveBeenCalled();
+  });
+});
+
+describe("getAvailableDatesByBloodBank", () => {
+  const baseDate = {
+    _id: "date-a",
+    bloodBanksLocationId,
+    date: "2999-02-10",
+    year: 2999,
+    isAllTeams: true,
+    status: "released",
+    slots: [
+      { _id: "slot-1", teamId: "team-1", locked: true, lockedBy: "req-1" },
+      { _id: "slot-2", teamId: "team-2", locked: true, lockedBy: "req-2" },
+    ],
+  };
+
+  it("inclui datas com todas as equipes travadas quando excludeFullyLocked não é passado (calendário do banco)", async () => {
+    mocks.availableDateFind.mockReturnValue({
+      sort: () => ({ lean: () => Promise.resolve([baseDate]) }),
+    });
+
+    const result = await getAvailableDatesByBloodBank(bloodBanksLocationId, {});
+
+    expect(result).toHaveLength(1);
+  });
+
+  it("exclui datas com todas as equipes travadas quando excludeFullyLocked=true (calendário da instituição)", async () => {
+    mocks.availableDateFind.mockReturnValue({
+      sort: () => ({ lean: () => Promise.resolve([baseDate]) }),
+    });
+
+    const result = await getAvailableDatesByBloodBank(bloodBanksLocationId, {
+      excludeFullyLocked: true,
+    });
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("mantém datas parcialmente travadas mesmo com excludeFullyLocked=true", async () => {
+    const partiallyLocked = {
+      ...baseDate,
+      slots: [
+        { _id: "slot-1", teamId: "team-1", locked: true, lockedBy: "req-1" },
+        { _id: "slot-2", teamId: "team-2", locked: false },
+      ],
+    };
+    mocks.availableDateFind.mockReturnValue({
+      sort: () => ({ lean: () => Promise.resolve([partiallyLocked]) }),
+    });
+
+    const result = await getAvailableDatesByBloodBank(bloodBanksLocationId, {
+      excludeFullyLocked: true,
+    });
+
+    expect(result).toHaveLength(1);
   });
 });

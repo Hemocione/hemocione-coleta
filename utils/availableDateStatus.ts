@@ -18,6 +18,18 @@ export type CalendarAvailabilityColor =
   | "info"
   | undefined;
 
+const isSlotLocked = (slot: AvailableDateSlotLike) =>
+  Boolean(slot.locked || slot.lockedBy);
+
+// Usado tanto pra colorir o calendário do banco quanto pra decidir se uma data
+// deve sumir do calendário da instituição (ver getAvailableDatesByBloodBank).
+export function isAvailableDateFullyBooked(
+  availableDate: AvailableDateLike | null | undefined
+): boolean {
+  if (!availableDate || !availableDate.slots.length) return false;
+  return availableDate.slots.every(isSlotLocked);
+}
+
 // Registros antigos não tem o campo status; ausência equivale a "released".
 export function getCalendarAvailabilityColor(
   availableDate: AvailableDateLike | null | undefined
@@ -31,10 +43,7 @@ export function getCalendarAvailabilityColor(
 
   if (!availableDate.slots.length) return undefined;
 
-  const isSlotLocked = (slot: AvailableDateSlotLike) =>
-    Boolean(slot.locked || slot.lockedBy);
-
-  if (availableDate.slots.every(isSlotLocked)) return "error";
+  if (isAvailableDateFullyBooked(availableDate)) return "error";
   if (availableDate.slots.some(isSlotLocked)) return "warning";
   return "success";
 }

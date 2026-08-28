@@ -3,6 +3,7 @@ const { AvailableDate } = availableDate;
 const { Team } = team;
 import type { AvailableDateStatus } from "~/server/models/availableDate";
 import { getBloodBankByBloodBanksLocationId } from "~/server/services/bloodBank";
+import { isAvailableDateFullyBooked } from "~/utils/availableDateStatus";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
@@ -53,6 +54,7 @@ export async function getAvailableDatesByBloodBank(
     monthsAhead?: number;
     year?: number;
     excludeStatuses?: AvailableDateStatus[];
+    excludeFullyLocked?: boolean;
   }
 ): Promise<AvailableDateData[]> {
   const query: Record<string, any> = {
@@ -89,7 +91,13 @@ export async function getAvailableDatesByBloodBank(
     .sort({ date: 1 })
     .lean();
 
-  return availableDates as unknown as AvailableDateData[];
+  const dates = availableDates as unknown as AvailableDateData[];
+
+  if (options?.excludeFullyLocked) {
+    return dates.filter((date) => !isAvailableDateFullyBooked(date));
+  }
+
+  return dates;
 }
 
 export async function getAvailableDateById(

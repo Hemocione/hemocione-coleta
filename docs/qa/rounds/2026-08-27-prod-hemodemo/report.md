@@ -260,7 +260,7 @@ solicitação sintética `QA-TESTE`.
 
 ## Onboarding institucional adicional
 
-Uma conta e uma instituição sintéticas novas foram criadas pela interface. O cadastro
+Contas sintéticas novas e uma instituição sintética foram criadas pela interface. O cadastro
 passou e a instituição ficou validada. A página não encontrou banco de sangue próximo,
 mesmo após o endereço sintético ser ajustado para o Rio de Janeiro.
 

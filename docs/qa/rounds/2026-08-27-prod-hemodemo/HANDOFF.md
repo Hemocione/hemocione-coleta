@@ -91,7 +91,7 @@ veredito.
 - Os fluxos `pending` para aceitação e rejeição passaram no deploy `dad09cf`.
 - `accepted → rejected` ficou bloqueado: a UI aceita só exibiu `Cancelar Coleta` e
   `Gerar Termo de Compromisso`.
-- Uma nova conta e uma nova instituição sintéticas foram criadas. A interface não
+- Contas sintéticas novas e uma instituição sintética foram criadas. A interface não
   encontrou banco próximo, então os fluxos da instituição não avançaram.
 
 ## Incidente de segurança

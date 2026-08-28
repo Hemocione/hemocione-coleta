@@ -170,11 +170,7 @@ export interface PaginatedResult<T> {
   };
 }
 
-function normalizeBloodBanksLocationId(value: unknown): string {
-  if (typeof value === "string") {
-    return value.toLowerCase();
-  }
-
+function normalizeUuid(value: unknown): string {
   if (value && typeof value === "object" && "toUUID" in value) {
     const binaryUuid = value as {
       toUUID?: () => { toString: () => string };
@@ -186,6 +182,10 @@ function normalizeBloodBanksLocationId(value: unknown): string {
   }
 
   return String(value).toLowerCase();
+}
+
+function normalizeBloodBanksLocationId(value: unknown): string {
+  return normalizeUuid(value);
 }
 
 export interface StructuredAddress {
@@ -543,7 +543,7 @@ export async function getCollectionRequestById(
 
   const [institutions, availableDates, counterProposalAvailableDates] =
     await Promise.all([
-      getInstitutionsByIds([request.institutionId.toString()]),
+      getInstitutionsByIds([normalizeUuid(request.institutionId)]),
       (() => {
         const requestedDateIds = request.requestedDates.map(
           (rd) => rd.availableDateId

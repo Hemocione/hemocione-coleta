@@ -601,6 +601,42 @@
           </div>
         </UCard>
 
+        <!-- Technical Visit Proposal Sent (read-only) -->
+        <UCard
+          v-if="
+            currentCollectionRequest.status === 'awaiting_technical_visit' &&
+            currentCollectionRequest.visitProposal
+          "
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Visita Técnica Proposta
+            </h3>
+          </template>
+          <div class="space-y-3">
+            <p
+              v-if="currentCollectionRequest.visitProposal.note"
+              class="text-sm text-gray-700"
+            >
+              {{ currentCollectionRequest.visitProposal.note }}
+            </p>
+            <div
+              v-for="(d, idx) in currentCollectionRequest.visitProposal
+                .proposedDates"
+              :key="idx"
+              class="border rounded-lg p-3 text-sm"
+            >
+              <p class="font-medium">
+                {{ formatDate(d.date) }} · {{ formatProposalRange(d) }}
+              </p>
+              <p v-if="d.note" class="text-gray-600 mt-1">{{ d.note }}</p>
+            </div>
+            <p class="text-xs text-gray-500">
+              Aguardando resposta da instituição.
+            </p>
+          </div>
+        </UCard>
+
         <!-- Technical Visit Proposal -->
         <UCard v-if="canProposeTechnicalVisit">
           <template #header>

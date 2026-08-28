@@ -45,12 +45,10 @@ GitHub** (`Hemocione/hemocione-coleta`, `githubRepoVisibility: public`).
   confiança banco↔banco não roda; o probe instituição↔instituição roda normalmente
   com 2+ das instituições `QA-TESTE` contra o mesmo hemodemo.
 
-## Trabalho despachado em paralelo, resultado ainda não coletado nesta sessão
+## Trabalho despachado em paralelo e resultado coletado antes da interrupção
 
-Três tarefas foram disparadas como subagentes do Claude Code (Agent tool) e podem ou
-não ter voltado antes do corte de sessão. Se o resultado delas não estiver em
-`report.md` ainda quando você retomar, redespache o mesmo escopo (via subagente, Codex,
-ou você mesmo, com browser real contra produção):
+Três tarefas foram disparadas como subagentes do Claude Code e retomadas com Codex.
+Os resultados disponíveis estão registrados no `report.md` e nos arquivos de evidência.
 
 1. **Agendamento — matriz de status principal** (contra hemodemo, usando as 3
    instituições, datas 10-16 dias a partir de 2026-08-27): pending→accepted (slot
@@ -74,16 +72,24 @@ ou você mesmo, com browser real contra produção):
    sobrevive a reload, PATCH de status bloqueada/pendente/liberada, inclusive numa data
    com solicitação vinculada), equipes, cobertura (mapa), restrições.
 
-## O que falta fazer depois de coletar os 3 resultados acima
+## Resultado real antes da interrupção
 
-1. Preencher a seção "Summary" (contagem por severidade) e a seção "Fronteira de
-   confiança" do `report.md` com os resultados reais.
-2. Atualizar `docs/qa/REGRESSION_CHECKLIST.md` se alguma área nova foi descoberta.
-3. Perguntar ao Guima, achado por achado: corrige agora (branch nova a partir de
+- A visita técnica sequencial funcionou após uma recusa e uma nova proposta.
+- A concorrência de slot retornou HTTP 409 para a segunda aceitação e manteve a
+  solicitação como `pending`.
+- As rotas públicas cross-institution bloquearam os probes indevidos.
+- A rota de retirada do painel institucional permitiu que Alpha cancelasse uma
+  solicitação pendente de Beta. Esse achado é crítico e encerrou a exploração.
+- A matriz completa de agendamento e o QA administrativo ficaram incompletos.
+
+## O que falta fazer depois da interrupção
+
+1. Corrigir ou mitigar o achado crítico antes de qualquer nova mutação em produção.
+2. Perguntar ao Guima, achado por achado: corrige agora (branch nova a partir de
    `main`, TDD, PR) ou só registra pra depois — não decidir sozinho.
-4. Commit + push da pasta `docs/qa/rounds/2026-08-27-prod-hemodemo/` inteira (report.md
+3. Commit + push da pasta `docs/qa/rounds/2026-08-27-prod-hemodemo/` inteira (report.md
    + HANDOFF.md + screenshots) e do checklist atualizado.
-5. Publicar um Claude Artifact com o relatório final (pedido explícito do Guima —
+4. Publicar um Claude Artifact com o relatório final (pedido explícito do Guima —
    ainda não feito).
-6. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
+5. Fora do escopo desta rodada por decisão do Guima: WhatsApp (disparo e recebimento) —
    não testar, já documentado no checklist.

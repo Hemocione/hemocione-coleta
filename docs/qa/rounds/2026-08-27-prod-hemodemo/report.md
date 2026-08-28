@@ -10,7 +10,16 @@
 
 ## Summary
 
-_Preenchido ao final da rodada._
+| Severity | Count |
+|---|---:|
+| Critical | 1 |
+| High | 1 |
+| Medium | 0 |
+| Low | 2 |
+| **Total** | **4** |
+
+A rodada foi interrompida após a confirmação do ISSUE-D. A matriz completa de
+agendamento e o QA administrativo ficaram incompletos.
 
 ## Fixtures criados nesta rodada
 
@@ -125,6 +134,48 @@ Endereço, Cidade, Estado), não só "algum campo foi tocado".
 
 ---
 
+### ISSUE-D: Rota institucional de retirada permite IDOR entre instituições
+
+| Field | Value |
+|-------|-------|
+| **Severity** | critical |
+| **Category** | security / authorization |
+| **URL** | `POST /api/v1/institutions/{institutionId}/collection-requests/{requestId}/withdraw` |
+| **Status** | found, not fixed |
+
+**Descrição**
+
+Uma instituição autenticada consegue retirar uma solicitação pertencente a outra
+instituição. O teste usou somente dados sintéticos de duas instituições.
+
+**Reprodução**
+
+1. Crie uma solicitação pendente como a instituição vítima.
+2. Autentique como a instituição atacante.
+3. Envie `POST` para a rota usando o `institutionId` e o `requestId` da vítima.
+4. **Observe:** a resposta retorna HTTP 200 e o status da solicitação muda para
+   `cancelled`.
+5. **Observe:** o motivo enviado pelo atacante aparece no histórico da vítima.
+
+**Evidência**
+
+O JWT da instituição atacante não tinha papel na instituição vítima. Mesmo assim, a
+solicitação da vítima foi cancelada. O resultado está em
+`agendamento/screenshots/idor-critical-institution-withdraw-request-response.txt`.
+
+**Causa provável**
+
+A rota confia no `institutionId` da URL e não verifica o papel da identidade autenticada
+nesse `institutionId`. O helper `assertUserAccessToInstitutionId` existe, mas não é
+chamado nessa rota.
+
+**Ação imediata**
+
+Corrija a autorização antes de qualquer novo teste de mutação. Retorne 403 ou 404 sem
+alterar a solicitação quando a identidade não tiver acesso à instituição da URL.
+
+---
+
 ## Verificado sem problema (fluxo público)
 
 - `/agendar/acompanhar/<token-inválido>`: "Solicitação não encontrada", sem crash.
@@ -137,6 +188,18 @@ Endereço, Cidade, Estado), não só "algum campo foi tocado".
   presente, 1 `<h1>` — ISSUE-003 não regrediu.
 - axe-core no modal (mobile + desktop): 0 violations.
 - Console limpo de exceções JS (fora do warning do Bugsnag, ISSUE-A).
+
+## Resultados adicionais da rodada interrompida
+
+- Visita técnica sequencial: recusa seguida por nova proposta funcionou. A segunda
+  proposta foi aceita. O fuso America/Sao_Paulo converteu para UTC corretamente. O
+  motivo interno não apareceu no histórico público.
+- Concorrência de slot: duas instituições criaram solicitações pendentes para o mesmo
+  slot. A primeira aceitação travou o slot. A segunda aceitação retornou HTTP 409 e
+  permaneceu `pending`.
+- Probes públicos cross-institution: as rotas públicas de resposta e as rotas públicas
+  de retirada bloquearam o acesso indevido com HTTP 403 ou HTTP 404.
+- O teste parou imediatamente após o ISSUE-D. Não foram executadas novas mutações.
 
 ## Correção de escopo descoberta nesta rodada
 
@@ -155,11 +218,15 @@ testado nesta rodada** — não há caminho de ferramenta pra provisionar o segu
 código e chamam `assertUserAccessToBloodBanksLocationId` com o `bloodBanksLocationId` da
 URL antes de agir — parecem guardados, mas isso não foi confirmado com um teste ao vivo.
 
-O lado instituição↔instituição (`respondToCounterProposal`,
-`respondToTechnicalVisitProposal`, as 3 rotas de `withdraw` — nenhuma filtra por
-institutionId internamente, só o binding do token de acompanhamento na rota) **foi**
-testável só com os 3 fixtures de instituição + hemodemo, sem precisar do segundo banco.
-Resultado abaixo, na seção que o agente dedicado devolveu.
+O lado instituição↔instituição foi testado com os 3 fixtures de instituição e o
+hemodemo. As rotas públicas bloquearam os casos cross-institution.
+
+A rota de retirada do painel institucional falhou no mesmo tipo de fronteira. Alpha
+cancelou uma solicitação pendente de Beta com um JWT válido de Alpha. O ISSUE-D é
+crítico. A exploração parou após a confirmação.
+
+O lado banco↔banco não foi testado. Não existe caminho disponível para provisionar um
+segundo login de hemocentro.
 
 ## Direções para quem for corrigir os achados
 
@@ -175,5 +242,5 @@ Resultado abaixo, na seção que o agente dedicado devolveu.
 
 ---
 
-_Seções de agendamento, visita técnica, admin do hemocentro e fronteira de confiança
-em preenchimento — agentes ainda em execução._
+_A rodada foi interrompida após a confirmação do ISSUE-D. A matriz restante requer
+correção de autorização e nova autorização para mutações em produção._

@@ -85,10 +85,10 @@
           name="i-lucide-building"
           class="w-10 h-10 mx-auto mb-3 text-gray-400"
         />
-        <p v-if="selectedInstitution && hasLatLng">
-          Nenhum banco de sangue localizado próximo à instituição selecionada.
+        <p>
+          Não encontramos bancos para este local. Use sua localização atual para
+          buscar bancos próximos.
         </p>
-        <p v-else>Nenhum banco de sangue disponível para o local informado.</p>
         <div class="mt-4">
           <UButton
             data-testid="use-location-button"

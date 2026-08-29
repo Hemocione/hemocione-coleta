@@ -220,6 +220,8 @@ describe("/agendar", () => {
     expect(missingCard.text()).not.toContain("Ainda não está na plataforma.");
     expect(missingCard.attributes("data-availability")).toBe("missing");
     expect(missingCard.classes()).toContain("border-gray-200");
+    expect(missingCard.classes()).toContain("bg-white");
+    expect(missingCard.classes()).not.toContain("bg-gray-50/70");
 
     expect(wrapper.text()).not.toContain("Sinalizar interesse");
     expect(wrapper.text()).toContain(

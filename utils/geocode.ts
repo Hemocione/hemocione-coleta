@@ -15,7 +15,7 @@ async function fetchBrasilApi(cep: string): Promise<GeocodeResult> {
   const data = await $fetch<any>(url);
   return {
     cep,
-    address: [data.street, data.neighborhood, data.city]
+    address: [data.street, data.neighborhood]
       .filter(Boolean)
       .join(", "),
     city: data.city,

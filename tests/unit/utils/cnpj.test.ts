@@ -25,6 +25,10 @@ describe('isValidCnpj', () => {
     expect(isValidCnpj('11222333000181')).toBe(true);
   });
 
+  it('accepts the CNPJ used in the institution address flow', () => {
+    expect(isValidCnpj('47.418.909/0001-28')).toBe(true);
+  });
+
   it('rejects a CNPJ with invalid check digits', () => {
     expect(isValidCnpj('12345678901234')).toBe(false);
   });

@@ -152,6 +152,31 @@ describe("/agendar", () => {
     expect(wrapper.text()).not.toContain("Bancos de sangue disponíveis");
   });
 
+  it("orienta a usar a localização atual quando a instituição não tem bancos próximos", () => {
+    nearbyBloodBanks.value = [];
+    schedulingStore.selectedInstitution = {
+      id: "institution-a",
+      name: "Instituição A",
+      document: "47418909000128",
+    };
+    schedulingStore.hasLatLng = true;
+
+    const wrapper = mountPage();
+
+    expect(wrapper.text()).toContain(
+      "Não encontramos bancos para este local. Use sua localização atual para buscar bancos próximos.",
+    );
+    expect(wrapper.text()).not.toContain(
+      "Nenhum banco de sangue localizado próximo à instituição selecionada.",
+    );
+    expect(wrapper.text()).not.toContain(
+      "Nenhum banco de sangue disponível para o local informado.",
+    );
+    expect(wrapper.find('[data-testid="use-location-button"]').exists()).toBe(
+      true,
+    );
+  });
+
   it("mantém bancos com agenda no início da listagem", () => {
     nearbyBloodBanks.value = [inactiveBank, bankWithoutSlug, activeBank];
     const wrapper = mountPage();

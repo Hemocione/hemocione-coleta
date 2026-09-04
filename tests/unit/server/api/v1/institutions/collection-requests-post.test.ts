@@ -44,6 +44,8 @@ const validBody = {
     email: "fulano@example.com",
     phone: "11999999999",
   },
+  estimatedAttendees: 300,
+  expectedBags: 120,
 };
 
 function makeEvent(body: unknown, authedUserId: string | null = userId): FakeEvent {
@@ -168,6 +170,27 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
     ).rejects.toThrow();
 
     expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejeita quando as estimativas do evento não são informadas", async () => {
+    const { estimatedAttendees: _a, expectedBags: _b, ...semEstimativas } =
+      validBody;
+
+    await expect(handler(makeEvent(semEstimativas))).rejects.toThrow();
+
+    expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
+  });
+
+  it("repassa as estimativas do evento ao service", async () => {
+    await handler(makeEvent({ ...validBody }));
+
+    expect(mocks.createCollectionRequest).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      expect.objectContaining({
+        estimatedAttendees: 300,
+        expectedBags: 120,
+      })
+    );
   });
 
   it("aguarda a tentativa de notificação de criação e usa todas as datas solicitadas", async () => {

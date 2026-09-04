@@ -161,6 +161,61 @@
           </div>
         </UCard>
 
+        <!-- Estimativa do Evento -->
+        <UCard
+          v-if="
+            currentCollectionRequest.estimatedAttendees ||
+            currentCollectionRequest.expectedBags
+          "
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Estimativa do Evento
+            </h3>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              v-if="currentCollectionRequest.estimatedAttendees"
+              class="bg-gray-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">
+                Público estimado do recinto
+              </span>
+              <p class="text-2xl font-bold text-gray-900 mt-1">
+                {{ formatNumber(currentCollectionRequest.estimatedAttendees) }}
+                <span class="text-sm font-normal text-gray-500">pessoas</span>
+              </p>
+            </div>
+            <div
+              v-if="currentCollectionRequest.expectedBags"
+              class="bg-red-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">Bolsas esperadas</span>
+              <p class="text-2xl font-bold text-red-800 mt-1">
+                {{ formatNumber(currentCollectionRequest.expectedBags) }}
+                <span class="text-sm font-normal text-gray-500">bolsas</span>
+              </p>
+            </div>
+          </div>
+          <p
+            v-if="
+              currentCollectionRequest.estimatedAttendees &&
+              currentCollectionRequest.expectedBags
+            "
+            class="text-xs text-gray-500 mt-3"
+          >
+            Estimativa informada pela instituição. Taxa implícita:
+            {{
+              formatPercent(
+                currentCollectionRequest.expectedBags /
+                  currentCollectionRequest.estimatedAttendees
+              )
+            }}
+            — use como referência ao dimensionar a equipe.
+          </p>
+        </UCard>
+
         <!-- Nota da instituição -->
         <UCard v-if="currentCollectionRequest.note">
           <template #header>
@@ -506,6 +561,22 @@
             </div>
           </div>
 
+          <!-- Logística: montagem e desmontagem -->
+          <div
+            class="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
+          >
+            <UIcon
+              name="i-lucide-truck"
+              class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"
+            />
+            <div>
+              <strong>Montagem e desmontagem:</strong> o local precisa estar
+              disponível <strong>1 hora antes</strong> do horário da coleta
+              para montagem e por <strong>ao menos 1 hora depois</strong> para
+              desmontagem da equipe e dos equipamentos.
+            </div>
+          </div>
+
           <!-- Reject / Counter-propose Buttons -->
           <div
             v-if="currentCollectionRequest.status === 'pending'"
@@ -808,6 +879,20 @@
                     }}</span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div
+              class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
+            >
+              <UIcon
+                name="i-lucide-truck"
+                class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"
+              />
+              <div>
+                <strong>Logística:</strong> reserve <strong>1 hora antes</strong>
+                para montagem e <strong>1 hora depois</strong> para desmontagem
+                no local da coleta.
               </div>
             </div>
           </div>
@@ -1297,6 +1382,13 @@ const formatCep = (cep: string) => {
   const digits = cep.replace(/\D/g, "");
   if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
   return digits;
+};
+
+const formatNumber = (value: number) => value.toLocaleString("pt-BR");
+
+const formatPercent = (ratio: number) => {
+  if (!Number.isFinite(ratio) || ratio <= 0) return "—";
+  return `${(ratio * 100).toFixed(1).replace(".", ",")}%`;
 };
 
 const getStatusColor = (status: string) =>

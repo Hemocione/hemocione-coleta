@@ -227,6 +227,8 @@ export interface CollectionRequestWithDetails {
   selectedAvailableDateId?: string;
   selectedSlotId?: string;
   note?: string;
+  estimatedAttendees?: number;
+  expectedBags?: number;
   technicalVisitId?: string;
   counterProposal?: CounterProposal;
   previousCounterProposals?: CounterProposal[];
@@ -1673,6 +1675,8 @@ export interface CreateCollectionRequestData {
   };
   address?: StructuredAddress;
   note?: string;
+  estimatedAttendees?: number;
+  expectedBags?: number;
 }
 
 const OPEN_COLLECTION_REQUEST_STATUSES: CollectionRequestStatus[] = [
@@ -1850,6 +1854,8 @@ export async function createCollectionRequest(
       priority: rd.priority,
     })),
     note: data.note,
+    estimatedAttendees: data.estimatedAttendees,
+    expectedBags: data.expectedBags,
     host: data.host,
     address: data.address,
     status: "pending",
@@ -1895,6 +1901,8 @@ export interface CollectionRequestPublicDetails {
   };
   address?: StructuredAddress;
   note?: string;
+  estimatedAttendees?: number;
+  expectedBags?: number;
   requestedDates: Array<{
     date: string;
     startTime?: string | Date;
@@ -2088,6 +2096,8 @@ async function buildCollectionRequestPublicDetails(
     host: request.host as CollectionRequestPublicDetails["host"],
     address: request.address as StructuredAddress | undefined,
     note: request.note || undefined,
+    estimatedAttendees: request.estimatedAttendees || undefined,
+    expectedBags: request.expectedBags || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,
     confirmedSchedule,

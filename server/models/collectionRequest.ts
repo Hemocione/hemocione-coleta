@@ -226,6 +226,18 @@ export const CollectionRequestSchema = new Schema(
       type: String,
       required: false,
     },
+    estimatedAttendees: {
+      type: Number,
+      required: false,
+      min: 1,
+      max: 200000,
+    },
+    expectedBags: {
+      type: Number,
+      required: false,
+      min: 1,
+      max: 10000,
+    },
     technicalVisitId: {
       type: Schema.Types.ObjectId,
       ref: "TechnicalVisit",

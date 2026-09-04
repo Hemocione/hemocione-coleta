@@ -41,6 +41,8 @@ const bodySchema = z.object({
   host: hostSchema,
   address: addressSchema.optional(),
   note: z.string().max(500).optional(),
+  estimatedAttendees: z.number().int().min(1).max(200000),
+  expectedBags: z.number().int().min(1).max(10000),
 });
 
 export default defineEventHandler(async (event) => {
@@ -59,8 +61,15 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { bloodBanksLocationId, requestedDates, host, address, note } =
-    bodySchema.parse(body);
+  const {
+    bloodBanksLocationId,
+    requestedDates,
+    host,
+    address,
+    note,
+    estimatedAttendees,
+    expectedBags,
+  } = bodySchema.parse(body);
 
   const result = await createCollectionRequest(bloodBanksLocationId, {
     institutionId,
@@ -69,6 +78,8 @@ export default defineEventHandler(async (event) => {
     host,
     address,
     note,
+    estimatedAttendees,
+    expectedBags,
   });
 
   try {

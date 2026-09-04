@@ -178,6 +178,26 @@
                   Aguardando resposta da instituição
                 </p>
 
+                <!-- Estimativa do evento -->
+                <p
+                  v-if="request.expectedBags"
+                  class="flex items-center gap-2 text-sm text-gray-700"
+                  data-testid="expected-bags-badge"
+                >
+                  <UIcon name="i-lucide-droplet" class="w-4 h-4 shrink-0 text-red-500" />
+                  <span>
+                    {{ request.expectedBags.toLocaleString("pt-BR") }} bolsas
+                    esperadas
+                    <span
+                      v-if="request.estimatedAttendees"
+                      class="text-gray-500"
+                    >
+                      · público estimado
+                      {{ request.estimatedAttendees.toLocaleString("pt-BR") }}
+                    </span>
+                  </span>
+                </p>
+
                 <!-- Available Dates -->
                 <div>
                   <h4 class="text-sm font-medium text-gray-900 mb-2">

@@ -298,10 +298,6 @@
               />
             </UFormField>
           </div>
-          <p class="text-xs text-gray-500">
-            Cerca de <strong>80% dos participantes</strong> de fato doam — o
-            banco de sangue estima as bolsas a partir daí.
-          </p>
           <div
             class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
           >

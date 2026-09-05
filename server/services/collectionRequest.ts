@@ -228,6 +228,7 @@ export interface CollectionRequestWithDetails {
   selectedSlotId?: string;
   note?: string;
   estimatedAttendees?: number;
+  venueAudienceSize?: number;
   expectedBags?: number;
   technicalVisitId?: string;
   counterProposal?: CounterProposal;
@@ -1676,6 +1677,7 @@ export interface CreateCollectionRequestData {
   address?: StructuredAddress;
   note?: string;
   estimatedAttendees?: number;
+  venueAudienceSize?: number;
   expectedBags?: number;
 }
 
@@ -1855,6 +1857,7 @@ export async function createCollectionRequest(
     })),
     note: data.note,
     estimatedAttendees: data.estimatedAttendees,
+    venueAudienceSize: data.venueAudienceSize,
     expectedBags: data.expectedBags,
     host: data.host,
     address: data.address,
@@ -1902,6 +1905,7 @@ export interface CollectionRequestPublicDetails {
   address?: StructuredAddress;
   note?: string;
   estimatedAttendees?: number;
+  venueAudienceSize?: number;
   expectedBags?: number;
   requestedDates: Array<{
     date: string;
@@ -2097,6 +2101,7 @@ async function buildCollectionRequestPublicDetails(
     address: request.address as StructuredAddress | undefined,
     note: request.note || undefined,
     estimatedAttendees: request.estimatedAttendees || undefined,
+    venueAudienceSize: request.venueAudienceSize || undefined,
     expectedBags: request.expectedBags || undefined,
     requestedDates: requestedDatesInfo,
     selectedDate,

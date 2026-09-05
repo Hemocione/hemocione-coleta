@@ -232,6 +232,12 @@ export const CollectionRequestSchema = new Schema(
       min: 1,
       max: 200000,
     },
+    venueAudienceSize: {
+      type: Number,
+      required: false,
+      min: 1,
+      max: 200000,
+    },
     expectedBags: {
       type: Number,
       required: false,

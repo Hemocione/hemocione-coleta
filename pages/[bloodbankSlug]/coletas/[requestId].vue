@@ -165,6 +165,7 @@
         <UCard
           v-if="
             currentCollectionRequest.estimatedAttendees ||
+            currentCollectionRequest.venueAudienceSize ||
             currentCollectionRequest.expectedBags
           "
         >
@@ -174,13 +175,29 @@
             </h3>
           </template>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+              v-if="estimatedBags !== null"
+              class="bg-red-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">Bolsas esperadas</span>
+              <p class="text-2xl font-bold text-red-800 mt-1">
+                {{ formatNumber(estimatedBags) }}
+                <span class="text-sm font-normal text-gray-500">bolsas</span>
+              </p>
+              <p class="text-xs text-gray-500 mt-2">
+                ≈ 80% dos participantes de fato doam
+                <template v-if="currentCollectionRequest.expectedBags">
+                  (informado: {{ formatNumber(currentCollectionRequest.expectedBags) }})
+                </template>
+              </p>
+            </div>
             <div
               v-if="currentCollectionRequest.estimatedAttendees"
               class="bg-gray-50 rounded-lg p-4"
             >
               <span class="text-sm text-gray-600">
-                Público estimado do recinto
+                {{ audienceParticipantsLabel }}
               </span>
               <p class="text-2xl font-bold text-gray-900 mt-1">
                 {{ formatNumber(currentCollectionRequest.estimatedAttendees) }}
@@ -188,32 +205,16 @@
               </p>
             </div>
             <div
-              v-if="currentCollectionRequest.expectedBags"
-              class="bg-red-50 rounded-lg p-4"
+              v-if="currentCollectionRequest.venueAudienceSize"
+              class="bg-gray-50 rounded-lg p-4"
             >
-              <span class="text-sm text-gray-600">Bolsas esperadas</span>
-              <p class="text-2xl font-bold text-red-800 mt-1">
-                {{ formatNumber(currentCollectionRequest.expectedBags) }}
-                <span class="text-sm font-normal text-gray-500">bolsas</span>
+              <span class="text-sm text-gray-600">Público no recinto</span>
+              <p class="text-2xl font-bold text-gray-900 mt-1">
+                {{ formatNumber(currentCollectionRequest.venueAudienceSize) }}
+                <span class="text-sm font-normal text-gray-500">pessoas</span>
               </p>
             </div>
           </div>
-          <p
-            v-if="
-              currentCollectionRequest.estimatedAttendees &&
-              currentCollectionRequest.expectedBags
-            "
-            class="text-xs text-gray-500 mt-3"
-          >
-            Estimativa informada pela instituição. Taxa implícita:
-            {{
-              formatPercent(
-                currentCollectionRequest.expectedBags /
-                  currentCollectionRequest.estimatedAttendees
-              )
-            }}
-            — use como referência ao dimensionar a equipe.
-          </p>
         </UCard>
 
         <!-- Nota da instituição -->
@@ -1243,6 +1244,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
+import { estimateBagsFromParticipants } from "~/utils/bagsEstimate";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import {
   getBloodbankCollectionRequestStatusLabel,
@@ -1386,10 +1388,18 @@ const formatCep = (cep: string) => {
 
 const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 
-const formatPercent = (ratio: number) => {
-  if (!Number.isFinite(ratio) || ratio <= 0) return "—";
-  return `${(ratio * 100).toFixed(1).replace(".", ",")}%`;
-};
+// Bolsas esperadas: taxa histórica de conversão (80% dos participantes
+// doam) aplicada sobre os participantes estimados pela instituição.
+// Registros antigos com expectedBags persistido mantêm o valor informado.
+const estimatedBags = computed<number | null>(() => {
+  const fromRate = estimateBagsFromParticipants(
+    currentCollectionRequest.value?.estimatedAttendees
+  );
+  if (fromRate !== null) return fromRate;
+  return currentCollectionRequest.value?.expectedBags ?? null;
+});
+
+const audienceParticipantsLabel = "Participantes esperados";
 
 const getStatusColor = (status: string) =>
   getCollectionRequestStatusColor(status);

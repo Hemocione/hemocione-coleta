@@ -178,6 +178,31 @@
                   Aguardando resposta da instituição
                 </p>
 
+                <!-- Estimativa do evento -->
+                <p
+                  v-if="getExpectedBags(request) !== null"
+                  class="flex items-center gap-2 text-sm text-gray-700"
+                  data-testid="expected-bags-badge"
+                >
+                  <UIcon name="i-lucide-droplet" class="w-4 h-4 shrink-0 text-red-500" />
+                  <span>
+                    {{ getExpectedBags(request)?.toLocaleString("pt-BR") }}
+                    bolsas esperadas
+                    <span
+                      v-if="request.estimatedAttendees"
+                      class="text-gray-500"
+                    >
+                      ·
+                      {{ request.estimatedAttendees.toLocaleString("pt-BR") }}
+                      participantes
+                      <template v-if="request.venueAudienceSize">
+                        de {{ request.venueAudienceSize.toLocaleString("pt-BR") }}
+                        no recinto
+                      </template>
+                    </span>
+                  </span>
+                </p>
+
                 <!-- Available Dates -->
                 <div>
                   <h4 class="text-sm font-medium text-gray-900 mb-2">
@@ -240,6 +265,7 @@ import {
   getCollectionRequestStatusColor,
 } from "~/utils/collectionRequestStatus";
 import { isCollectionRequestScheduled } from "~/utils/bloodbankCollectionRequest";
+import { estimateBagsFromParticipants } from "~/utils/bagsEstimate";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -413,6 +439,14 @@ const viewRequestDetails = (requestId: string) => {
 };
 
 // Helper functions for date display
+// Bolsas esperadas: taxa histórica de conversão (80% dos participantes
+// doam) sobre os participantes estimados; fallback para registros antigos
+// com expectedBags persistido.
+const getExpectedBags = (request: any) =>
+  estimateBagsFromParticipants(request.estimatedAttendees) ??
+  request.expectedBags ??
+  null;
+
 const getUniqueDates = (availableSlotOptions: any[]) => {
   const dates = availableSlotOptions.map((slot) => slot.date);
   return [...new Set(dates)].sort();

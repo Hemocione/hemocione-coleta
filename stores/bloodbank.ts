@@ -125,6 +125,9 @@ export interface CollectionRequest {
   };
   address?: StructuredAddress;
   note?: string;
+  estimatedAttendees?: number;
+  venueAudienceSize?: number;
+  expectedBags?: number;
   accessToken?: string;
   selectedAvailableDateId?: string;
   selectedSlotId?: string;

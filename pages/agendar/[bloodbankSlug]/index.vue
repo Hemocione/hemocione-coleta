@@ -258,6 +258,64 @@
           </div>
         </div>
 
+        <!-- Estimativa do Evento -->
+        <div class="space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-gray-700">
+            Estimativa do Evento
+          </h3>
+          <p class="text-xs text-gray-500">
+            {{ estimateSectionHint }}
+          </p>
+          <div class="grid md:grid-cols-2 gap-3">
+            <UFormField
+              v-if="isCompanyInstitution"
+              label="Funcionários no recinto"
+              required
+            >
+              <UInput
+                v-model="venueAudienceSize"
+                placeholder="Ex: 1200"
+                icon="i-lucide-building-2"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="200000"
+                size="xl"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField :label="participantFieldLabel" required>
+              <UInput
+                v-model="estimatedAttendees"
+                placeholder="Ex: 300"
+                icon="i-lucide-users"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="200000"
+                size="xl"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
+          <div
+            class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
+          >
+            <div class="flex items-start gap-2">
+              <UIcon
+                name="i-lucide-truck"
+                class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"
+              />
+              <div>
+                <strong>Logística do espaço:</strong> o local precisa estar
+                disponível <strong>1 hora antes</strong> do horário da coleta
+                para montagem e por <strong>ao menos 1 hora depois</strong>
+                para desmontagem da equipe e dos equipamentos.
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Ponto Focal (Host) -->
         <div class="space-y-3 mt-4">
           <h3 class="text-sm font-semibold text-gray-700">
@@ -380,7 +438,8 @@
               selected.length === 0 ||
               (restrictions.length > 0 && !hasReadRestrictions) ||
               !isHostValid ||
-              !isAddressValid
+              !isAddressValid ||
+              !isEstimateValid
             "
             color="primary"
             @click="submit"
@@ -499,6 +558,47 @@ const addressState = ref("");
 const addressZipCode = ref("");
 
 const note = ref("");
+
+// Estimativa do evento (participantes esperados e, para empresas, o
+// total de funcionários no recinto). As bolsas não são estimadas pela
+// instituição: o banco de sangue aplica a taxa de conversão (≈80%).
+const estimatedAttendees = ref<number | null>(null);
+const venueAudienceSize = ref<number | null>(null);
+
+const isCompanyInstitution = computed(
+  () => (selectedInstitution.value?.kind as string | undefined) === "company"
+);
+const isSchoolInstitution = computed(() =>
+  ["school", "university"].includes(
+    (selectedInstitution.value?.kind as string | undefined) || ""
+  )
+);
+
+const estimateSectionHint = computed(() => {
+  if (isCompanyInstitution.value) {
+    return "Quantos funcionários a empresa tem no recinto e quantos você espera que participem do evento.";
+  }
+  if (isSchoolInstitution.value) {
+    return "Quantos alunos, pais, amigos e professores você espera que participem da coleta.";
+  }
+  return "Quantas pessoas você espera que participem do evento.";
+});
+
+const participantFieldLabel = computed(() => {
+  if (isCompanyInstitution.value) {
+    return "Funcionários que devem participar";
+  }
+  if (isSchoolInstitution.value) {
+    return "Alunos, pais, amigos e professores esperados";
+  }
+  return "Participantes esperados";
+});
+
+const isEstimateValid = computed(
+  () =>
+    Number(estimatedAttendees.value) >= 1 &&
+    (!isCompanyInstitution.value || Number(venueAudienceSize.value) >= 1)
+);
 
 const brStates = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -802,6 +902,8 @@ const closeConfirmationModal = () => {
   addressNeighborhood.value = "";
   addressZipCode.value = "";
   note.value = "";
+  estimatedAttendees.value = null;
+  venueAudienceSize.value = null;
 };
 
 const submit = async () => {
@@ -833,6 +935,16 @@ const submit = async () => {
     return;
   }
 
+  if (!isEstimateValid.value) {
+    useToast().add({
+      title: "Preencha a estimativa do evento",
+      description:
+        "Informe o público estimado do recinto e o número de bolsas esperadas.",
+      color: "warning",
+    });
+    return;
+  }
+
   try {
     const payload = {
       bloodBanksLocationId: store.selectedBloodBank.bloodBanksLocationId,
@@ -856,6 +968,10 @@ const submit = async () => {
         zipCode: addressZipCode.value.replace(/\D/g, ""),
       },
       note: note.value.trim() || undefined,
+      estimatedAttendees: Number(estimatedAttendees.value),
+      venueAudienceSize: isCompanyInstitution.value
+        ? Number(venueAudienceSize.value)
+        : undefined,
     };
     const res = await fetchWithAuth<{ success: boolean; data: { accessToken?: string } }>(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,

@@ -161,6 +161,62 @@
           </div>
         </UCard>
 
+        <!-- Estimativa do Evento -->
+        <UCard
+          v-if="
+            currentCollectionRequest.estimatedAttendees ||
+            currentCollectionRequest.venueAudienceSize ||
+            currentCollectionRequest.expectedBags
+          "
+        >
+          <template #header>
+            <h3 class="text-lg font-semibold text-gray-900">
+              Estimativa do Evento
+            </h3>
+          </template>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+              v-if="estimatedBags !== null"
+              class="bg-red-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">Bolsas esperadas</span>
+              <p class="text-2xl font-bold text-red-800 mt-1">
+                {{ formatNumber(estimatedBags) }}
+                <span class="text-sm font-normal text-gray-500">bolsas</span>
+              </p>
+              <p class="text-xs text-gray-500 mt-2">
+                ≈ 80% dos participantes de fato doam
+                <template v-if="currentCollectionRequest.expectedBags">
+                  (informado: {{ formatNumber(currentCollectionRequest.expectedBags) }})
+                </template>
+              </p>
+            </div>
+            <div
+              v-if="currentCollectionRequest.estimatedAttendees"
+              class="bg-gray-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">
+                {{ audienceParticipantsLabel }}
+              </span>
+              <p class="text-2xl font-bold text-gray-900 mt-1">
+                {{ formatNumber(currentCollectionRequest.estimatedAttendees) }}
+                <span class="text-sm font-normal text-gray-500">pessoas</span>
+              </p>
+            </div>
+            <div
+              v-if="currentCollectionRequest.venueAudienceSize"
+              class="bg-gray-50 rounded-lg p-4"
+            >
+              <span class="text-sm text-gray-600">Público no recinto</span>
+              <p class="text-2xl font-bold text-gray-900 mt-1">
+                {{ formatNumber(currentCollectionRequest.venueAudienceSize) }}
+                <span class="text-sm font-normal text-gray-500">pessoas</span>
+              </p>
+            </div>
+          </div>
+        </UCard>
+
         <!-- Nota da instituição -->
         <UCard v-if="currentCollectionRequest.note">
           <template #header>
@@ -506,6 +562,22 @@
             </div>
           </div>
 
+          <!-- Logística: montagem e desmontagem -->
+          <div
+            class="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
+          >
+            <UIcon
+              name="i-lucide-truck"
+              class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"
+            />
+            <div>
+              <strong>Montagem e desmontagem:</strong> o local precisa estar
+              disponível <strong>1 hora antes</strong> do horário da coleta
+              para montagem e por <strong>ao menos 1 hora depois</strong> para
+              desmontagem da equipe e dos equipamentos.
+            </div>
+          </div>
+
           <!-- Reject / Counter-propose Buttons -->
           <div
             v-if="currentCollectionRequest.status === 'pending'"
@@ -808,6 +880,20 @@
                     }}</span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div
+              class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
+            >
+              <UIcon
+                name="i-lucide-truck"
+                class="w-4 h-4 mt-0.5 shrink-0 text-amber-600"
+              />
+              <div>
+                <strong>Logística:</strong> reserve <strong>1 hora antes</strong>
+                para montagem e <strong>1 hora depois</strong> para desmontagem
+                no local da coleta.
               </div>
             </div>
           </div>
@@ -1158,6 +1244,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
+import { estimateBagsFromParticipants } from "~/utils/bagsEstimate";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import {
   getBloodbankCollectionRequestStatusLabel,
@@ -1298,6 +1385,21 @@ const formatCep = (cep: string) => {
   if (digits.length > 5) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
   return digits;
 };
+
+const formatNumber = (value: number) => value.toLocaleString("pt-BR");
+
+// Bolsas esperadas: taxa histórica de conversão (80% dos participantes
+// doam) aplicada sobre os participantes estimados pela instituição.
+// Registros antigos com expectedBags persistido mantêm o valor informado.
+const estimatedBags = computed<number | null>(() => {
+  const fromRate = estimateBagsFromParticipants(
+    currentCollectionRequest.value?.estimatedAttendees
+  );
+  if (fromRate !== null) return fromRate;
+  return currentCollectionRequest.value?.expectedBags ?? null;
+});
+
+const audienceParticipantsLabel = "Participantes esperados";
 
 const getStatusColor = (status: string) =>
   getCollectionRequestStatusColor(status);

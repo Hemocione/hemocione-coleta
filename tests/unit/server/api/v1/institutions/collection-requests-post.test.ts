@@ -44,6 +44,8 @@ const validBody = {
     email: "fulano@example.com",
     phone: "11999999999",
   },
+  estimatedAttendees: 300,
+  venueAudienceSize: 1200,
 };
 
 function makeEvent(body: unknown, authedUserId: string | null = userId): FakeEvent {
@@ -168,6 +170,44 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
     ).rejects.toThrow();
 
     expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejeita quando o público participante não é informado", async () => {
+    const {
+      estimatedAttendees: _a,
+      venueAudienceSize: _v,
+      ...semEstimativas
+    } = validBody;
+
+    await expect(handler(makeEvent(semEstimativas))).rejects.toThrow();
+
+    expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
+  });
+
+  it("repassa as estimativas do evento ao service", async () => {
+    await handler(makeEvent({ ...validBody }));
+
+    expect(mocks.createCollectionRequest).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      expect.objectContaining({
+        estimatedAttendees: 300,
+        venueAudienceSize: 1200,
+      })
+    );
+  });
+
+  it("aceita a solicitação sem público do recinto (instituição não-empresa)", async () => {
+    const { venueAudienceSize: _v, ...semAudience } = validBody;
+
+    await expect(handler(makeEvent(semAudience))).resolves.toBeTruthy();
+
+    expect(mocks.createCollectionRequest).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      expect.objectContaining({
+        estimatedAttendees: 300,
+        venueAudienceSize: undefined,
+      })
+    );
   });
 
   it("aguarda a tentativa de notificação de criação e usa todas as datas solicitadas", async () => {

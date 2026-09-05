@@ -264,11 +264,27 @@
             Estimativa do Evento
           </h3>
           <p class="text-xs text-gray-500">
-            Ajuda o banco de sangue a dimensionar a equipe e evitar eventos
-            com poucas bolsas.
+            {{ estimateSectionHint }}
           </p>
           <div class="grid md:grid-cols-2 gap-3">
-            <UFormField label="Público estimado do recinto" required>
+            <UFormField
+              v-if="isCompanyInstitution"
+              label="Funcionários no recinto"
+              required
+            >
+              <UInput
+                v-model="venueAudienceSize"
+                placeholder="Ex: 1200"
+                icon="i-lucide-building-2"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="200000"
+                size="xl"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField :label="participantFieldLabel" required>
               <UInput
                 v-model="estimatedAttendees"
                 placeholder="Ex: 300"
@@ -277,20 +293,15 @@
                 inputmode="numeric"
                 min="1"
                 max="200000"
-              />
-            </UFormField>
-            <UFormField label="Bolsas esperadas" required>
-              <UInput
-                v-model="expectedBags"
-                placeholder="Ex: 120"
-                icon="i-lucide-droplet"
-                type="number"
-                inputmode="numeric"
-                min="1"
-                max="10000"
+                size="xl"
+                class="w-full"
               />
             </UFormField>
           </div>
+          <p class="text-xs text-gray-500">
+            Cerca de <strong>80% dos participantes</strong> de fato doam — o
+            banco de sangue estima as bolsas a partir daí.
+          </p>
           <div
             class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
           >
@@ -552,13 +563,45 @@ const addressZipCode = ref("");
 
 const note = ref("");
 
-// Estimativa do evento (público do recinto e bolsas esperadas)
+// Estimativa do evento (participantes esperados e, para empresas, o
+// total de funcionários no recinto). As bolsas não são estimadas pela
+// instituição: o banco de sangue aplica a taxa de conversão (≈80%).
 const estimatedAttendees = ref<number | null>(null);
-const expectedBags = ref<number | null>(null);
+const venueAudienceSize = ref<number | null>(null);
+
+const isCompanyInstitution = computed(
+  () => (selectedInstitution.value?.kind as string | undefined) === "company"
+);
+const isSchoolInstitution = computed(() =>
+  ["school", "university"].includes(
+    (selectedInstitution.value?.kind as string | undefined) || ""
+  )
+);
+
+const estimateSectionHint = computed(() => {
+  if (isCompanyInstitution.value) {
+    return "Quantos funcionários a empresa tem no recinto e quantos você espera que participem do evento.";
+  }
+  if (isSchoolInstitution.value) {
+    return "Quantos alunos, pais, amigos e professores você espera que participem da coleta.";
+  }
+  return "Quantas pessoas você espera que participem do evento.";
+});
+
+const participantFieldLabel = computed(() => {
+  if (isCompanyInstitution.value) {
+    return "Funcionários que devem participar";
+  }
+  if (isSchoolInstitution.value) {
+    return "Alunos, pais, amigos e professores esperados";
+  }
+  return "Participantes esperados";
+});
 
 const isEstimateValid = computed(
   () =>
-    Number(estimatedAttendees.value) >= 1 && Number(expectedBags.value) >= 1
+    Number(estimatedAttendees.value) >= 1 &&
+    (!isCompanyInstitution.value || Number(venueAudienceSize.value) >= 1)
 );
 
 const brStates = [
@@ -864,7 +907,7 @@ const closeConfirmationModal = () => {
   addressZipCode.value = "";
   note.value = "";
   estimatedAttendees.value = null;
-  expectedBags.value = null;
+  venueAudienceSize.value = null;
 };
 
 const submit = async () => {
@@ -930,7 +973,9 @@ const submit = async () => {
       },
       note: note.value.trim() || undefined,
       estimatedAttendees: Number(estimatedAttendees.value),
-      expectedBags: Number(expectedBags.value),
+      venueAudienceSize: isCompanyInstitution.value
+        ? Number(venueAudienceSize.value)
+        : undefined,
     };
     const res = await fetchWithAuth<{ success: boolean; data: { accessToken?: string } }>(
       `/api/v1/institutions/${selectedInstitution.value.id}/collection-requests`,

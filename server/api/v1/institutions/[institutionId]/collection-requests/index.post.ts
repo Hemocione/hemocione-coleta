@@ -42,7 +42,8 @@ const bodySchema = z.object({
   address: addressSchema.optional(),
   note: z.string().max(500).optional(),
   estimatedAttendees: z.number().int().min(1).max(200000),
-  expectedBags: z.number().int().min(1).max(10000),
+  venueAudienceSize: z.number().int().min(1).max(200000).optional(),
+  expectedBags: z.number().int().min(1).max(10000).optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -68,6 +69,7 @@ export default defineEventHandler(async (event) => {
     address,
     note,
     estimatedAttendees,
+    venueAudienceSize,
     expectedBags,
   } = bodySchema.parse(body);
 
@@ -79,6 +81,7 @@ export default defineEventHandler(async (event) => {
     address,
     note,
     estimatedAttendees,
+    venueAudienceSize,
     expectedBags,
   });
 

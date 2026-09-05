@@ -45,7 +45,7 @@ const validBody = {
     phone: "11999999999",
   },
   estimatedAttendees: 300,
-  expectedBags: 120,
+  venueAudienceSize: 1200,
 };
 
 function makeEvent(body: unknown, authedUserId: string | null = userId): FakeEvent {
@@ -172,9 +172,12 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
     expect(mocks.createCollectionRequest).not.toHaveBeenCalled();
   });
 
-  it("rejeita quando as estimativas do evento não são informadas", async () => {
-    const { estimatedAttendees: _a, expectedBags: _b, ...semEstimativas } =
-      validBody;
+  it("rejeita quando o público participante não é informado", async () => {
+    const {
+      estimatedAttendees: _a,
+      venueAudienceSize: _v,
+      ...semEstimativas
+    } = validBody;
 
     await expect(handler(makeEvent(semEstimativas))).rejects.toThrow();
 
@@ -188,7 +191,21 @@ describe("POST /api/v1/institutions/:institutionId/collection-requests", () => {
       bloodBanksLocationId,
       expect.objectContaining({
         estimatedAttendees: 300,
-        expectedBags: 120,
+        venueAudienceSize: 1200,
+      })
+    );
+  });
+
+  it("aceita a solicitação sem público do recinto (instituição não-empresa)", async () => {
+    const { venueAudienceSize: _v, ...semAudience } = validBody;
+
+    await expect(handler(makeEvent(semAudience))).resolves.toBeTruthy();
+
+    expect(mocks.createCollectionRequest).toHaveBeenCalledWith(
+      bloodBanksLocationId,
+      expect.objectContaining({
+        estimatedAttendees: 300,
+        venueAudienceSize: undefined,
       })
     );
   });

@@ -21,6 +21,8 @@ const institutionA: Institution = {
   state: "SP",
   latitude: -23.55,
   longitude: -46.63,
+  hasCollectionBadge: false,
+  certificationStatus: "none",
 };
 
 const institutionB: Institution = {
@@ -30,6 +32,8 @@ const institutionB: Institution = {
   state: "SP",
   latitude: -22.9,
   longitude: -47.06,
+  hasCollectionBadge: false,
+  certificationStatus: "none",
 };
 
 const bankA: BloodBankListItem = {
@@ -136,6 +140,8 @@ describe("useSchedulingStore", () => {
     const institutionWithoutCoordinates: Institution = {
       id: "institution-without-coordinates",
       name: "Instituição sem coordenadas",
+      hasCollectionBadge: false,
+      certificationStatus: "none",
     };
     mocks.useFetchWithAuth.mockImplementation(() => asyncData([bankA]));
     const store = useSchedulingStore();

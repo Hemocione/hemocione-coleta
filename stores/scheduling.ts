@@ -3,6 +3,7 @@ import {
   fetchWithAuth,
   useFetchWithAuth,
 } from "~/composables/useFetchWithAuth";
+import type { InstitutionCertificationStatus } from "~/utils/institutionCertification";
 
 const SELECTED_INSTITUTION_STORAGE_KEY = "hemocione:selected-institution-id";
 
@@ -27,6 +28,8 @@ export interface Institution {
   banner?: string | null;
   status?: "pending" | "validated" | "rejected";
   membershipRole?: "admin" | "staff";
+  hasCollectionBadge: boolean;
+  certificationStatus: InstitutionCertificationStatus;
 }
 
 export interface BloodBankListItem {

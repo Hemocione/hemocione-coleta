@@ -87,6 +87,11 @@
                         .join(" · ")
                     }}
                   </span>
+                  <InstitutionCertificationStatus
+                    :certification-status="selectedInstitution.certificationStatus"
+                    :has-collection-badge="selectedInstitution.hasCollectionBadge"
+                    show-cta
+                  />
                 </div>
               </div>
             </div>
@@ -452,6 +457,7 @@ import { useSchedulingStore } from "~/stores/scheduling";
 import { geocodeCep } from "~/utils/geocode";
 import { formatCnpj, isValidCnpj, normalizeCnpj } from "~/utils/cnpj";
 import { vMaska } from "maska/vue";
+import InstitutionCertificationStatus from "~/components/InstitutionCertificationStatus.vue";
 
 const route = useRoute();
 const onLogin = () => {

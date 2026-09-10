@@ -65,6 +65,10 @@
                     ? formatStructuredAddress(currentCollectionRequest.address)
                     : currentCollectionRequest.institutionAddress }}
                 </p>
+                <InstitutionCertificationStatus
+                  :certification-status="currentCollectionRequest.certificationStatus"
+                  :has-collection-badge="currentCollectionRequest.hasCollectionBadge"
+                />
               </div>
             </div>
           </template>
@@ -1245,6 +1249,7 @@ import { useBloodbankStore } from "~/stores/bloodbank";
 import { useUserStore } from "~/stores/user";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import { estimateBagsFromParticipants } from "~/utils/bagsEstimate";
+import InstitutionCertificationStatus from "~/components/InstitutionCertificationStatus.vue";
 import type { CollectionRequest } from "~/stores/bloodbank";
 import {
   getBloodbankCollectionRequestStatusLabel,

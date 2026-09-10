@@ -1,4 +1,5 @@
 import { currentUserTokenDecoder } from "~/utils/currentUserTokenDecoder";
+import type { InstitutionCertificationStatus } from "~/utils/institutionCertification";
 import { getBloodBanksByBloodBanksLocationIds } from "./bloodBank";
 
 interface BloodBankRole {
@@ -46,6 +47,8 @@ export interface Institution {
   state?: string;
   status?: "pending" | "validated" | "rejected";
   membershipRole?: "admin" | "staff";
+  hasCollectionBadge: boolean;
+  certificationStatus: InstitutionCertificationStatus;
 }
 
 export interface InstitutionListResponseItem {

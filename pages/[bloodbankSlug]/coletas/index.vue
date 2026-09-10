@@ -150,6 +150,10 @@
                   >
                     Ponto focal: {{ request.host.name }}
                   </span>
+                  <InstitutionCertificationStatus
+                    :certification-status="request.certificationStatus"
+                    :has-collection-badge="request.hasCollectionBadge"
+                  />
                 </div>
               </template>
 
@@ -266,6 +270,7 @@ import {
 } from "~/utils/collectionRequestStatus";
 import { isCollectionRequestScheduled } from "~/utils/bloodbankCollectionRequest";
 import { estimateBagsFromParticipants } from "~/utils/bagsEstimate";
+import InstitutionCertificationStatus from "~/components/InstitutionCertificationStatus.vue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";

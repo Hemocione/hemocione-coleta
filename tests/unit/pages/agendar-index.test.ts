@@ -241,6 +241,8 @@ describe("/agendar", () => {
     expect(inactiveCard.text()).not.toContain("Agenda online indisponível.");
     expect(inactiveCard.attributes("data-availability")).toBe("inactive");
     expect(inactiveCard.classes()).toContain("border-gray-200");
+    expect(inactiveCard.classes()).toContain("bg-white");
+    expect(inactiveCard.classes()).not.toContain("bg-gray-50/70");
 
     expect(missingCard.text()).not.toContain("Ainda não está na plataforma.");
     expect(missingCard.attributes("data-availability")).toBe("missing");

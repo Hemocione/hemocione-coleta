@@ -5,30 +5,53 @@
     class="inline-flex items-center gap-1.5 text-xs"
   >
     <template v-if="props.certificationStatus === 'certified'">
-      <UIcon name="i-lucide-badge-check" class="size-4 text-emerald-600" />
-      <span class="font-semibold text-emerald-700">Instituição Certificada</span>
+      <UBadge
+        color="success"
+        variant="solid"
+        size="sm"
+        icon="i-lucide-badge-check"
+      >
+        Instituição Certificada
+      </UBadge>
     </template>
 
     <template v-else-if="props.certificationStatus === 'in_progress'">
-      <UIcon name="i-lucide-clock-3" class="size-4 text-gray-500" />
-      <span class="text-gray-600">Certificação em andamento</span>
+      <UBadge
+        color="warning"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-clock-3"
+      >
+        Certificação em andamento
+      </UBadge>
     </template>
 
     <template v-else-if="props.showCta">
-      <a
+      <UButton
+        as="a"
         href="https://instituicoes.hemocione.com.br"
         target="_blank"
         rel="noopener noreferrer"
+        external
+        color="primary"
+        variant="soft"
+        size="xs"
+        icon="i-lucide-arrow-up-right"
         data-testid="institution-certification-cta"
-        class="font-medium text-primary-600 underline-offset-2 hover:underline"
       >
         Iniciar processo de certificação
-      </a>
+      </UButton>
     </template>
 
     <template v-else>
-      <UIcon name="i-lucide-circle-help" class="size-4 text-gray-400" />
-      <span class="text-gray-500">Certificação não iniciada</span>
+      <UBadge
+        color="neutral"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-circle-help"
+      >
+        Certificação não iniciada
+      </UBadge>
     </template>
   </div>
 </template>

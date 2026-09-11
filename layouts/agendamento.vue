@@ -68,13 +68,6 @@
                   v-if="selectedInstitution"
                   class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"
                 >
-                  <UBadge
-                    v-if="selectedInstitution.status"
-                    color="neutral"
-                    variant="subtle"
-                  >
-                    {{ institutionStatusLabel(selectedInstitution.status) }}
-                  </UBadge>
                   <span v-if="selectedInstitution.kind">
                     {{ institutionKindLabel(selectedInstitution.kind) }}
                   </span>
@@ -549,13 +542,6 @@ const institutionKindLabel = (kind: string) =>
     school: "Escola",
     university: "Universidade",
   })[kind] || kind;
-
-const institutionStatusLabel = (status: string) =>
-  ({
-    pending: "Pendente",
-    validated: "Validada",
-    rejected: "Rejeitada",
-  })[status] || status;
 
 const formatInstitutionDocument = (document: string) => {
   const formatted = formatCnpj(document);

@@ -34,8 +34,7 @@
         rel="noopener noreferrer"
         external
         color="primary"
-        variant="soft"
-        size="xs"
+        size="sm"
         icon="i-lucide-arrow-up-right"
         data-testid="institution-certification-cta"
       >

@@ -85,11 +85,11 @@ describe("InstitutionCertificationStatus", () => {
     expect(ctaButton.props()).toMatchObject({
       as: "a",
       color: "primary",
-      variant: "soft",
-      size: "xs",
+      size: "sm",
       icon: "i-lucide-arrow-up-right",
       external: true,
     });
+    expect(ctaButton.props("variant")).toBeUndefined();
     expect(cta.attributes("href")).toBe("https://instituicoes.hemocione.com.br");
     expect(cta.attributes("target")).toBe("_blank");
     expect(cta.attributes("rel")).toBe("noopener noreferrer");

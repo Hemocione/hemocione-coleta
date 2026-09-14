@@ -1,6 +1,6 @@
 <template>
   <InstitutionImageField
-    kind="logo"
+    kind="banner"
     :model-value="props.modelValue"
     :disabled="props.disabled"
     @update:model-value="emit('update:modelValue', $event)"
@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import InstitutionImageField from "~/components/InstitutionImageField.vue";
 
-defineOptions({ name: "InstitutionLogoField" });
+defineOptions({ name: "InstitutionBannerField" });
 
 const props = withDefaults(
   defineProps<{

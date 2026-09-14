@@ -1,0 +1,25 @@
+Rejection post-fix production evidence — 2026-08-28
+
+Deploy: main commit dad09cf, PR #47
+Target: https://coleta.hemocione.com.br
+Account: Hemodemo
+Data: synthetic pending collection request
+Execution: real browser UI only
+
+Action:
+1. Open a pending request with a visible QA-TESTE name.
+2. Click Rejeitar Solicitação.
+3. Enter a synthetic rejection reason.
+4. Click Confirmar Rejeição.
+5. Open the Rejeitadas tab.
+
+Observed:
+- The rejection dialog required a reason before enabling confirmation.
+- The page showed the alert "Solicitação rejeitada!".
+- The page showed "A solicitação foi rejeitada com sucesso.".
+- The details page showed the rejection reason after confirmation.
+- The Rejeitadas tab loaded without browser errors.
+- No network inspection, URL inspection, cookie inspection, or storage inspection was used.
+
+No contact fields, credentials, tokens, cookies, request URLs, or sensitive identifiers
+appear in this evidence.

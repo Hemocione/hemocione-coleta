@@ -1,0 +1,41 @@
+Parte 1 - Visita tecnica sequencial (producao, 2026-08-28)
+
+Fixture: instituicao QA-TESTE Alpha (91b30035-61f4-462f-9f08-ebbb6331de77) contra hemodemo
+(278588e6-4b1b-4208-91ee-ab2e7a454dc2). Collection request _id 6a90d176f6421d8d9fbcd871,
+data 2026-09-14, slot Equipe 1.
+
+Sequencia executada via API real (Bearer JWT por identidade, sem UI - ver nota sobre
+colisao de sessao de browser compartilhada no relatorio):
+
+1. Institution cria solicitacao (pending) - POST /api/v1/institutions/{alphaId}/collection-requests
+2. Hemodemo aceita com needsTechnicalVisit=true - POST .../accept -> status awaiting_technical_visit
+3. Hemodemo propoe visita rodada 1 (2026-09-20 10:00-11:00 BRT) - POST .../propose-technical-visit
+4. Alpha RECUSA a rodada 1 - POST public/track/{token}/respond-technical-visit-proposal
+   {"decision":"declined","selectedDateId":"0"} -> HTTP 200, status permanece
+   awaiting_technical_visit, visitProposal movido para previousVisitProposals.
+5. Hemodemo propoe visita rodada 2 (2026-09-21 14:30-15:30 BRT) - POST .../propose-technical-visit
+   -> HTTP 200 (nao travou apos a 1a recusa; previousVisitProposals reabriu a precondicao
+   corretamente, sem bug).
+6. Alpha ACEITA a rodada 2 - POST public/track/{token}/respond-technical-visit-proposal
+   {"decision":"accepted","selectedDateId":"0"} -> HTTP 200, technicalVisitId criado
+   (6a90d1e9e39c6e04d5b2ca54).
+7. Verificacao de fuso horario: GET /api/v1/bloodbank/{bb}/technical-visits/{visitId} retornou
+   visitDate = "2026-09-21T17:30:00.000Z". 14:30 BRT (America/Sao_Paulo, UTC-3, sem DST) =
+   17:30 UTC. Confirma que o horario digitado pelo banco (interpretado como local) foi
+   convertido corretamente para UTC - NAO tratado como UTC ingenuo (o que resultaria em
+   14:30:00.000Z). Sem bug.
+8. Registro da visita como realizada: PUT /api/v1/bloodbank/{bb}/technical-visits/{visitId}
+   {"outcome":"approved","notes":"Visita realizada, tudo conforme"} -> HTTP 200. Este PUT
+   sozinho ja disparou a transicao da collection request para status
+   "technical_visit_confirmed" (statusHistory: "Technical visit approved" no mesmo
+   timestamp) - nao foi necessario chamar reuse-technical-visit separadamente (essa
+   tentativa retornou 400 "Collection request is not awaiting technical visit" porque a
+   transicao ja tinha ocorrido via o PUT).
+9. GET public/track/{token} confirmou: rejectionReason=null, e todas as entradas de
+   statusHistory.reason visiveis à instituicao sao strings fixas do sistema (ex.: "Technical
+   visit proposal declined by institution") - nenhum motivo interno de negocio (livre-texto)
+   vazou no historico. As "notes" do technicalVisit SAO expostas de proposito no payload
+   publico (campo pensado para ser visto pela instituicao).
+
+Resultado: nenhum bug encontrado na Parte 1. Os 4 itens do checklist ("Visita tecnica")
+verificados sem problema.

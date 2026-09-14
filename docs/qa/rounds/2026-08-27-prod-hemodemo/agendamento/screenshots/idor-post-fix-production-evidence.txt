@@ -1,0 +1,29 @@
+Production IDOR regression after PR #45
+
+Environment: https://coleta.hemocione.com.br
+Deploy: main commit de00511
+Browser: real Chromium session
+Data: synthetic QA institutions and request only
+
+Scenario 1: unauthorized cross-institution withdrawal
+- Alpha authenticated with its own session.
+- Alpha sent POST to the Beta institution route for a pending Beta request.
+- Response: HTTP 403.
+- Response message: User does not have access to this institution.
+- Database read for the request: not observable from the browser; the request remained unchanged.
+
+Scenario 2: state after the unauthorized attempt
+- Beta authenticated with its own session.
+- The same request remained pending.
+- Status history count remained 1.
+
+Scenario 3: authorized withdrawal
+- Beta authenticated with its own session.
+- Beta sent POST to its own institution route for the same pending request.
+- Response: HTTP 200.
+- Response message: Solicitação retirada com sucesso.
+- Public request state after the action: cancelled.
+- Public status history count: 2.
+
+Verdict: PASS. The route blocks cross-institution mutation and allows the owning institution.
+No credential, token, cookie, or token-bearing URL was recorded.

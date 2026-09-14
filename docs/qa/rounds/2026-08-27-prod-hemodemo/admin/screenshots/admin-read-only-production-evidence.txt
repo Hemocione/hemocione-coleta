@@ -1,0 +1,19 @@
+Administrative read-only production evidence — 2026-08-28
+
+Deploy: main commit dad09cf, PR #47
+Target: https://coleta.hemocione.com.br
+Account: Hemodemo
+Execution: real browser UI only
+
+Results:
+- Calendar: PASS.
+- Teams: PASS.
+- Coverage: PASS.
+- Restrictions: PASS.
+- All 4 screens loaded through visible navigation.
+- Each screen recorded 0 browser errors and 0 console errors.
+- No write action was executed.
+- The dedicated browser session was closed.
+
+No contact fields, credentials, tokens, cookies, request URLs, or sensitive identifiers
+appear in this evidence.

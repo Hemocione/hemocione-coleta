@@ -1,0 +1,19 @@
+Institution onboarding production evidence — 2026-08-28
+
+Target: https://coleta.hemocione.com.br
+Execution: real browser UI only
+Data: synthetic account and synthetic institution
+
+Results:
+- Account signup completed through the visible form.
+- Institution registration completed through the visible form.
+- Institution edit completed through the visible form.
+- The page displayed the institution as validated.
+- No nearby blood bank appeared for the synthetic institution.
+- No collection request was created.
+- No message was sent.
+- Browser errors returned 0 lines after the flow.
+- The session was closed.
+
+This evidence omits contact fields, credentials, tokens, cookies, request URLs, and
+sensitive identifiers.

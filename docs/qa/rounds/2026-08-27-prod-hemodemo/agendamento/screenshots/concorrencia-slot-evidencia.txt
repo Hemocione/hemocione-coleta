@@ -1,0 +1,23 @@
+Parte 2 - Concorrencia de slot (producao, 2026-08-28)
+
+Fixtures: QA-TESTE Beta (bb061558-6a72-44b1-96e4-e2293be96633) e QA-TESTE Gama
+(534b879e-7cc0-4121-9702-a97b9ecfecf5), ambas contra hemodemo, disputando o MESMO slot:
+availableDateId 6a8fd2e7a7e6a824010cb30e (2026-09-15), slotId 6a8fd2e7a7e6a824010cb30f
+(Equipe 1).
+
+Sequencia:
+1. Beta cria solicitacao pending para o slot (requestId 6a90d237e39c6e04d5b2ca7c).
+2. Gama cria solicitacao pending para o MESMO slot (requestId 6a90d237e39c6e04d5b2ca8b).
+   Ambas criacoes succederam (HTTP 200) - esperado, o conflito so e checado por
+   instituicao+data, nao bloqueia duas instituicoes diferentes de mirar o mesmo slot em
+   aberto.
+3. Hemodemo aceita a solicitacao de Beta primeiro - POST .../accept -> HTTP 200,
+   status "accepted", slot travado (locked=true, lockedBy=requestId de Beta).
+4. Hemodemo tenta aceitar a solicitacao de Gama para o MESMO slot - POST .../accept ->
+   HTTP 409 {"statusMessage":"Slot is already locked by another request"}.
+5. Verificacao pos-conflito: solicitacao de Gama permanece "pending" (nao corrompida,
+   nao virou "accepted" fantasma); o slot mostra isLocked=true no availableSlotOptions da
+   propria solicitacao de Gama (consistente, travado por Beta, sem trava dupla).
+
+Resultado: nenhum bug encontrado na Parte 2. Conflito coerente, sem slot fantasma, sem
+duas solicitacoes accepted simultaneas.

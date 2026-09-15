@@ -16,6 +16,7 @@ const { AvailableDate } = availableDate;
 const { BloodBank } = bloodBank;
 const { CommitmentTerm } = commitmentTerm;
 import { getInstitutionsByIds } from "./hemocioneId";
+import type { InstitutionCertificationStatus } from "~/utils/institutionCertification";
 import {
   createTechnicalVisit,
   getTechnicalVisitById,
@@ -209,6 +210,8 @@ export interface CollectionRequestWithDetails {
   institutionAddress: string;
   institutionLogo?: string;
   institutionBanner?: string;
+  hasCollectionBadge: boolean;
+  certificationStatus: InstitutionCertificationStatus;
   requestedByUserId: string;
   bloodBanksLocationId: string;
   bloodBankName?: string;
@@ -471,6 +474,8 @@ async function getCollectionRequestsByScope(
         institutionAddress: institution.address || "",
         institutionLogo: institution.logo,
         institutionBanner: institution.banner,
+        hasCollectionBadge: institution.hasCollectionBadge ?? false,
+        certificationStatus: institution.certificationStatus ?? "none",
         institutionStatus: institution.status,
         bloodBankName: bloodBankDoc?.name || "Banco de Sangue",
         bloodBankLogo: bloodBankDoc?.logo,
@@ -667,6 +672,8 @@ export async function getCollectionRequestById(
     institutionAddress: institution?.address || "",
     institutionLogo: institution?.logo,
     institutionBanner: institution?.banner,
+    hasCollectionBadge: institution?.hasCollectionBadge ?? false,
+    certificationStatus: institution?.certificationStatus ?? "none",
     availableSlotOptions,
     availableCounterProposalOptions,
   };

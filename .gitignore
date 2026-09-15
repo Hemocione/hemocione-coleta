@@ -103,3 +103,5 @@ bruno
 
 # Superpowers planning docs (local only, never committed)
 docs/superpowers/
+
+.worktrees/

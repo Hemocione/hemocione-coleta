@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { fetchWithAuth } from "~/composables/useFetchWithAuth";
 import type { AvailableDateStatus } from "~/utils/availableDateStatus";
+import type { InstitutionCertificationStatus } from "~/utils/institutionCertification";
 
 // Types
 export interface BloodbankData {
@@ -94,6 +95,8 @@ export interface CollectionRequest {
   institutionAddress: string;
   institutionLogo?: string;
   institutionBanner?: string;
+  hasCollectionBadge: boolean;
+  certificationStatus: InstitutionCertificationStatus;
   requestedByUserId: string;
   bloodBanksLocationId: string;
   availableSlotOptions: Array<{
@@ -205,6 +208,8 @@ export interface DashboardCollection {
   institutionAddress: string;
   institutionLogo?: string;
   institutionBanner?: string;
+  hasCollectionBadge: boolean;
+  certificationStatus: InstitutionCertificationStatus;
   date: string;
   startTime?: Date;
   endTime?: Date;
@@ -1536,6 +1541,10 @@ export const useBloodbankStore = defineStore("bloodbank", {
                   institutionLogo: response.data.nextCollection.institutionLogo,
                   institutionBanner:
                     response.data.nextCollection.institutionBanner,
+                  hasCollectionBadge:
+                    response.data.nextCollection.hasCollectionBadge,
+                  certificationStatus:
+                    response.data.nextCollection.certificationStatus,
                   date: response.data.nextCollection.date,
                   teamName:
                     (response.data.nextCollection as any).teamName || "",

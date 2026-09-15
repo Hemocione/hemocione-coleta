@@ -68,13 +68,6 @@
                   v-if="selectedInstitution"
                   class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"
                 >
-                  <UBadge
-                    v-if="selectedInstitution.status"
-                    color="neutral"
-                    variant="subtle"
-                  >
-                    {{ institutionStatusLabel(selectedInstitution.status) }}
-                  </UBadge>
                   <span v-if="selectedInstitution.kind">
                     {{ institutionKindLabel(selectedInstitution.kind) }}
                   </span>
@@ -86,6 +79,18 @@
                         .filter(Boolean)
                         .join(" · ")
                     }}
+                  </span>
+                  <InstitutionCertificationStatus
+                    :certification-status="selectedInstitution.certificationStatus"
+                    :has-collection-badge="selectedInstitution.hasCollectionBadge"
+                    :institution-id="selectedInstitution.id"
+                    show-cta
+                  />
+                  <span
+                    v-if="selectedInstitution.certificationStatus !== 'certified'"
+                    class="text-xs text-gray-500"
+                  >
+                    Instituições com o selo de certificação têm muito mais chances de terem suas datas priorizadas pelo banco de sangue.
                   </span>
                 </div>
               </div>
@@ -452,6 +457,7 @@ import { useSchedulingStore } from "~/stores/scheduling";
 import { geocodeCep } from "~/utils/geocode";
 import { formatCnpj, isValidCnpj, normalizeCnpj } from "~/utils/cnpj";
 import { vMaska } from "maska/vue";
+import InstitutionCertificationStatus from "~/components/InstitutionCertificationStatus.vue";
 
 const route = useRoute();
 const onLogin = () => {
@@ -543,13 +549,6 @@ const institutionKindLabel = (kind: string) =>
     school: "Escola",
     university: "Universidade",
   })[kind] || kind;
-
-const institutionStatusLabel = (status: string) =>
-  ({
-    pending: "Pendente",
-    validated: "Validada",
-    rejected: "Rejeitada",
-  })[status] || status;
 
 const formatInstitutionDocument = (document: string) => {
   const formatted = formatCnpj(document);

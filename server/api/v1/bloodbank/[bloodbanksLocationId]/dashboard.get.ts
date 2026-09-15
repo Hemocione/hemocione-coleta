@@ -159,6 +159,8 @@ export default defineEventHandler(async (event) => {
           institutionAddress: institution.address || "",
           institutionLogo: institution.logo,
           institutionBanner: institution.banner,
+          hasCollectionBadge: institution.hasCollectionBadge ?? false,
+          certificationStatus: institution.certificationStatus ?? "none",
           date: availableDate.date,
           startTime: slot.startTime,
           endTime: slot.endTime,

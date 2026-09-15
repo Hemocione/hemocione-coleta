@@ -85,6 +85,12 @@
                     :has-collection-badge="selectedInstitution.hasCollectionBadge"
                     show-cta
                   />
+                  <span
+                    v-if="selectedInstitution.certificationStatus !== 'certified'"
+                    class="text-xs text-gray-500"
+                  >
+                    Instituições com o selo de certificação têm muito mais chances de terem suas datas priorizadas pelo banco de sangue.
+                  </span>
                 </div>
               </div>
             </div>

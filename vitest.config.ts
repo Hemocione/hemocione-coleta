@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     exclude: [...configDefaults.exclude, 'tests/e2e/**'],
+    setupFiles: ['./tests/setup/useRuntimeConfig.ts'],
   },
   resolve: {
     alias: {

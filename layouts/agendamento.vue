@@ -83,6 +83,7 @@
                   <InstitutionCertificationStatus
                     :certification-status="selectedInstitution.certificationStatus"
                     :has-collection-badge="selectedInstitution.hasCollectionBadge"
+                    :institution-id="selectedInstitution.id"
                     show-cta
                   />
                   <span

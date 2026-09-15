@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import InstitutionCertificationStatus from "~/components/InstitutionCertificationStatus.vue";
 
 const globalStubs = {
@@ -32,6 +32,7 @@ function mountStatus(
     certificationStatus?: "none" | "in_progress" | "certified";
     hasCollectionBadge?: boolean;
     showCta?: boolean;
+    institutionId?: string;
   } = {}
 ) {
   return mount(InstitutionCertificationStatus, {
@@ -39,6 +40,14 @@ function mountStatus(
     global: { stubs: globalStubs },
   });
 }
+
+beforeEach(() => {
+  vi.stubGlobal("useRuntimeConfig", () => ({
+    public: {
+      institutionsUrl: "https://instituicoes.d.hemocione.com.br",
+    },
+  }));
+});
 
 describe("InstitutionCertificationStatus", () => {
   it("mostra o selo para uma instituição certificada", () => {
@@ -77,22 +86,54 @@ describe("InstitutionCertificationStatus", () => {
   });
 
   it("mostra o CTA de certificação quando o processo não foi iniciado", () => {
-    const wrapper = mountStatus({ certificationStatus: "none", showCta: true });
+    const wrapper = mountStatus({
+      certificationStatus: "none",
+      showCta: true,
+      institutionId: "inst-123",
+    });
     const cta = wrapper.get('[data-testid="institution-certification-cta"]');
     const ctaButton = wrapper.getComponent({ name: "UButton" });
 
     expect(cta.text()).toBe("Iniciar processo de certificação");
     expect(ctaButton.props()).toMatchObject({
       as: "a",
-      color: "primary",
+      color: "info",
       size: "sm",
       icon: "i-lucide-arrow-up-right",
       external: true,
     });
     expect(ctaButton.props("variant")).toBeUndefined();
-    expect(cta.attributes("href")).toBe("https://instituicoes.hemocione.com.br");
+    expect(cta.attributes("href")).toBe(
+      "https://instituicoes.d.hemocione.com.br/inst-123/certificacao"
+    );
     expect(cta.attributes("target")).toBe("_blank");
     expect(cta.attributes("rel")).toBe("noopener noreferrer");
+  });
+
+  it("cai pra home do institutionsUrl quando institutionId não é passado", () => {
+    const wrapper = mountStatus({ certificationStatus: "none", showCta: true });
+    const cta = wrapper.get('[data-testid="institution-certification-cta"]');
+
+    expect(cta.attributes("href")).toBe(
+      "https://instituicoes.d.hemocione.com.br"
+    );
+  });
+
+  it("honra a runtimeConfig do ambiente (ex.: produção)", () => {
+    vi.stubGlobal("useRuntimeConfig", () => ({
+      public: { institutionsUrl: "https://instituicoes.hemocione.com.br" },
+    }));
+
+    const wrapper = mountStatus({
+      certificationStatus: "none",
+      showCta: true,
+      institutionId: "inst-xyz",
+    });
+    const cta = wrapper.get('[data-testid="institution-certification-cta"]');
+
+    expect(cta.attributes("href")).toBe(
+      "https://instituicoes.hemocione.com.br/inst-xyz/certificacao"
+    );
   });
 
   it("mostra somente o indicador neutro sem CTA", () => {

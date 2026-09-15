@@ -29,11 +29,11 @@
     <template v-else-if="props.showCta">
       <UButton
         as="a"
-        href="https://instituicoes.hemocione.com.br"
+        :href="certificationCtaHref"
         target="_blank"
         rel="noopener noreferrer"
         external
-        color="primary"
+        color="info"
         size="sm"
         icon="i-lucide-arrow-up-right"
         data-testid="institution-certification-cta"
@@ -56,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import type { InstitutionCertificationStatus } from "~/utils/institutionCertification";
 
 defineOptions({ name: "InstitutionCertificationStatus" });
@@ -65,11 +66,20 @@ const props = withDefaults(
     certificationStatus?: InstitutionCertificationStatus;
     hasCollectionBadge?: boolean;
     showCta?: boolean;
+    institutionId?: string;
   }>(),
   {
     certificationStatus: "none",
     hasCollectionBadge: false,
     showCta: false,
+    institutionId: "",
   }
 );
+
+const certificationCtaHref = computed(() => {
+  const config = useRuntimeConfig();
+  const base = config.public.institutionsUrl || "";
+  const id = props.institutionId?.trim();
+  return id ? `${base}/${id}/certificacao` : base;
+});
 </script>

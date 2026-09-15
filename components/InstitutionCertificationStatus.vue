@@ -37,6 +37,9 @@
         size="sm"
         icon="i-lucide-arrow-up-right"
         data-testid="institution-certification-cta"
+        :ui="{
+          base: 'inline-flex! items-center! gap-1.5! rounded-md! px-2.5! py-1.5! text-xs! font-medium! transition-colors! bg-(--hemo-color-link)! text-white! hover:bg-[#0050c9]! active:bg-[#0050c9]! focus-visible:outline-(--hemo-color-link)!',
+        }"
       >
         Iniciar processo de certificação
       </UButton>

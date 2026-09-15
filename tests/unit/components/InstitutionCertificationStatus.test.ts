@@ -21,6 +21,7 @@ const globalStubs = {
       href: String,
       target: String,
       rel: String,
+      ui: Object,
     },
     template:
       '<a v-bind="$attrs" :href="href" :target="target" :rel="rel"><slot /></a>',
@@ -102,6 +103,11 @@ describe("InstitutionCertificationStatus", () => {
       icon: "i-lucide-arrow-up-right",
       external: true,
     });
+    const ui = ctaButton.props("ui") as { base: string };
+    expect(ui.base).toContain("bg-(--hemo-color-link)!");
+    expect(ui.base).toContain("text-white!");
+    expect(ui.base).toContain("hover:bg-[#0050c9]!");
+    expect(ui.base).toContain("inline-flex!");
     expect(ctaButton.props("variant")).toBeUndefined();
     expect(cta.attributes("href")).toBe(
       "https://instituicoes.d.hemocione.com.br/inst-123/certificacao"
